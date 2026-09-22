@@ -27,9 +27,6 @@ public class UserUpdater : IUserUpdater
         var role = await _context.Roles
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Key == "super_admin");
-        var organization = await _context.Organizations
-            .AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Name.ToLower() == "national");
 
         string authUserId;
         var existingClerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(config.Email);
@@ -41,7 +38,6 @@ public class UserUpdater : IUserUpdater
                 PublicMetadata = new Dictionary<string, object>
                 {
                     { "role", role?.Key ?? "super_admin" },
-                    { "organization", organization?.Name ?? "national" },
                     { "isDefaultAdmin", true }
                 }
             };
@@ -58,7 +54,6 @@ public class UserUpdater : IUserUpdater
                 PublicMetadata = new Dictionary<string, object>
                 {
                     { "role", role?.Key ?? "super_admin" },
-                    { "organization", organization?.Name ?? "national" },
                     { "isDefaultAdmin", true }
                 },
                 PrivateMetadata = new Dictionary<string, object>
@@ -82,7 +77,6 @@ public class UserUpdater : IUserUpdater
             userToUpdate.FirstName = config.FirstName;
             userToUpdate.LastName = config.LastName;
             if (role != null) userToUpdate.RoleId = role.Id;
-            if (organization != null) userToUpdate.OrganizationId = organization.Id;
             userToUpdate.UpdatedAt = DateTime.UtcNow;
             userToUpdate.UpdatedBy = "System";
 

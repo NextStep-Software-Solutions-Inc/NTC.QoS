@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Interfaces;
 using System.Text;
 using System.Text.Json;
@@ -188,5 +188,104 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
         }
 
         _logger.LogInformation("Clerk metadata update successful for user {UserId}. Response: {Response}", userId, responseBody);
+    }
+
+    public async Task<ClerkInvitationResponse> CreateInvitationAsync(CreateClerkInvitationPayload payload)
+    {
+        var requestObject = new
+        {
+            email_address = payload.EmailAddress,
+            redirect_url = payload.RedirectUrl,
+            public_metadata = payload.PublicMetadata,
+            notify = payload.Notify,
+            ignore_existing = payload.IgnoreExisting
+        };
+
+        string jsonPayload = JsonSerializer.Serialize(requestObject, RequestSerializerOptions);
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await _httpClient.PostAsync("invitations", content);
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var parsed = TryParseError(responseBody);
+            if (parsed != null)
+            {
+                foreach (var err in parsed.Errors ?? new())
+                {
+                    _logger.LogError("Clerk create invitation error code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status} email={Email}",
+                        err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode, payload.EmailAddress);
+                }
+
+                var firstError = parsed.Errors?.FirstOrDefault()?.Message ?? "Failed to create invitation in Clerk.";
+                throw new InvalidOperationException(firstError);
+            }
+
+            _logger.LogError("Clerk create invitation failed. Status: {Status} Body: {Body}", response.StatusCode, responseBody);
+            throw new InvalidOperationException($"Clerk create invitation failed: {(int)response.StatusCode} {response.StatusCode}");
+        }
+
+        _logger.LogInformation("Clerk invitation created successfully for {Email}", payload.EmailAddress);
+        var invitationResponse = JsonSerializer.Deserialize<ClerkInvitationResponse>(responseBody, ResponseSerializerOptions);
+        return invitationResponse ?? throw new InvalidOperationException("Failed to deserialize Clerk invitation response.");
+    }
+
+    public async Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status = null)
+    {
+        string endpoint = string.IsNullOrWhiteSpace(status) ? "invitations" : $"invitations?status={Uri.EscapeDataString(status)}";
+        HttpResponseMessage response = await _httpClient.GetAsync(endpoint);
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var parsed = TryParseError(responseBody);
+            if (parsed != null)
+            {
+                foreach (var err in parsed.Errors ?? new())
+                {
+                    _logger.LogError("Clerk get invitations error code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status}",
+                        err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode);
+                }
+
+                var firstError = parsed.Errors?.FirstOrDefault()?.Message ?? "Failed to retrieve invitations from Clerk.";
+                throw new InvalidOperationException(firstError);
+            }
+
+            _logger.LogError("Clerk get invitations failed. Status: {Status} Body: {Body}", response.StatusCode, responseBody);
+            throw new InvalidOperationException($"Clerk get invitations failed: {(int)response.StatusCode} {response.StatusCode}");
+        }
+
+        var invitations = JsonSerializer.Deserialize<List<ClerkInvitationResponse>>(responseBody, ResponseSerializerOptions);
+        return invitations ?? new List<ClerkInvitationResponse>();
+    }
+
+    public async Task<ClerkInvitationResponse> RevokeInvitationAsync(string invitationId)
+    {
+        HttpResponseMessage response = await _httpClient.PostAsync($"invitations/{Uri.EscapeDataString(invitationId)}/revoke", null);
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var parsed = TryParseError(responseBody);
+            if (parsed != null)
+            {
+                foreach (var err in parsed.Errors ?? new())
+                {
+                    _logger.LogError("Clerk revoke invitation error code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status} id={Id}",
+                        err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode, invitationId);
+                }
+
+                var firstError = parsed.Errors?.FirstOrDefault()?.Message ?? "Failed to revoke invitation in Clerk.";
+                throw new InvalidOperationException(firstError);
+            }
+
+            _logger.LogError("Clerk revoke invitation failed. Status: {Status} Body: {Body}", response.StatusCode, responseBody);
+            throw new InvalidOperationException($"Clerk revoke invitation failed: {(int)response.StatusCode} {response.StatusCode}");
+        }
+
+        _logger.LogInformation("Clerk invitation revoked successfully for {InvitationId}", invitationId);
+        var invitationResponse = JsonSerializer.Deserialize<ClerkInvitationResponse>(responseBody, ResponseSerializerOptions);
+        return invitationResponse ?? throw new InvalidOperationException("Failed to deserialize revoked invitation response.");
     }
 }

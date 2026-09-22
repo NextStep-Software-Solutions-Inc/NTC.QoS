@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -12,7 +13,8 @@ public class CreateSessionHandler(IUserRepository userRepository, IClerkUserServ
 
     public async Task<ApiResponse<bool>> Handle(CreateSessionRequest request, CancellationToken cancellationToken)
     {
-        var userQuery = _userRepository.Query(u => u.AuthUserId == request.AuthUserId && !u.IsDeleted);
+        var userQuery = _userRepository.Query(u => u.AuthUserId == request.AuthUserId && !u.IsDeleted)
+            .Include(u => u.Role);
         var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
 
         if (user is null)
@@ -24,17 +26,13 @@ public class CreateSessionHandler(IUserRepository userRepository, IClerkUserServ
             };
         }
 
-        var permissions = user.Role?.RolePermissions?
-            .Where(rp => !rp.IsDeleted && rp.Permission != null && !rp.Permission.IsDeleted)
-            .Select(rp => rp.Permission!.Key)
-            .ToList() ?? [];
+        var permissions = user.Role?.Permissions ?? [];
 
         await _clerkUserService.UpdateUserMetadataAsync(user.AuthUserId, new UserMetadataPayload
         {
             PublicMetadata = new Dictionary<string, object>
             {
                 { "role", user.Role?.Key ?? "unknown" },
-                { "organization", user.Organization?.Name ?? "unknown" },
                 { "permissions", permissions }
             }
         });

@@ -52,34 +52,44 @@ public class GetAllUserRegionsHandler(IUserRegionRepository userRegionRepository
         {
             Id = ur.Id,
             Status = ur.Status,
-            User = new()
+            RoleId = ur.RoleId,
+            Role = ur.Role != null ? new()
+            {
+                Id = ur.Role.Id,
+                Name = ur.Role.Name,
+                Key = ur.Role.Key,
+                Description = ur.Role.Description,
+                IsSystemRole = ur.Role.IsSystemRole,
+                Scope = ur.Role.Scope,
+                RegionId = ur.Role.RegionId,
+                Permissions = ur.Role.Permissions
+            } : null,
+            User = ur.User != null ? new()
             {
                 Id = ur.User.Id,
                 AuthUserId = ur.User.AuthUserId,
                 FirstName = ur.User.FirstName,
                 LastName = ur.User.LastName,
                 Email = ur.User.Email,
-                Role = new()
+                Role = ur.User.Role != null ? new()
                 {
                     Id = ur.User.RoleId,
                     Name = ur.User.Role.Name,
                     Key = ur.User.Role.Key,
-                    Description = ur.User.Role.Description
-                },
-                Organization = new()
-                {
-                    Id = ur.User.OrganizationId,
-                    Name = ur.User.Organization.Name,
-                    Description = ur.User.Organization.Description
-                }
-            },
-            Region = new()
+                    Description = ur.User.Role.Description,
+                    IsSystemRole = ur.User.Role.IsSystemRole,
+                    Scope = ur.User.Role.Scope,
+                    RegionId = ur.User.Role.RegionId,
+                    Permissions = ur.User.Role.Permissions
+                } : null
+            } : null,
+            Region = ur.Region != null ? new()
             {
                 Id = ur.Region.Id,
                 Name = ur.Region.Name,
                 Code = ur.Region.Code,
                 Description = ur.Region.Description
-            }
+            } : null
         });
 
         return await _userRegionRepository.PaginateAsync(userRegions, pageNumber: request.PageNumber, pageSize: request.PageSize, cancellationToken);

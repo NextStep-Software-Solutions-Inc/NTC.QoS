@@ -15,22 +15,25 @@ public class UpdateUserByIdHandlerTests
 {
     private readonly Mock<IUserRepository> _userRepositoryMock;
     private readonly Mock<IRepository<Role>> _roleRepositoryMock;
-    private readonly Mock<IRepository<Organization>> _organizationRepositoryMock;
     private readonly Mock<IUserRegionService> _userRegionServiceMock;
+    private readonly Mock<IUserContextService> _userContextServiceMock;
+    private readonly Mock<IUserAuthorizationService> _userAuthorizationServiceMock;
     private readonly UpdateUserByIdHandler _handler;
 
     public UpdateUserByIdHandlerTests()
     {
         _userRepositoryMock = new Mock<IUserRepository>();
         _roleRepositoryMock = new Mock<IRepository<Role>>();
-        _organizationRepositoryMock = new Mock<IRepository<Organization>>();
         _userRegionServiceMock = new Mock<IUserRegionService>();
+        _userContextServiceMock = new Mock<IUserContextService>();
+        _userAuthorizationServiceMock = new Mock<IUserAuthorizationService>();
 
         _handler = new UpdateUserByIdHandler(
             _userRepositoryMock.Object,
             _roleRepositoryMock.Object,
-            _organizationRepositoryMock.Object,
-            _userRegionServiceMock.Object);
+            _userRegionServiceMock.Object,
+            _userContextServiceMock.Object,
+            _userAuthorizationServiceMock.Object);
     }
 
     [Fact]
@@ -50,7 +53,6 @@ public class UpdateUserByIdHandlerTests
         {
             Id = userId,
             RoleId = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
             Email = "user@example.com",
             FirstName = "Test",
             LastName = "User"
@@ -68,6 +70,9 @@ public class UpdateUserByIdHandlerTests
         _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(superAdminRole);
 
+        _userAuthorizationServiceMock.Setup(a => a.HasRoleAsync(Roles.SuperAdmin, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
         var request = new UpdateUserByIdRequest(userId, new UpdateUserDto
         {
             RoleId = superAdminRoleId
@@ -79,17 +84,13 @@ public class UpdateUserByIdHandlerTests
         // Assert
         result.Succeeded.Should().BeTrue();
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
-        _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]
-    [InlineData(Roles.Admin)]
-    [InlineData(Roles.FieldOfficer)]
-    [InlineData(Roles.User)]
-    [InlineData(Roles.Manager)]
-    [InlineData(Roles.RegionalManager)]
+    [InlineData(Roles.RegionalAdmin)]
+    [InlineData(Roles.RegionalStaff)]
     [InlineData(Roles.Viewer)]
-    public async Task Handle_WhenUserUpdatedToNonSuperAdminRole_CallsDeleteAllRegionsForUserAsync(string roleKey)
+    public async Task Handle_WhenUserUpdatedToNonSuperAdminRole_DoesNotDeleteUserRegions(string roleKey)
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -105,7 +106,6 @@ public class UpdateUserByIdHandlerTests
         {
             Id = userId,
             RoleId = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
             Email = "user@example.com"
         };
 
@@ -131,7 +131,7 @@ public class UpdateUserByIdHandlerTests
 
         // Assert
         result.Succeeded.Should().BeTrue();
-        _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
+        _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -144,7 +144,6 @@ public class UpdateUserByIdHandlerTests
         {
             Id = userId,
             RoleId = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid(),
             Email = "user@example.com",
             FirstName = "OldName"
         };
@@ -168,5 +167,41 @@ public class UpdateUserByIdHandlerTests
         result.Succeeded.Should().BeTrue();
         _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenUserAttemptsToChangeOwnRole_ReturnsErrorAndBlocksChange()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var authUserId = "auth_current_user_123";
+        var existingUser = new User
+        {
+            Id = userId,
+            AuthUserId = authUserId,
+            RoleId = Guid.NewGuid(),
+            Email = "self@example.com"
+        };
+
+        var users = new List<User> { existingUser };
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns<Expression<Func<User, bool>>>(expr => users.AsQueryable().Where(expr));
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<User> q, CancellationToken ct) => q.FirstOrDefault());
+
+        _userContextServiceMock.Setup(c => c.GetCurrentUserId()).Returns(authUserId);
+
+        var request = new UpdateUserByIdRequest(userId, new UpdateUserDto
+        {
+            RoleId = Guid.NewGuid() // Attempting to change own role
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("cannot modify your own role");
+        _userRepositoryMock.Verify(r => r.Update(It.IsAny<User>()), Times.Never);
     }
 }

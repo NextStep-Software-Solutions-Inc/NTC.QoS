@@ -48,7 +48,7 @@ export default function UserManagementPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Manage users, roles, and organizations</p>
+          <p className="text-muted-foreground">Manage users, roles, and regional access</p>
         </div>
         <Button onClick={() => setInviteDialogOpen(true)} className="gap-2">
           <Edit className="h-4 w-4" />
@@ -62,7 +62,7 @@ export default function UserManagementPage() {
             <Users className="h-5 w-5" />
             Users ({users.length})
           </CardTitle>
-          <CardDescription>Manage user roles and organizations</CardDescription>
+          <CardDescription>Manage user roles and regional jurisdictions</CardDescription>
         </CardHeader>
         <CardContent>
           {usersLoading ? (
@@ -73,7 +73,6 @@ export default function UserManagementPage() {
                 <TableRow>
                   <TableHead>User ID</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Organization</TableHead>
                   <TableHead>Regions</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -90,10 +89,7 @@ export default function UserManagementPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{user.role.name}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user.organization.name}</Badge>
+                      <Badge variant="secondary">{user.role?.name || "No Role"}</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">

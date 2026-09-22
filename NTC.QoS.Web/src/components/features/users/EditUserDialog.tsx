@@ -3,8 +3,6 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 
-import { getAllOrganizationsRequest } from "@/components/features/users/handlers/getAllOrganizationsRequest";
-import type { Organization } from "@/components/features/users/handlers/getAllOrganizationsRequest";
 import { getAllRolesRequest } from "@/components/features/users/handlers/getAllRolesRequest";
 import type { Role } from "@/components/features/users/handlers/getAllRolesRequest";
 import { updateUserRequest } from "@/components/features/users/handlers/updateUserRequest";
@@ -16,9 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 
+import { usePermissions } from "@/providers/PermissionsContext";
+
 const useUpdateUser = createMutationHookFromTemplate(updateUserRequest);
 const useGetAllRoles = createQueryHookFromTemplate(getAllRolesRequest);
-const useGetAllOrganizations = createQueryHookFromTemplate(getAllOrganizationsRequest);
 
 interface EditUserDialogProps {
   open: boolean;
@@ -28,33 +27,31 @@ interface EditUserDialogProps {
 }
 
 export function EditUserDialog({ open, onOpenChange, user, onSuccess }: EditUserDialogProps) {
-  const [form, setForm] = useState({ roleId: "", organizationId: "" });
+  const { currentUser } = usePermissions();
+  const isSelf = Boolean(currentUser && user && currentUser.id === user.id);
+  const [form, setForm] = useState({ roleId: "" });
 
   const { data: rolesData } = useGetAllRoles({ pathParams: {}, queryParams: {} });
-
-  const { data: organizationsData } = useGetAllOrganizations({ pathParams: {}, queryParams: {} });
-
   const updateUserMutation = useUpdateUser();
 
   const roles = rolesData?.data ?? [];
-  const organizations = organizationsData?.data ?? [];
 
   // Update form when user changes
   React.useEffect(() => {
     if (user) {
-      setForm({ roleId: user.role.id, organizationId: user.organization.id });
+      setForm({ roleId: user.role?.id ?? "" });
     }
   }, [user]);
 
   const handleSubmit = async () => {
-    if (!user || !form.roleId || !form.organizationId) {
-      toast.error("Please fill in all fields");
+    if (!user || !form.roleId) {
+      toast.error("Please select a role");
       return;
     }
 
     try {
-      await updateUserMutation.mutateAsync({ pathParams: { id: user.id }, payload: form });
-      toast.success("User updated successfully!");
+      await updateUserMutation.mutateAsync({ pathParams: { id: user.id }, payload: { roleId: form.roleId } });
+      toast.success("User role updated successfully!");
       onOpenChange(false);
       onSuccess();
     } catch {
@@ -63,7 +60,7 @@ export function EditUserDialog({ open, onOpenChange, user, onSuccess }: EditUser
   };
 
   const handleCancel = () => {
-    setForm({ roleId: user?.role.id ?? "", organizationId: user?.organization.id ?? "" });
+    setForm({ roleId: user?.role?.id ?? "" });
     onOpenChange(false);
   };
 
@@ -72,8 +69,14 @@ export function EditUserDialog({ open, onOpenChange, user, onSuccess }: EditUser
       open={open}
       onOpenChange={onOpenChange}
       title="Edit User"
-      description="Update user role and organization">
+      description="Update user primary system role">
       <div className="space-y-4">
+        {isSelf && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md text-xs text-amber-700 dark:text-amber-400">
+            <strong>Self-Management Restriction:</strong> You cannot modify your own role. Another administrator must make these changes.
+          </div>
+        )}
+
         <div>
           <Label>User ID</Label>
           <div className="font-mono text-sm bg-muted px-3 py-2 rounded-md">{user?.authUserId}</div>
@@ -81,8 +84,11 @@ export function EditUserDialog({ open, onOpenChange, user, onSuccess }: EditUser
 
         <div>
           <Label htmlFor="edit-role">Role</Label>
-          <Select value={form.roleId} onValueChange={(value) => setForm((prev) => ({ ...prev, roleId: value }))}>
-            <SelectTrigger>
+          <Select
+            value={form.roleId}
+            onValueChange={(value) => setForm((prev) => ({ ...prev, roleId: value }))}
+            disabled={isSelf}>
+            <SelectTrigger id="edit-role">
               <SelectValue placeholder="Select a role" />
             </SelectTrigger>
             <SelectContent>
@@ -95,30 +101,12 @@ export function EditUserDialog({ open, onOpenChange, user, onSuccess }: EditUser
           </Select>
         </div>
 
-        <div>
-          <Label htmlFor="edit-organization">Organization</Label>
-          <Select
-            value={form.organizationId}
-            onValueChange={(value) => setForm((prev) => ({ ...prev, organizationId: value }))}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select an organization" />
-            </SelectTrigger>
-            <SelectContent>
-              {organizations.map((org: Organization) => (
-                <SelectItem key={org.id} value={org.id}>
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={updateUserMutation.isPending}>
-            {updateUserMutation.isPending ? "Updating..." : "Update User"}
+          <Button onClick={handleSubmit} disabled={isSelf || updateUserMutation.isPending}>
+            {updateUserMutation.isPending ? "Updating..." : "Update Role"}
           </Button>
         </div>
       </div>

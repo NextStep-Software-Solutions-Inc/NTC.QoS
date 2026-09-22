@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -18,11 +18,6 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             query = query.Where(u => u.RoleId == request.RoleId.Value);
         }
 
-        if (request.OrganizationId.HasValue)
-        {
-            query = query.Where(u => u.OrganizationId == request.OrganizationId.Value);
-        }
-
         if (request.RegionIds is not null && request.RegionIds.Count > 0)
         {
             query = query.Where(u => u.UserRegions.Any(ur => request.RegionIds.Contains(ur.RegionId)));
@@ -37,24 +32,27 @@ public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<Ge
             query = _repository.ApplySearch(query, request.Search, u => u.FirstName, u => u.LastName, u => u.Email);
         }
 
+        if (!string.IsNullOrEmpty(request.Email))
+        {
+            query = query.Where(u => u.Email.ToLower() == request.Email.ToLower());
+        }
+
         var userDtosQuery = query
             .OrderBy(u => u.CreatedAt)
             .Select(u => new UserDto
             {
                 Id = u.Id,
-                Role = new()
+                Role = u.Role != null ? new()
                 {
                     Id = u.RoleId,
-                    Name = u.Role != null ? u.Role.Name : string.Empty,
-                    Key = u.Role != null ? u.Role.Key : string.Empty,
-                    Description = u.Role != null ? u.Role.Description ?? string.Empty : string.Empty
-                },
-                Organization = new()
-                {
-                    Id = u.OrganizationId,
-                    Name = u.Organization != null ? u.Organization.Name : string.Empty,
-                    Description = u.Organization != null ? u.Organization.Description ?? string.Empty : string.Empty
-                },
+                    Name = u.Role.Name,
+                    Key = u.Role.Key,
+                    Description = u.Role.Description ?? string.Empty,
+                    IsSystemRole = u.Role.IsSystemRole,
+                    Scope = u.Role.Scope,
+                    RegionId = u.Role.RegionId,
+                    Permissions = u.Role.Permissions
+                } : null,
                 AuthUserId = u.AuthUserId,
                 Email = u.Email,
                 FirstName = u.FirstName,

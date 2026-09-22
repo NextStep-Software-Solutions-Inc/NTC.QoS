@@ -153,7 +153,6 @@ public static class InfrastructureDependencyInjection
 
         var seeders = new (string Name, Func<Task> SeedAction)[]
         {
-            ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
             ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
             ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger)),
             ("User Data", async () =>

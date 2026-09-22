@@ -52,7 +52,6 @@ public class UserProvisioningServiceTests
             AuthUserId = authUserId,
             Email = "existing@example.com",
             Role = null,
-            Organization = null,
             FirstName = "Existing",
             LastName = "User"
         };
@@ -102,7 +101,6 @@ public class UserProvisioningServiceTests
             AuthUserId = authUserId,
             Email = "new@example.com",
             Role = null,
-            Organization = null,
             FirstName = "New",
             LastName = "User"
         };
@@ -179,8 +177,7 @@ public class UserProvisioningServiceTests
                     Id = existingUserId,
                     AuthUserId = authUserId,
                     Email = "updated@example.com",
-                    Role = null,
-                    Organization = null
+                    Role = null
                 }
             });
 

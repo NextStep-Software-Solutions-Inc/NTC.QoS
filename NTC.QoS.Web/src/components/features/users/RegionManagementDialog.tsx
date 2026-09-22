@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { extractErrorMessage } from "@/lib/extract-error-message";
+import { usePermissions } from "@/providers/PermissionsContext";
 import { getUserRegionsRequest } from "../user-region/handlers/getUserRegionsRequest";
 import { updateUserRegionStatusRequest } from "../user-region/handlers/updateUserRegionStatusRequest";
 
@@ -37,6 +38,8 @@ interface RegionManagementDialogProps {
 
 export function RegionManagementDialog({ open, onOpenChange, user, onSuccess }: RegionManagementDialogProps) {
   const queryClient = useQueryClient();
+  const { currentUser } = usePermissions();
+  const isSelf = Boolean(currentUser && user && currentUser.id === user.id);
   const [form, setForm] = useState({ regionId: "", status: "active" });
 
   const { data: regionsData } = useGetRegions({ pathParams: {}, queryParams: { pageNumber: 1, pageSize: 20 } });
@@ -130,6 +133,12 @@ export function RegionManagementDialog({ open, onOpenChange, user, onSuccess }: 
       description="Assign or remove regions for this user"
       className="sm:max-w-[600px]">
       <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+        {isSelf && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md text-xs text-amber-700 dark:text-amber-400">
+            <strong>Self-Approval Restriction:</strong> You cannot activate or alter the approval status of your own region access requests. Another administrator must review your access.
+          </div>
+        )}
+
         <div>
           <Label>User</Label>
           <div className="font-mono text-sm bg-muted px-3 py-2 rounded-md break-all">{user?.authUserId}</div>
@@ -140,51 +149,54 @@ export function RegionManagementDialog({ open, onOpenChange, user, onSuccess }: 
           <Label>Current Regions</Label>
           <div className="space-y-2 mt-2 max-h-[200px] overflow-y-auto">
             {userRegions && userRegions.length > 0 ? (
-              userRegions.map((userRegion: UserRegion) => (
-                <div key={userRegion.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded-md">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Badge variant={userRegion.status === "active" ? "default" : "secondary"} className="shrink-0">
-                      {userRegion.region.name}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground truncate">
-                      {userRegion.region.code} • {userRegion.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {userRegion.status === "Pending" && (
+              userRegions.map((userRegion: UserRegion) => {
+                const statusLower = userRegion.status?.toLowerCase() ?? "";
+                return (
+                  <div key={userRegion.id} className="flex items-center justify-between gap-2 p-2 bg-muted rounded-md">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Badge variant={statusLower === "active" ? "default" : "secondary"} className="shrink-0">
+                        {userRegion.region.name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {userRegion.region.code} • {userRegion.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {statusLower === "pending" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleActivateRegion(userRegion.id, true)}
+                          disabled={isSelf || updateUserRegionStatusMutation.isPending}
+                          className="text-green-600 hover:text-green-700 h-8 px-2"
+                          title={isSelf ? "Cannot self-approve region access" : "Activate region"}>
+                          Activate
+                        </Button>
+                      )}
+                      {statusLower === "active" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleActivateRegion(userRegion.id, false)}
+                          disabled={isSelf || updateUserRegionStatusMutation.isPending}
+                          className="text-orange-600 hover:text-orange-700 h-8 px-2"
+                          title={isSelf ? "Cannot self-modify region status" : "Deactivate region"}>
+                          Deactivate
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleActivateRegion(userRegion.id, true)}
-                        disabled={updateUserRegionStatusMutation.isPending}
-                        className="text-green-600 hover:text-green-700 h-8 px-2"
-                        title="Activate region">
-                        Activate
+                        onClick={() => handleRemoveRegion(userRegion.id)}
+                        disabled={removeUserRegionMutation.isPending}
+                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                        title="Remove region">
+                        <X className="h-4 w-4" />
                       </Button>
-                    )}
-                    {userRegion.status === "Active" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleActivateRegion(userRegion.id, false)}
-                        disabled={updateUserRegionStatusMutation.isPending}
-                        className="text-orange-600 hover:text-orange-700 h-8 px-2"
-                        title="Deactivate region">
-                        Deactivate
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveRegion(userRegion.id)}
-                      disabled={removeUserRegionMutation.isPending}
-                      className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                      title="Remove region">
-                      <X className="h-4 w-4" />
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-sm text-muted-foreground p-2 bg-muted rounded-md">
                 No regions assigned to this user

@@ -15,7 +15,11 @@ public class InviteUserRequestValidator : AbstractValidator<InviteUserRequest>
         RuleFor(x => x.User.RoleId)
             .NotEmpty().WithMessage("RoleId is required.");
 
-        RuleFor(x => x.User.OrganizationId)
-            .NotEmpty().WithMessage("OrganizationId is required.");
+        RuleForEach(x => x.User.Regions)
+            .ChildRules(region =>
+            {
+                region.RuleFor(r => r.RegionId)
+                    .NotEmpty().WithMessage("RegionId is required for each region assignment.");
+            });
     }
 }

@@ -47,12 +47,6 @@ public interface IUserAuthorizationService
     Task<bool> HasRoleAsync(string role, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks if the current user belongs to the specified organization
-    /// </summary>
-    /// <param name="organizationId">Organization ID to check</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if user belongs to organization, false otherwise</returns>
-    Task<bool> BelongsToOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the regions accessible by the current user
@@ -75,11 +69,4 @@ public interface IUserAuthorizationService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of permission keys</returns>
     Task<List<string>> GetUserPermissionsAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets the current user's organization ID
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Organization ID or null if not found</returns>
-    Task<Guid?> GetUserOrganizationIdAsync(CancellationToken cancellationToken = default);
 }

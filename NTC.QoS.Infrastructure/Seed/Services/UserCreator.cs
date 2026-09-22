@@ -24,9 +24,8 @@ public class UserCreator : IUserCreator
     {
         _logger.LogInformation("Creating default admin user with email: {Email}", config.Email);
 
-        // Get the SuperAdmin role and National organization
+        // Get the SuperAdmin role
         var superAdminRole = await GetSuperAdminRoleAsync();
-        var nationalOrganization = await GetNationalOrganizationAsync();
 
         // Check if user already exists in Clerk
         _logger.LogInformation("Checking if user already exists in Clerk with email: {Email}", config.Email);
@@ -37,13 +36,12 @@ public class UserCreator : IUserCreator
             authUserId = existingClerkUsers[0].Id;
             _logger.LogInformation("Found existing user in Clerk with ID: {ClerkUserId}. Reusing Clerk account.", authUserId);
 
-            // Update metadata to ensure proper role and organization assignment
+            // Update metadata to ensure proper role assignment
             var metadataPayload = new UserMetadataPayload
             {
                 PublicMetadata = new Dictionary<string, object>
                 {
                     { "role", superAdminRole.Key },
-                    { "organization", nationalOrganization.Name },
                     { "isDefaultAdmin", true }
                 }
             };
@@ -62,7 +60,6 @@ public class UserCreator : IUserCreator
                 PublicMetadata = new Dictionary<string, object>
                 {
                     { "role", superAdminRole.Key },
-                    { "organization", nationalOrganization.Name },
                     { "isDefaultAdmin", true }
                 },
                 PrivateMetadata = new Dictionary<string, object>
@@ -83,7 +80,6 @@ public class UserCreator : IUserCreator
         {
             Id = UserSeeder.DefaultAdminUserId,
             RoleId = superAdminRole.Id,
-            OrganizationId = nationalOrganization.Id,
             AuthUserId = authUserId,
             Email = config.Email,
             CreatedAt = DateTime.UtcNow,
@@ -181,21 +177,5 @@ public class UserCreator : IUserCreator
         }
 
         return superAdminRole;
-    }
-
-    private async Task<Organization> GetNationalOrganizationAsync()
-    {
-        var nationalOrganization = await _context.Organizations.AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Name.ToLower() == "national");
-
-        if (nationalOrganization == null)
-        {
-            throw new InvalidOperationException(
-                "CRITICAL ERROR: National organization not found in database. " +
-                "Cannot create default admin user without National organization. " +
-                "Ensure organization seeding has completed successfully before user seeding.");
-        }
-
-        return nationalOrganization;
     }
 }

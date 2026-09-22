@@ -1,21 +1,24 @@
 using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
-public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
-                               IRepository<Domain.Entities.Role> roleRepository,
-                               IRepository<Domain.Entities.Organization> organizationRepository,
-                               IUserRegionService userRegionService) : IRequestHandler<CreateUserRequest, ApiResponse<UserDto>>
+public class CreateUserHandler(
+    IRepository<Domain.Entities.User> userRepository,
+    IRepository<Domain.Entities.Role> roleRepository,
+    IUserRegionService userRegionService,
+    IUserRegionRepository userRegionRepository) : IRequestHandler<CreateUserRequest, ApiResponse<UserDto>>
 {
     private readonly IRepository<Domain.Entities.User> _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
-    private readonly IRepository<Domain.Entities.Organization> _organizationRepository = organizationRepository;
     private readonly IUserRegionService _userRegionService = userRegionService;
+    private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
 
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
@@ -55,27 +58,7 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             }
         }
 
-        // Step 3: Get default organization if not provided
-        Domain.Entities.Organization? defaultOrg = null;
-        if (request.User.OrganizationId == Guid.Empty)
-        {
-            defaultOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Name == "public"), cancellationToken);
-
-            if (defaultOrg == null)
-            {
-                return new ApiResponse<UserDto>
-                {
-                    Succeeded = false,
-                    Message = "Default public organization name not found.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "Organization", ["Default 'public' organization name not found in database"] }
-                    }
-                };
-            }
-        }
-
-        // Step 4: Validate explicit role if provided
+        // Step 3: Validate explicit role if provided
         Domain.Entities.Role? providedRole = null;
         if (request.User.RoleId != Guid.Empty)
         {
@@ -95,34 +78,12 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
             }
         }
 
-        // Step 5: Validate explicit organization if provided
-        if (request.User.OrganizationId != Guid.Empty)
-        {
-            var providedOrg = await _organizationRepository.FirstOrDefaultAsync(_organizationRepository.Query(o => o.Id == request.User.OrganizationId), cancellationToken);
-
-            if (providedOrg == null)
-            {
-                return new ApiResponse<UserDto>
-                {
-                    Succeeded = false,
-                    Message = "Organization not found.",
-                    Errors = new Dictionary<string, string[]>
-                    {
-                        { "OrganizationId", ["Organization with the specified Id does not exist."] }
-                    }
-                };
-            }
-        }
-
-        // Step 6: Assign final IDs
         Guid roleId = request.User.RoleId == Guid.Empty ? defaultRole!.Id : request.User.RoleId;
-        Guid organizationId = request.User.OrganizationId == Guid.Empty ? defaultOrg!.Id : request.User.OrganizationId;
 
-        // Step 7: Create the user
+        // Step 4: Create the user
         var newUser = new Domain.Entities.User
         {
             RoleId = roleId,
-            OrganizationId = organizationId,
             AuthUserId = request.User.AuthUserId,
             Email = request.User.Email,
             FirstName = request.User.FirstName,
@@ -132,14 +93,31 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
         _userRepository.Add(newUser);
         await _userRepository.SaveChangesAsync(cancellationToken);
 
-        // Step 8: Auto-assign active regions if user has SuperAdmin role
+        // Step 5: Auto-assign active regions if user has SuperAdmin role, or assign specified regions
         var effectiveRole = providedRole ?? defaultRole;
         if (Roles.IsSuperAdmin(effectiveRole))
         {
             await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
         }
+        else if (request.User.Regions is { Count: > 0 })
+        {
+            var userRegions = request.User.Regions
+                .GroupBy(r => r.RegionId)
+                .Select(g => g.First())
+                .Select(r => new Domain.Aggregates.UserRegion
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = newUser.Id,
+                    RegionId = r.RegionId,
+                    RoleId = r.RoleId ?? newUser.RoleId,
+                    Status = string.IsNullOrWhiteSpace(r.Status) ? UserRegionStatus.Active.ToString() : r.Status
+                }).ToList();
 
-        // Step 9: Return success response
+            _userRegionRepository.AddRange(userRegions);
+            await _userRegionRepository.SaveChangesAsync(cancellationToken);
+        }
+
+        // Step 6: Return success response
         return new ApiResponse<UserDto>
         {
             Data = new UserDto
@@ -147,16 +125,10 @@ public class CreateUserHandler(IRepository<Domain.Entities.User> userRepository,
                 Id = newUser.Id,
                 Role = new()
                 {
-                    Id = newUser.Role?.Id ?? Guid.Empty,
-                    Name = newUser.Role?.Name ?? string.Empty,
-                    Key = newUser.Role?.Key ?? string.Empty,
-                    Description = newUser.Role?.Description ?? string.Empty
-                },
-                Organization = new()
-                {
-                    Id = newUser.Organization?.Id ?? Guid.Empty,
-                    Name = newUser.Organization?.Name ?? string.Empty,
-                    Description = newUser.Organization?.Description ?? string.Empty
+                    Id = effectiveRole?.Id ?? newUser.RoleId,
+                    Name = effectiveRole?.Name ?? string.Empty,
+                    Key = effectiveRole?.Key ?? string.Empty,
+                    Description = effectiveRole?.Description ?? string.Empty
                 },
                 AuthUserId = newUser.AuthUserId,
                 Email = newUser.Email,

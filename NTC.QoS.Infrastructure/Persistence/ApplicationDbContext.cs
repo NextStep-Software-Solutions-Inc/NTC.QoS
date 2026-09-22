@@ -45,10 +45,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Technology> Technologies { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<UserType> UserTypes { get; set; }
-    public DbSet<Organization> Organizations { get; set; }
     public DbSet<Role> Roles { get; set; }
-    public DbSet<Permission> Permissions { get; set; }
-    public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
@@ -398,60 +395,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(u => u.RoleId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<User>()
-            .HasOne(u => u.Organization)
-            .WithMany(o => o.Users)
-            .HasForeignKey(u => u.OrganizationId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<Organization>()
-            .HasMany(o => o.Users);
-
-        modelBuilder.Entity<Organization>()
-            .HasIndex(o => o.Name)
-            .IsUnique()
-            .HasFilter("\"IsDeleted\" = FALSE");
-
         modelBuilder.Entity<Role>()
             .HasMany(r => r.Users);
-
-        modelBuilder.Entity<Permission>()
-            .HasIndex(p => p.Key)
-            .IsUnique();
-
-        modelBuilder.Entity<Role>()
-            .HasMany(r => r.RolePermissions)
-            .WithOne(rp => rp.Role)
-            .HasForeignKey(rp => rp.RoleId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Role>()
             .HasIndex(r => r.Key)
             .IsUnique();
 
-        modelBuilder.Entity<Permission>()
-            .HasMany(p => p.RolePermissions)
-            .WithOne(rp => rp.Permission)
-            .HasForeignKey(rp => rp.PermissionId)
-            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Role>()
+            .Property(r => r.Permissions)
+            .HasColumnType("text[]");
 
-        modelBuilder.Entity<RolePermission>()
-            .HasOne(rp => rp.Role)
-            .WithMany(r => r.RolePermissions)
-            .HasForeignKey(rp => rp.RoleId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<RolePermission>()
-            .HasOne(rp => rp.Permission)
-            .WithMany(p => p.RolePermissions)
-            .HasForeignKey(rp => rp.PermissionId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<RolePermission>()
-            .HasIndex(rp => new { rp.PermissionId, rp.RoleId })
-            .IsUnique()
-            .HasFilter("\"IsDeleted\" = FALSE")
-            .HasDatabaseName("IX_RolePermissions_PermissionId_RoleId_Active");
+        modelBuilder.Entity<Role>()
+            .HasOne(r => r.Region)
+            .WithMany()
+            .HasForeignKey(r => r.RegionId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<MIMO>()
             .HasMany(m => m.Sectors);
@@ -616,6 +575,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(ur => ur.Region)
             .WithMany(r => r.UserRegions)
             .HasForeignKey(ur => ur.RegionId);
+
+        modelBuilder.Entity<UserRegion>()
+            .HasOne(ur => ur.Role)
+            .WithMany()
+            .HasForeignKey(ur => ur.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<SystemType>()
             .HasOne(st => st.Generation)

@@ -51,7 +51,6 @@ const navigation = [
   },
   { name: "Barangays", href: "/super-admin/barangays", icon: Home, description: "Manage barangays" },
   { name: "Service Types", href: "/super-admin/service-types", icon: Briefcase, description: "Manage service types" },
-  { name: "Organizations", href: "/super-admin/organizations", icon: Layers, description: "Manage organizations" },
   {
     name: "Report Templates",
     href: "/super-admin/report-templates",

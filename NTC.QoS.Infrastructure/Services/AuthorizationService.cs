@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.User;
 using NTC.QoS.Infrastructure.Persistence;
@@ -56,10 +58,7 @@ public class UserAuthorizationService : IUserAuthorizationService
         try
         {
             var userQuery = _userRepository.Query(u => u.AuthUserId == authUserId)
-                .Include(u => u.Role)
-                    .ThenInclude(r => r.RolePermissions)
-                        .ThenInclude(rp => rp.Permission)
-                .Include(u => u.Organization);
+                .Include(u => u.Role);
 
             var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
 
@@ -88,15 +87,15 @@ public class UserAuthorizationService : IUserAuthorizationService
                     Id = user.Role.Id,
                     Name = user.Role.Name,
                     Key = user.Role.Key,
-                    Description = user.Role.Description
-                } : null,
-                Organization = user.Organization != null ? new()
-                {
-                    Id = user.Organization.Id,
-                    Name = user.Organization.Name,
-                    Description = user.Organization.Description
+                    Description = user.Role.Description,
+                    IsSystemRole = user.Role.IsSystemRole,
+                    Scope = user.Role.Scope,
+                    RegionId = user.Role.RegionId,
+                    Permissions = user.Role.Permissions
                 } : null,
                 Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName
             };
 
             return _cachedUser;
@@ -115,8 +114,14 @@ public class UserAuthorizationService : IUserAuthorizationService
             return false;
         }
 
+        var user = await GetCurrentUserAsync(cancellationToken);
+        if (user?.Role != null && Roles.IsSuperAdmin(user.Role.Key))
+        {
+            return true;
+        }
+
         var permissions = await GetUserPermissionsAsync(cancellationToken);
-        return permissions.Contains(permission);
+        return permissions.Contains(permission, StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<bool> HasAnyPermissionAsync(IEnumerable<string> permissions, CancellationToken cancellationToken = default)
@@ -126,8 +131,14 @@ public class UserAuthorizationService : IUserAuthorizationService
             return false;
         }
 
+        var user = await GetCurrentUserAsync(cancellationToken);
+        if (user?.Role != null && Roles.IsSuperAdmin(user.Role.Key))
+        {
+            return true;
+        }
+
         var userPermissions = await GetUserPermissionsAsync(cancellationToken);
-        return permissions.Any(p => userPermissions.Contains(p));
+        return permissions.Any(p => userPermissions.Contains(p, StringComparer.OrdinalIgnoreCase));
     }
 
     public async Task<bool> HasAllPermissionsAsync(IEnumerable<string> permissions, CancellationToken cancellationToken = default)
@@ -137,8 +148,14 @@ public class UserAuthorizationService : IUserAuthorizationService
             return true; // No permissions required
         }
 
+        var user = await GetCurrentUserAsync(cancellationToken);
+        if (user?.Role != null && Roles.IsSuperAdmin(user.Role.Key))
+        {
+            return true;
+        }
+
         var userPermissions = await GetUserPermissionsAsync(cancellationToken);
-        return permissions.All(p => userPermissions.Contains(p));
+        return permissions.All(p => userPermissions.Contains(p, StringComparer.OrdinalIgnoreCase));
     }
 
     public async Task<bool> HasRoleAsync(string role, CancellationToken cancellationToken = default)
@@ -150,12 +167,6 @@ public class UserAuthorizationService : IUserAuthorizationService
 
         var user = await GetCurrentUserAsync(cancellationToken);
         return user?.Role?.Key?.Equals(role, StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    public async Task<bool> BelongsToOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default)
-    {
-        var user = await GetCurrentUserAsync(cancellationToken);
-        return user?.Organization?.Id == organizationId;
     }
 
     public async Task<List<Guid>> GetAccessibleRegionsAsync(CancellationToken cancellationToken = default)
@@ -174,7 +185,21 @@ public class UserAuthorizationService : IUserAuthorizationService
 
         try
         {
-            var userRegionsQuery = _userRegionRepository.Query(ur => ur.User.AuthUserId == user.AuthUserId)
+            // Platform roles have implicit global access to all regions
+            if (user.Role != null && Roles.IsPlatformRole(user.Role.Key))
+            {
+                _cachedRegions = await _dbContext.Regions
+                    .Where(r => !r.IsDeleted)
+                    .Select(r => r.Id)
+                    .ToListAsync(cancellationToken);
+                return _cachedRegions;
+            }
+
+            // Regional users only have access to explicitly assigned Active regions
+            var userRegionsQuery = _userRegionRepository.Query(ur =>
+                    ur.User.AuthUserId == user.AuthUserId &&
+                    ur.Status == UserRegionStatus.Active.ToString() &&
+                    !ur.IsDeleted)
                 .Select(ur => ur.RegionId);
 
             _cachedRegions = await _userRegionRepository.ToListAsync(userRegionsQuery, cancellationToken);
@@ -208,27 +233,13 @@ public class UserAuthorizationService : IUserAuthorizationService
             return _cachedPermissions;
         }
 
-        try
+        if (Roles.IsSuperAdmin(user.Role.Key))
         {
-            var permissionsQuery = from rp in _dbContext.Set<Domain.Aggregates.RolePermission>()
-                                   join p in _dbContext.Set<Domain.Entities.Permission>() on rp.PermissionId equals p.Id
-                                   where rp.RoleId == user.Role.Id && !rp.IsDeleted && !p.IsDeleted
-                                   select p.Key;
-
-            _cachedPermissions = await permissionsQuery.ToListAsync(cancellationToken);
+            _cachedPermissions = PermissionsRegistry.AllKeys.ToList();
             return _cachedPermissions;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving permissions for user: {UserId}", user.Id);
-            _cachedPermissions = [];
-            return _cachedPermissions;
-        }
-    }
 
-    public async Task<Guid?> GetUserOrganizationIdAsync(CancellationToken cancellationToken = default)
-    {
-        var user = await GetCurrentUserAsync(cancellationToken);
-        return user?.Organization?.Id;
+        _cachedPermissions = user.Role.Permissions ?? [];
+        return _cachedPermissions;
     }
 }

@@ -1,6 +1,6 @@
-﻿using MediatR;
-using NTC.QoS.Domain.Interfaces;
+using MediatR;
 using NTC.QoS.Application.Features.Role.Requests;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Role;
 
@@ -15,8 +15,6 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
         var roleQuery = _repository.Query(r => r.Id.Equals(request.Id));
         var role = await _repository.FirstOrDefaultAsync(roleQuery, cancellationToken);
 
-        if (role is null) return new ApiResponse<RoleDto>("Role not found.");
-
         if (role is null)
         {
             return new ApiResponse<RoleDto>
@@ -25,7 +23,7 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
                 Message = "Role not found.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    {"Id", ["Role with the specified ID does not exist."] }
+                    { "Id", ["Role with the specified ID does not exist."] }
                 }
             };
         }
@@ -39,7 +37,11 @@ public class GetRoleByIdHandler(IRepository<Domain.Entities.Role> repository) : 
                 Id = role.Id,
                 Name = role.Name,
                 Key = role.Key,
-                Description = role.Description ?? string.Empty
+                Description = role.Description ?? string.Empty,
+                IsSystemRole = role.IsSystemRole,
+                Scope = role.Scope,
+                RegionId = role.RegionId,
+                Permissions = role.Permissions
             },
         };
     }
