@@ -100,11 +100,22 @@ public class InviteUserHandler(
         }
 
         // Determine redirect URL: client-supplied origin or configured fallback
-        var redirectUrl = !string.IsNullOrWhiteSpace(request.User.RedirectUrl)
-            ? request.User.RedirectUrl
-            : _configuration["Clerk:FrontendUrl"]
-              ?? _configuration.GetSection("Clerk:AuthorizedParties").Get<string[]>()?.FirstOrDefault()
-              ?? "http://localhost:3000/select-region";
+        string redirectUrl;
+        if (!string.IsNullOrWhiteSpace(request.User.RedirectUrl))
+        {
+            redirectUrl = request.User.RedirectUrl;
+        }
+        else
+        {
+            var baseUrl = _configuration["Clerk:FrontendUrl"]
+                ?? _configuration.GetSection("Clerk:AuthorizedParties").Get<string[]>()?.FirstOrDefault()
+                ?? "http://localhost:3000";
+
+            baseUrl = baseUrl.TrimEnd('/');
+            redirectUrl = baseUrl.EndsWith("/select-region", StringComparison.OrdinalIgnoreCase)
+                ? baseUrl
+                : $"{baseUrl}/select-region";
+        }
 
         var invitationPayload = new CreateClerkInvitationPayload
         {

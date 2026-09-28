@@ -97,7 +97,7 @@ public class CreateUserHandler(
         var effectiveRole = providedRole ?? defaultRole;
         if (Roles.IsSuperAdmin(effectiveRole))
         {
-            await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, cancellationToken);
+            await _userRegionService.AssignAllRegionsToUserAsync(newUser.Id, newUser.RoleId, cancellationToken);
         }
         else if (request.User.Regions is { Count: > 0 })
         {

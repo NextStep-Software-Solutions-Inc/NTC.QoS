@@ -7,7 +7,6 @@ export type User = {
   firstName?: string;
   lastName?: string;
   role: Role;
-  organization?: { id: string; name: string; description?: string };
 };
 
 export type CurrentUser = User & {

@@ -139,7 +139,7 @@ public class UpdateUserByIdHandler(
         // Auto-assign active regions if user is updated to SuperAdmin
         if (role != null && Roles.IsSuperAdmin(role))
         {
-            await _userRegionService.AssignAllRegionsToUserAsync(user.Id, cancellationToken);
+            await _userRegionService.AssignAllRegionsToUserAsync(user.Id, user.RoleId, cancellationToken);
         }
 
         var result = new UserDto

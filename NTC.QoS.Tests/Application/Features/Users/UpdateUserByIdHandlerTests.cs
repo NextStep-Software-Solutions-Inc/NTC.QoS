@@ -83,7 +83,7 @@ public class UpdateUserByIdHandlerTests
 
         // Assert
         result.Succeeded.Should().BeTrue();
-        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
+        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(userId, superAdminRoleId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Theory]
@@ -132,7 +132,7 @@ public class UpdateUserByIdHandlerTests
         // Assert
         result.Succeeded.Should().BeTrue();
         _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class UpdateUserByIdHandlerTests
 
         // Assert
         result.Succeeded.Should().BeTrue();
-        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
         _userRegionServiceMock.Verify(s => s.DeleteAllRegionsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

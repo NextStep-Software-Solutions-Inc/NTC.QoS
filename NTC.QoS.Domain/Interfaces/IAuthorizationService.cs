@@ -69,4 +69,22 @@ public interface IUserAuthorizationService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of permission keys</returns>
     Task<List<string>> GetUserPermissionsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the current user's effective permissions within a specific region.
+    /// Evaluates regional role assignments if assigned, falling back to primary role permissions.
+    /// </summary>
+    /// <param name="regionId">Region ID to evaluate permissions for</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of permission keys valid in this region</returns>
+    Task<List<string>> GetUserPermissionsInRegionAsync(Guid regionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if the current user has the specified permission within a specific region.
+    /// </summary>
+    /// <param name="permission">Permission key to check</param>
+    /// <param name="regionId">Region ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if user has permission in the region, false otherwise</returns>
+    Task<bool> HasPermissionInRegionAsync(string permission, Guid regionId, CancellationToken cancellationToken = default);
 }

@@ -60,7 +60,7 @@ public class CreateUserHandlerTests
 
         // Assert
         result.Succeeded.Should().BeTrue();
-        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
+        _userRegionServiceMock.Verify(s => s.AssignAllRegionsToUserAsync(It.IsAny<Guid>(), roleId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

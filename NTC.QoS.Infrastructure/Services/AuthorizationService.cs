@@ -242,4 +242,58 @@ public class UserAuthorizationService : IUserAuthorizationService
         _cachedPermissions = user.Role.Permissions ?? [];
         return _cachedPermissions;
     }
+
+    public async Task<List<string>> GetUserPermissionsInRegionAsync(Guid regionId, CancellationToken cancellationToken = default)
+    {
+        var user = await GetCurrentUserAsync(cancellationToken);
+        if (user?.Role == null)
+        {
+            return [];
+        }
+
+        if (Roles.IsSuperAdmin(user.Role.Key))
+        {
+            return PermissionsRegistry.AllKeys.ToList();
+        }
+
+        // Platform roles have implicit global access with their primary role permissions
+        if (Roles.IsPlatformRole(user.Role.Key))
+        {
+            return user.Role.Permissions ?? [];
+        }
+
+        // User must have active access to the region
+        var hasAccess = await HasRegionAccessAsync(regionId, cancellationToken);
+        if (!hasAccess)
+        {
+            return [];
+        }
+
+        // Check if user has an assigned regional role with specific permissions
+        var userRegionQuery = _userRegionRepository.Query(ur =>
+                ur.User.AuthUserId == user.AuthUserId &&
+                ur.RegionId == regionId &&
+                ur.Status == UserRegionStatus.Active.ToString() &&
+                !ur.IsDeleted)
+            .Include(ur => ur.Role);
+
+        var userRegion = await _userRegionRepository.FirstOrDefaultAsync(userRegionQuery, cancellationToken);
+        if (userRegion?.Role?.Permissions is { Count: > 0 } regionalPermissions)
+        {
+            return regionalPermissions;
+        }
+
+        return user.Role.Permissions ?? [];
+    }
+
+    public async Task<bool> HasPermissionInRegionAsync(string permission, Guid regionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(permission))
+        {
+            return false;
+        }
+
+        var permissions = await GetUserPermissionsInRegionAsync(regionId, cancellationToken);
+        return permissions.Contains(permission, StringComparer.OrdinalIgnoreCase);
+    }
 }

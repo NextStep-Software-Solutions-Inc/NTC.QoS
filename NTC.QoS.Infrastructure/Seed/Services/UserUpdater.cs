@@ -86,11 +86,11 @@ public class UserUpdater : IUserUpdater
                 oldAuthUserId, authUserId, config.Email);
 
             // Auto-assign active regions to superadmin
-            await AssignAllRegionsToUserAsync(userToUpdate.Id);
+            await AssignAllRegionsToUserAsync(userToUpdate.Id, userToUpdate.RoleId);
         }
     }
 
-    private async Task AssignAllRegionsToUserAsync(Guid userId)
+    private async Task AssignAllRegionsToUserAsync(Guid userId, Guid? roleId = null)
     {
         var allRegions = await _context.Regions
             .AsNoTracking()
@@ -107,9 +107,19 @@ public class UserUpdater : IUserUpdater
         var hasUpdates = false;
         foreach (var existing in existingUserRegions)
         {
+            var updated = false;
             if (existing.Status != UserRegionStatus.Active.ToString())
             {
                 existing.Status = UserRegionStatus.Active.ToString();
+                updated = true;
+            }
+            if (roleId.HasValue && existing.RoleId != roleId.Value)
+            {
+                existing.RoleId = roleId.Value;
+                updated = true;
+            }
+            if (updated)
+            {
                 existing.UpdatedAt = DateTime.UtcNow;
                 existing.UpdatedBy = "System";
                 hasUpdates = true;
@@ -125,6 +135,7 @@ public class UserUpdater : IUserUpdater
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 RegionId = regionId,
+                RoleId = roleId,
                 Status = UserRegionStatus.Active.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System",
