@@ -41,7 +41,11 @@ export function ResponsiveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent
-        className={cn(sizeClasses[size], "max-h-[90vh] h-[90vh] flex flex-col", className)}
+        className={cn(
+          sizeClasses[size],
+          "w-[calc(100vw-2rem)] sm:w-full max-h-[calc(100dvh-2rem)] sm:max-h-[90dvh] flex flex-col overflow-hidden rounded-xl sm:rounded-lg p-4 sm:p-6 gap-3 sm:gap-4",
+          className
+        )}
         onInteractOutside={(e) => {
           if (preventOutsideClick) {
             e.preventDefault();
@@ -55,9 +59,9 @@ export function ResponsiveDialog({
       >
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
+          {description && <DialogDescription className="text-xs sm:text-sm line-clamp-2 sm:line-clamp-none">{description}</DialogDescription>}
         </DialogHeader>
-        <div className="flex-1 min-h-0 flex flex-col h-full">{children}</div>
+        <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden">{children}</div>
       </DialogContent>
     </Dialog>
   );

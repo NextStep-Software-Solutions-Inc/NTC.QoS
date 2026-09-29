@@ -96,7 +96,8 @@ export function ManageRolePermissionsDialog({ role, open, onOpenChange, onSucces
         </div>
       }
       description={role?.description || "Configure functional and jurisdictional capabilities for this role."}
-      size="wide">
+      size="wide"
+      className="h-[calc(100dvh-2rem)] sm:h-[90dvh]">
       {open && role && (
         <ManageRolePermissionsContent
           key={role.id}
@@ -294,11 +295,11 @@ function ManageRolePermissionsContent({
   const hasChanges = !arePermissionSetsEqual(selectedPermissions, initialPermissions);
 
   return (
-    <div className="space-y-4 pt-1">
+    <div className="flex flex-col flex-1 min-h-0 h-full gap-2.5 sm:gap-3 pt-1">
       {/* Scope Alert for Regional Roles */}
       {isRegionalRole && (
-        <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-800 dark:text-amber-300">
-          <Lock className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="shrink-0 flex items-start sm:items-center gap-2 p-2 sm:p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] sm:text-xs text-amber-800 dark:text-amber-300">
+          <Lock className="h-3.5 w-3.5 shrink-0 mt-0.5 sm:mt-0 text-amber-600 dark:text-amber-400" />
           <span>
             <strong>Regional Role Scope:</strong> Platform-level permissions (such as system administration, role creation, and national region management) are locked to maintain regional security boundaries.
           </span>
@@ -306,14 +307,14 @@ function ManageRolePermissionsContent({
       )}
 
       {/* Controls Bar: Search, Category Tabs, Stats */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-1">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search permissions or categories..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 text-sm"
+            className="pl-8 h-8 sm:h-9 text-xs sm:text-sm"
           />
         </div>
 
@@ -323,9 +324,9 @@ function ManageRolePermissionsContent({
             variant={showOnlySelected ? "default" : "outline"}
             size="sm"
             onClick={() => setShowOnlySelected(!showOnlySelected)}
-            className="h-9 gap-1.5 text-xs font-medium">
+            className="h-8 sm:h-9 gap-1.5 text-xs font-medium flex-1 sm:flex-initial">
             <UserCheck className="h-3.5 w-3.5" />
-            {showOnlySelected ? "Showing Selected Only" : "Show Selected Only"}
+            {showOnlySelected ? "Selected Only" : "Show Selected"}
           </Button>
 
           <Button
@@ -334,24 +335,24 @@ function ManageRolePermissionsContent({
             size="sm"
             onClick={handleSelectAllFiltered}
             disabled={totalFilteredPermissions === 0 || isLoadingPermissions}
-            className="h-9 gap-1.5 text-xs font-medium">
+            className="h-8 sm:h-9 gap-1.5 text-xs font-medium flex-1 sm:flex-initial">
             <CheckSquare className="h-3.5 w-3.5" />
-            Select / Deselect Visible
+            Select Visible
           </Button>
         </div>
       </div>
 
       {/* Category Filter Chips */}
-      <div className="overflow-x-auto pb-1">
+      <div className="shrink-0 overflow-x-auto pb-0.5">
         <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
-          <TabsList className="h-9 bg-muted/70 p-1 flex w-max">
-            <TabsTrigger value="all" className="text-xs px-3 py-1">
+          <TabsList className="h-8 sm:h-9 bg-muted/70 p-1 flex w-max">
+            <TabsTrigger value="all" className="text-xs px-2.5 sm:px-3 py-1">
               All Domains ({allPermissions.length})
             </TabsTrigger>
             {categories.map(([category, items]: [string, Permission[]]) => {
               const countSelected = items.filter((p: Permission) => selectedPermissions.has(p.key)).length;
               return (
-                <TabsTrigger key={category} value={category} className="text-xs px-3 py-1 gap-1.5">
+                <TabsTrigger key={category} value={category} className="text-xs px-2.5 sm:px-3 py-1 gap-1.5">
                   {getCategoryIcon(category)}
                   <span>{category}</span>
                   <Badge variant={countSelected > 0 ? "default" : "outline"} className="text-[10px] px-1 py-0 h-4">
@@ -366,33 +367,33 @@ function ManageRolePermissionsContent({
 
       {/* Main Permissions Content */}
       {isLoadingPermissions ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground border rounded-lg bg-muted/20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm">Loading permissions registry...</p>
         </div>
       ) : filteredCategories.length === 0 ? (
-        <div className="text-center py-16 rounded-xl border border-dashed text-muted-foreground space-y-2">
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center p-6 rounded-xl border border-dashed text-muted-foreground space-y-2 bg-muted/20">
           <Shield className="h-10 w-10 mx-auto text-muted-foreground/50" />
-          <p className="font-medium text-foreground">No permissions match your filters</p>
+          <p className="font-semibold text-foreground text-sm">No permissions match your filters</p>
           <p className="text-xs">Try clearing the search query or changing category view.</p>
         </div>
       ) : (
-        <ScrollArea className="h-[430px] rounded-lg border bg-muted/20 p-4">
-          <div className="space-y-6">
+        <ScrollArea className="flex-1 min-h-0 rounded-lg border bg-muted/20">
+          <div className="p-3 sm:p-4 space-y-4 sm:space-y-6">
             {filteredCategories.map(({ category, items, totalCount, selectedCount }) => {
               const isCategoryFull = selectedCount === totalCount && totalCount > 0;
               return (
-                <div key={category} className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+                <div key={category} className="space-y-3 rounded-lg border bg-card p-3 sm:p-4 shadow-sm">
                   {/* Category Header */}
                   <div className="flex items-center justify-between pb-2 border-b">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                    <div className="flex items-center gap-2 sm:gap-2.5">
+                      <div className="p-1 sm:p-1.5 rounded-md bg-primary/10 text-primary">
                         {getCategoryIcon(category)}
                       </div>
                       <div>
-                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <h3 className="font-semibold text-xs sm:text-sm flex items-center gap-2">
                           <span>{category}</span>
-                          <Badge variant="outline" className="text-xs font-normal">
+                          <Badge variant="outline" className="text-[11px] sm:text-xs font-normal">
                             {selectedCount} of {totalCount} selected
                           </Badge>
                         </h3>
@@ -404,23 +405,23 @@ function ManageRolePermissionsContent({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleToggleCategory(items)}
-                      className="h-8 text-xs gap-1">
+                      className="h-7 sm:h-8 text-xs gap-1 px-2">
                       {isCategoryFull ? (
                         <>
                           <Square className="h-3.5 w-3.5" />
-                          Deselect All
+                          <span className="hidden xs:inline">Deselect All</span>
                         </>
                       ) : (
                         <>
                           <CheckSquare className="h-3.5 w-3.5" />
-                          Select All
+                          <span className="hidden xs:inline">Select All</span>
                         </>
                       )}
                     </Button>
                   </div>
 
                   {/* Grid of Permission Items */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-2.5">
                     {items.map((permission) => {
                       const isSelected = selectedPermissions.has(permission.key);
                       const isPlatformOnly = PLATFORM_ONLY_PERMISSIONS.has(permission.key);
@@ -432,7 +433,7 @@ function ManageRolePermissionsContent({
                           onClick={() => {
                             if (!isLocked) handleTogglePermission(permission.key);
                           }}
-                          className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer select-none ${
+                          className={`flex items-start gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-lg border transition-all cursor-pointer select-none ${
                             isLocked
                               ? "opacity-50 bg-muted/50 cursor-not-allowed border-dashed"
                               : isSelected
@@ -446,11 +447,11 @@ function ManageRolePermissionsContent({
                             onCheckedChange={() => handleTogglePermission(permission.key)}
                             className="mt-0.5"
                           />
-                          <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex-1 min-w-0 space-y-0.5 sm:space-y-1">
                             <div className="flex items-center justify-between gap-1">
                               <Label
                                 htmlFor={`permission-${permission.key}`}
-                                className={`text-sm font-semibold truncate ${
+                                className={`text-xs sm:text-sm font-semibold truncate ${
                                   isLocked ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer"
                                 }`}>
                                 {permission.name}
@@ -458,24 +459,24 @@ function ManageRolePermissionsContent({
                               {isPlatformOnly ? (
                                 <Badge
                                   variant="outline"
-                                  className="text-[10px] shrink-0 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5">
+                                  className="text-[9px] sm:text-[10px] shrink-0 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5">
                                   {isLocked ? "Locked" : "Platform Only"}
                                 </Badge>
                               ) : (
                                 <Badge
                                   variant="outline"
-                                  className="text-[10px] shrink-0 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
+                                  className="text-[9px] sm:text-[10px] shrink-0 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
                                   Regional Capable
                                 </Badge>
                               )}
                             </div>
 
-                            <code className="text-[11px] font-mono text-muted-foreground block truncate">
+                            <code className="text-[10px] sm:text-[11px] font-mono text-muted-foreground block truncate">
                               {permission.key}
                             </code>
 
                             {permission.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">
+                              <p className="text-[11px] sm:text-xs text-muted-foreground line-clamp-2">
                                 {permission.description}
                               </p>
                             )}
@@ -492,41 +493,44 @@ function ManageRolePermissionsContent({
       )}
 
       {/* Sticky Bottom Actions Bar */}
-      <Separator />
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <div>
-            Total Selected: <strong className="text-foreground text-sm font-bold">{selectedPermissions.size}</strong> of{" "}
-            {allPermissions.length}
+      <Separator className="shrink-0" />
+      <div className="shrink-0 flex items-center justify-between gap-2 pt-1">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+          <div className="truncate">
+            <span className="hidden sm:inline">Total Selected: </span>
+            <strong className="text-foreground text-sm font-bold">{selectedPermissions.size}</strong>
+            <span className="text-muted-foreground">/{allPermissions.length}</span>
           </div>
           {hasChanges ? (
-            <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-medium">
-              ● Unsaved changes
+            <Badge variant="outline" className="border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-medium text-[10px] sm:text-xs shrink-0">
+              ● Unsaved
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-muted-foreground">
+            <Badge variant="outline" className="text-muted-foreground text-[10px] sm:text-xs shrink-0">
               ✓ In sync
             </Badge>
           )}
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             type="button"
             variant="outline"
+            size="sm"
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
-            className="h-9">
+            className="h-8 sm:h-9 text-xs sm:text-sm px-3">
             Cancel
           </Button>
           <Button
             type="button"
+            size="sm"
             onClick={handleSave}
             disabled={isSaving || !hasChanges || isLoadingPermissions}
-            className="h-9 gap-1.5 min-w-[120px]">
+            className="h-8 sm:h-9 text-xs sm:text-sm gap-1.5 min-w-[100px] sm:min-w-[120px] px-3">
             {isSaving ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin mr-1" />
                 Saving...
               </>
             ) : (
