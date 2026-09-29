@@ -2,16 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   Globe,
   Mail,
   MapPin,
   Plus,
+  RefreshCw,
   Search,
   UserCheck,
   UserCog,
   Users as UsersIcon,
 } from "lucide-react";
 
+import { extractErrorMessage } from "@/lib/extract-error-message";
 import { getAllUsersRequest } from "@/components/features/users/handlers/getAllUsersRequest";
 import { InviteUserDialog } from "@/components/features/users/InviteUserDialog";
 import type { User } from "@/components/features/users/types/User";
@@ -55,6 +58,8 @@ export default function UsersManagementPage() {
   const {
     data: usersData,
     isLoading: usersLoading,
+    isError: usersIsError,
+    error: usersError,
     refetch: refetchUsers,
   } = useGetAllUsers({
     pathParams: {},
@@ -215,7 +220,25 @@ export default function UsersManagementPage() {
 
         <CardContent>
           {usersLoading ? (
-            <div className="text-center py-16 text-muted-foreground">Loading personnel directory...</div>
+            <div className="text-center py-16 text-muted-foreground flex flex-col items-center gap-2">
+              <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-sm">Loading personnel directory...</span>
+            </div>
+          ) : usersIsError ? (
+            <div className="text-center py-16 text-muted-foreground border rounded-lg border-dashed px-4">
+              <AlertCircle className="h-10 w-10 mx-auto text-destructive mb-2" />
+              <p className="font-semibold text-foreground">Failed to load user directory</p>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1 mb-4">
+                {extractErrorMessage(
+                  usersError,
+                  "A network error occurred while connecting to the server. Please check your connection and try again."
+                )}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => refetchUsers()} className="gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </div>
           ) : displayedUsers.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground border rounded-lg border-dashed">
               <UsersIcon className="h-10 w-10 mx-auto text-muted-foreground/40 mb-2" />

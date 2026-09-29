@@ -75,6 +75,7 @@ public static class RoleSeeder
             Permissions.ViewSystemTypes, Permissions.ViewAreaStudyTypes, Permissions.ViewSignalLevels, Permissions.ViewSignalLevelEntries,
             Permissions.ViewFrequencyAllocations, Permissions.ViewRegulatoryAllocations,
             Permissions.ViewZones, Permissions.ViewBarangays, Permissions.ViewMunicipalities, Permissions.ViewProvinces, Permissions.ViewRegions,
+            Permissions.ViewUserRegions, Permissions.CreateUserRegions,
             Permissions.ViewBarangayCoverage, Permissions.CreateBarangayCoverage, Permissions.UpdateBarangayCoverage,
             Permissions.ViewNAPs, Permissions.CreateNAPs, Permissions.UpdateNAPs,
             Permissions.ViewSpeedtests, Permissions.CreateSpeedtests, Permissions.UpdateSpeedtests,
@@ -92,6 +93,7 @@ public static class RoleSeeder
             Permissions.ViewNetworks, Permissions.ViewSectors, Permissions.ViewCellSectors,
             Permissions.ViewProviders, Permissions.ViewTechnologies, Permissions.ViewBands,
             Permissions.ViewZones, Permissions.ViewCellulars, Permissions.CreateCellulars,
+            Permissions.ViewRegions, Permissions.ViewUserRegions, Permissions.CreateUserRegions,
             Permissions.ViewSpeedtests, Permissions.CreateSpeedtests, Permissions.UpdateSpeedtests,
             Permissions.ViewNAPs, Permissions.CreateNAPs, Permissions.UpdateNAPs,
             Permissions.ViewSignalLevels, Permissions.ViewSignalLevelEntries,
@@ -251,10 +253,7 @@ public static class RoleSeeder
                     // Ensure system role flags and permissions are up to date
                     existing.IsSystemRole = true;
                     existing.Scope = systemRole.Scope;
-                    if (existing.Permissions == null || existing.Permissions.Count == 0)
-                    {
-                        existing.Permissions = systemRole.Permissions;
-                    }
+                    existing.Permissions = systemRole.Permissions;
                     existing.UpdatedAt = DateTime.UtcNow;
                     existing.UpdatedBy = "System";
                 }

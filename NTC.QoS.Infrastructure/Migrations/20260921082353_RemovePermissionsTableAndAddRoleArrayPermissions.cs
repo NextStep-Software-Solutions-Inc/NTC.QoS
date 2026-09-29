@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore.Migrations;
 
@@ -29,7 +29,8 @@ namespace NTC.QoS.Infrastructure.Migrations
                 name: "Permissions",
                 table: "Roles",
                 type: "text[]",
-                nullable: false);
+                nullable: false,
+                defaultValueSql: "'{}'::text[]");
 
             migrationBuilder.AddColumn<Guid>(
                 name: "RegionId",

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
 
@@ -78,9 +79,23 @@ public class UsersController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("auth-user/{authUserId}")]
-    [RequirePermission(Permissions.ViewUsers)]
-    public async Task<ActionResult<ApiResponse<UserDto>>> GetUserByAuthUserId(string authUserId)
+    public async Task<ActionResult<ApiResponse<UserDto>>> GetUserByAuthUserId(
+        string authUserId,
+        [FromServices] IUserContextService userContextService,
+        [FromServices] IUserAuthorizationService userAuthorizationService)
     {
+        var currentAuthUserId = userContextService.GetCurrentUserId();
+        var isSelf = string.Equals(currentAuthUserId, authUserId, StringComparison.OrdinalIgnoreCase);
+
+        if (!isSelf)
+        {
+            var hasPermission = await userAuthorizationService.HasPermissionAsync(Permissions.ViewUsers);
+            if (!hasPermission)
+            {
+                return Forbid();
+            }
+        }
+
         var user = await _mediator.Send(new GetUserByAuthUserIdRequest(authUserId));
         return user.Succeeded ? Ok(user) : BadRequest(user);
     }

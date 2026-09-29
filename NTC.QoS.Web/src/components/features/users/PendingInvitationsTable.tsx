@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  AlertCircle,
   Ban,
   CheckCircle2,
   Clock,
@@ -53,11 +54,14 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedInviteToRevoke, setSelectedInviteToRevoke] = useState<Invitation | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   const {
     data: invitationsResponse,
     isLoading,
     isFetching,
+    isError,
+    error,
     refetch,
   } = useGetInvitations({
     pathParams: {},
@@ -104,6 +108,7 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
 
   const handleConfirmRevoke = async () => {
     if (!selectedInviteToRevoke) return;
+    setRevokeError(null);
 
     try {
       await revokeMutation.mutateAsync({
@@ -111,9 +116,12 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
       });
       toast.success(`Invitation for ${selectedInviteToRevoke.email} has been revoked.`);
       setSelectedInviteToRevoke(null);
+      setRevokeError(null);
       refetch();
     } catch (err) {
-      toast.error(extractErrorMessage(err, "Failed to revoke invitation."));
+      const errMsg = extractErrorMessage(err, "Failed to revoke invitation.");
+      setRevokeError(errMsg);
+      toast.error(errMsg);
     }
   };
 
@@ -219,6 +227,21 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
           <div className="text-center py-16 text-muted-foreground flex flex-col items-center gap-2">
             <RefreshCw className="h-6 w-6 animate-spin text-primary" />
             <span className="text-sm">Loading sent invitations from Clerk...</span>
+          </div>
+        ) : isError ? (
+          <div className="text-center py-16 text-muted-foreground border-dashed px-4">
+            <AlertCircle className="h-10 w-10 mx-auto text-destructive mb-2" />
+            <p className="font-semibold text-foreground">Failed to load invitations</p>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1 mb-4">
+              {extractErrorMessage(
+                error,
+                "A network error occurred while loading pending invitations. Please check your connection and try again."
+              )}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </Button>
           </div>
         ) : filteredInvitations.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground border-dashed">
@@ -376,7 +399,12 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
       {/* Revoke Confirmation Dialog */}
       <AlertDialog
         open={Boolean(selectedInviteToRevoke)}
-        onOpenChange={(open) => !open && setSelectedInviteToRevoke(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedInviteToRevoke(null);
+            setRevokeError(null);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -384,11 +412,22 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
               <Ban className="h-5 w-5" />
               Revoke User Invitation
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to revoke the invitation sent to{" "}
-              <strong className="text-foreground font-semibold">{selectedInviteToRevoke?.email}</strong>?
-              Once revoked, the invitation link will be deactivated and the recipient will no longer be able
-              to use it to sign up.
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Are you sure you want to revoke the invitation sent to{" "}
+                <strong className="text-foreground font-semibold">{selectedInviteToRevoke?.email}</strong>?
+                Once revoked, the invitation link will be deactivated and the recipient will no longer be able
+                to use it to sign up.
+              </p>
+              {revokeError && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/20 p-2.5 text-xs text-destructive flex items-start gap-2 mt-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-semibold">Network error</p>
+                    <p className="text-[11px] text-destructive/90 mt-0.5">{revokeError}</p>
+                  </div>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
