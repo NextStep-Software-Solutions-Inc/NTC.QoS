@@ -37,7 +37,7 @@ const AddUserDialog = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="name@organization.gov.ph"
+                placeholder="name@ntc.gov.ph"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />

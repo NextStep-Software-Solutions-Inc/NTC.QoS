@@ -24,6 +24,9 @@ public class ClerkUserData
 
     [JsonPropertyName("email_addresses")]
     public List<ClerkEmailAddress> EmailAddresses { get; set; } = [];
+
+    [JsonPropertyName("public_metadata")]
+    public System.Text.Json.JsonElement? PublicMetadata { get; set; }
 }
 
 public class ClerkEmailAddress

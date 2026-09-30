@@ -3,12 +3,30 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { FileText, Import, SatelliteDish, Settings, Home, Map, MoreHorizontal, MapPin, Loader2 } from "lucide-react";
+import {
+  FileText,
+  Import,
+  SatelliteDish,
+  Settings,
+  Home,
+  Map,
+  MoreHorizontal,
+  MapPin,
+  Loader2,
+  Shield,
+  ShieldCheck,
+  HardHat,
+  UserCheck,
+  Globe,
+  User as UserIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import Each from "../Each";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth, UserButton, useUser } from "@clerk/nextjs";
+import { usePermissions } from "@/providers/PermissionsContext";
 import { getUserRegionsRequest } from "@/components/features/user-region/handlers/getUserRegionsRequest";
 import { getAuthUserRequest } from "@/components/features/users/handlers/getAuthUserRequest";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
@@ -21,7 +39,8 @@ const RegionalNavbar = () => {
   const { region } = useParams<{ region: string }>();
   const router = useRouter();
   const { userId } = useAuth();
-  const { isLoaded } = useUser();
+  const { user, isLoaded } = useUser();
+  const { currentUser } = usePermissions();
   const [switchingRegionId, setSwitchingRegionId] = useState<string | null>(null);
   
   const { data: authUser } = useAuthUser({
@@ -29,7 +48,7 @@ const RegionalNavbar = () => {
     queryParams: {},
   });
 
-  const isSuperAdmin = authUser?.data?.role?.key === "super_admin";
+  const isSuperAdmin = authUser?.data?.role?.key === "super_admin" || !!currentUser?.isSuperAdmin;
 
   const { data: userRegions } = useUserRegions({
     pathParams: {},
@@ -38,6 +57,65 @@ const RegionalNavbar = () => {
 
   const accessibleRegions = userRegions?.data ?? [];
   const currentRegion = accessibleRegions.find((ur) => ur.region.id === region);
+
+  const activeUser = currentUser || authUser?.data;
+  const activeRole = currentRegion?.role ?? activeUser?.role;
+  const roleKey = activeRole?.key?.toLowerCase() ?? (isSuperAdmin ? "super_admin" : "");
+  const roleName = activeRole?.name || (isSuperAdmin ? "SuperAdmin" : activeUser?.role?.name);
+
+  const displayName =
+    user?.fullName ||
+    (activeUser?.firstName
+      ? `${activeUser.firstName} ${activeUser.lastName ?? ""}`.trim()
+      : user?.primaryEmailAddress?.emailAddress?.split("@")[0] || "");
+
+  const getRoleConfig = (key: string, name?: string | null) => {
+    const lowerKey = key.toLowerCase();
+    const lowerName = (name ?? "").toLowerCase();
+
+    if (isSuperAdmin || lowerKey === "super_admin" || lowerName.includes("super admin")) {
+      return {
+        icon: <ShieldCheck className="h-3 w-3 text-purple-600 dark:text-purple-400 shrink-0" />,
+        className:
+          "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800",
+      };
+    }
+    if (lowerKey.includes("admin") || lowerName.includes("admin")) {
+      return {
+        icon: <Shield className="h-3 w-3 text-blue-600 dark:text-blue-400 shrink-0" />,
+        className:
+          "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800",
+      };
+    }
+    if (lowerKey.includes("engineer") || lowerName.includes("engineer") || lowerName.includes("field")) {
+      return {
+        icon: <HardHat className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />,
+        className:
+          "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800",
+      };
+    }
+    if (lowerKey.includes("staff") || lowerName.includes("staff")) {
+      return {
+        icon: <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />,
+        className:
+          "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
+      };
+    }
+    if (lowerKey.includes("national") || lowerName.includes("national")) {
+      return {
+        icon: <Globe className="h-3 w-3 text-cyan-600 dark:text-cyan-400 shrink-0" />,
+        className:
+          "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800",
+      };
+    }
+    return {
+      icon: <UserIcon className="h-3 w-3 text-slate-500 shrink-0" />,
+      className:
+        "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800",
+    };
+  };
+
+  const roleConfig = getRoleConfig(roleKey, roleName);
 
   // Reset switching state when region changes (navigation completed)
   useEffect(() => {
@@ -227,8 +305,32 @@ const RegionalNavbar = () => {
         </ul>
       </div>
 
-      {/* User Avatar */}
-      <div className="flex items-center gap-2 shrink-0">
+      {/* User Identity & Role Tag */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {isLoaded && (displayName || roleName) && (
+          <div
+            className="flex flex-col items-end text-right min-w-0"
+            title={`${displayName}${roleName ? ` • ${roleName}` : ""}`}>
+            {displayName && (
+              <span className="hidden sm:inline text-xs font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[140px] leading-tight">
+                {displayName}
+              </span>
+            )}
+            {roleName && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] px-1.5 py-0 h-4 font-medium flex items-center gap-1 shrink-0 sm:mt-0.5",
+                  roleConfig.className
+                )}>
+                {roleConfig.icon}
+                <span className="truncate max-w-[95px] sm:max-w-[130px]">{roleName}</span>
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* User Avatar */}
         <div className="w-8 h-8 flex items-center justify-center">
           {!isLoaded ? (
             <div className="animate-pulse rounded-full bg-gray-300 w-8 h-8" />

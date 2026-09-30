@@ -15,7 +15,7 @@ public class UserRegionService(
     private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
     private readonly IRepository<Region> _regionRepository = regionRepository;
 
-    public async Task AssignAllRegionsToUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task AssignAllRegionsToUserAsync(Guid userId, Guid? roleId = null, CancellationToken cancellationToken = default)
     {
         var allRegionsQuery = _regionRepository.Query(r => !r.IsDeleted);
         var allRegions = await _regionRepository.ToListAsync(allRegionsQuery, cancellationToken);
@@ -28,9 +28,21 @@ public class UserRegionService(
         var hasUpdates = false;
         foreach (var existing in existingUserRegions)
         {
+            var updated = false;
             if (existing.Status != UserRegionStatus.Active.ToString())
             {
                 existing.Status = UserRegionStatus.Active.ToString();
+                updated = true;
+            }
+
+            if (roleId.HasValue && existing.RoleId != roleId.Value)
+            {
+                existing.RoleId = roleId.Value;
+                updated = true;
+            }
+
+            if (updated)
+            {
                 _userRegionRepository.Update(existing);
                 hasUpdates = true;
             }
@@ -46,6 +58,7 @@ public class UserRegionService(
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 RegionId = region.Id,
+                RoleId = roleId,
                 Status = UserRegionStatus.Active.ToString(),
             }).ToList();
 

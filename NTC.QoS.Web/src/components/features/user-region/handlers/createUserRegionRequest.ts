@@ -4,7 +4,7 @@ import type { UserRegion } from "../types/UserRegion";
 
 const endpoint = "/user-regions";
 
-export type CreateUserRegionPayload = { userId: string; regionId: string; status?: string };
+export type CreateUserRegionPayload = { userId: string; regionId: string; roleId?: string; status?: string };
 
 export const createUserRegionRequest: MutationBlueprintFromTemplate<
   typeof endpoint,

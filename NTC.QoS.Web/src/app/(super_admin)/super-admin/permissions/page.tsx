@@ -1,50 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Edit, Key, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Check,
+  Copy,
+  Globe,
+  Key,
+  Layers,
+  Lock,
+  MapPin,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
-import { createPermissionRequest } from "@/components/features/permission/handlers/createPermissionRequest";
-import { deletePermissionRequest } from "@/components/features/permission/handlers/deletePermissionRequest";
-import { editPermissionRequest } from "@/components/features/permission/handlers/editPermissionRequest";
 import { getPermissionsRequest } from "@/components/features/permission/handlers/getPermissionsRequest";
 import type { Permission } from "@/components/features/permission/types/Permission";
-import { ResponsiveDialog } from "@/components/ResponsiveDialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Pagination } from "@/components/ui/pagination";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { useUrlPagination } from "@/hooks/useUrlPagination";
 
 const useGetPermissions = createQueryHookFromTemplate(getPermissionsRequest);
-const useDeletePermission = createMutationHookFromTemplate(deletePermissionRequest);
-const useCreatePermission = createMutationHookFromTemplate(createPermissionRequest);
-const useEditPermission = createMutationHookFromTemplate(editPermissionRequest);
+
+const PLATFORM_ONLY_PERMISSIONS = new Set([
+  "system:admin",
+  "system:logs",
+  "system:settings",
+  "regions:create",
+  "regions:update",
+  "regions:delete",
+  "roles:create",
+  "roles:update",
+  "roles:delete",
+  "permissions:create",
+  "permissions:update",
+  "permissions:delete",
+  "role_permissions:create",
+  "role_permissions:delete",
+]);
 
 export default function PermissionsManagementPage() {
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [formValues, setFormValues] = useState({ name: "", key: "", description: "" });
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const { page, pageSize, search, setPage, setPageSize, setSearch } = useUrlPagination();
+  const { page, search, setSearch } = useUrlPagination();
 
   // Debounced search
   useEffect(() => {
@@ -54,278 +58,241 @@ export default function PermissionsManagementPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, setSearch]);
 
-  const {
-    data: permissionsData,
-    isLoading,
-    refetch,
-  } = useGetPermissions({ pathParams: {}, queryParams: { pageNumber: page, pageSize: pageSize, search: search || undefined } });
+  const { data: permissionsData, isLoading } = useGetPermissions({
+    pathParams: {},
+    queryParams: {
+      pageNumber: page,
+      pageSize: 100, // Load all permissions for instant categorized client browsing
+      search: search || undefined,
+    },
+  });
 
-  const { mutateAsync: deletePermission, isPending: isDeleting } = useDeletePermission();
-  const { mutateAsync: createPermission, isPending: isCreating } = useCreatePermission();
-  const { mutateAsync: editPermission, isPending: isEditing } = useEditPermission();
-
-  const permissions = permissionsData?.data ?? [];
+  const allPermissions = useMemo(() => permissionsData?.data ?? [], [permissionsData?.data]);
   const totalCount = permissionsData?.totalRows || 0;
-  const totalPages = Math.ceil(totalCount / pageSize);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    toast.promise(createPermission({ pathParams: {}, payload: formValues }), {
-      loading: "Creating permission...",
-      success: () => {
-        setCreateDialogOpen(false);
-        setFormValues({ name: "", key: "", description: "" });
-        void refetch();
-        return "Permission created successfully";
-      },
-      error: "Failed to create permission",
+  // Extract unique categories
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    allPermissions.forEach((p) => {
+      if (p.category) set.add(p.category);
     });
-  };
+    return Array.from(set).sort();
+  }, [allPermissions]);
 
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPermission) return;
-    toast.promise(editPermission({ pathParams: { id: selectedPermission.id }, payload: formValues }), {
-      loading: "Updating permission...",
-      success: () => {
-        setEditDialogOpen(false);
-        setSelectedPermission(null);
-        setFormValues({ name: "", key: "", description: "" });
-        void refetch();
-        return "Permission updated successfully";
-      },
-      error: "Failed to update permission",
-    });
-  };
+  // Filter permissions by active category
+  const displayedPermissions = useMemo(() => {
+    if (selectedCategory === "all") return allPermissions;
+    if (selectedCategory === "platform-only") {
+      return allPermissions.filter((p) => PLATFORM_ONLY_PERMISSIONS.has(p.key));
+    }
+    if (selectedCategory === "regional") {
+      return allPermissions.filter((p) => !PLATFORM_ONLY_PERMISSIONS.has(p.key));
+    }
+    return allPermissions.filter((p) => p.category === selectedCategory);
+  }, [allPermissions, selectedCategory]);
 
-  const handleDelete = async () => {
-    if (!selectedPermission) return;
-    toast.promise(deletePermission({ pathParams: { id: selectedPermission.id } }), {
-      loading: "Deleting permission...",
-      success: () => {
-        setDeleteDialogOpen(false);
-        setSelectedPermission(null);
-        void refetch();
-        return "Permission deleted successfully";
-      },
-      error: "Failed to delete permission",
-    });
-  };
+  const stats = useMemo(() => {
+    const platformOnlyCount = allPermissions.filter((p) => PLATFORM_ONLY_PERMISSIONS.has(p.key)).length;
+    const regionalCapableCount = allPermissions.length - platformOnlyCount;
+    return { platformOnlyCount, regionalCapableCount, categoriesCount: categories.length };
+  }, [allPermissions, categories]);
 
-  const openEditDialog = (permission: Permission) => {
-    setSelectedPermission(permission);
-    setFormValues({ name: permission.name, key: permission.key, description: permission.description || "" });
-    setEditDialogOpen(true);
-  };
-
-  const openDeleteDialog = (permission: Permission) => {
-    setSelectedPermission(permission);
-    setDeleteDialogOpen(true);
+  const copyToClipboard = (key: string) => {
+    navigator.clipboard.writeText(key);
+    setCopiedKey(key);
+    toast.success(`Copied "${key}" to clipboard`);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Permissions Management</h1>
-          <p className="text-muted-foreground mt-1">Configure system permissions</p>
+          <h1 className="text-3xl font-bold flex items-center gap-2.5">
+            <ShieldCheck className="h-8 w-8 text-primary" />
+            Security Permissions Catalog
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Definitive system authorization registry governing all platform and regional RBAC policies.
+          </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create Permission
-        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5" />
-                Permissions ({totalCount})
-              </CardTitle>
-              <CardDescription>System permissions and access controls</CardDescription>
+      {/* KPI Stats Banner */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="shadow-xs">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-xs">Registered Permissions</CardDescription>
+            <CardTitle className="text-2xl font-bold">{totalCount}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 text-xs text-muted-foreground">In-memory static catalog</CardContent>
+        </Card>
+
+        <Card className="shadow-xs">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-xs">Functional Categories</CardDescription>
+            <CardTitle className="text-2xl font-bold text-primary flex items-center justify-between">
+              <span>{stats.categoriesCount}</span>
+              <Layers className="h-5 w-5 text-primary/50" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 text-xs text-muted-foreground">Domain boundaries</CardContent>
+        </Card>
+
+        <Card className="shadow-xs">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-xs">Regional Capable</CardDescription>
+            <CardTitle className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
+              <span>{stats.regionalCapableCount}</span>
+              <MapPin className="h-5 w-5 text-emerald-500/50" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 text-xs text-muted-foreground">Regional role assignable</CardContent>
+        </Card>
+
+        <Card className="shadow-xs">
+          <CardHeader className="p-4 pb-2">
+            <CardDescription className="text-xs">Platform Protected</CardDescription>
+            <CardTitle className="text-2xl font-bold text-amber-600 dark:text-amber-400 flex items-center justify-between">
+              <span>{stats.platformOnlyCount}</span>
+              <Lock className="h-5 w-5 text-amber-500/50" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 text-xs text-muted-foreground">National officers only</CardContent>
+        </Card>
+      </div>
+
+      {/* Main Table Card */}
+      <Card className="shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Horizontal Category Scroll */}
+            <div className="overflow-x-auto pb-1 max-w-2xl">
+              <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
+                <TabsList className="bg-muted/70 flex w-max h-9 p-1">
+                  <TabsTrigger value="all" className="text-xs px-3">
+                    All ({allPermissions.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="regional" className="text-xs px-3">
+                    Regional Scope ({stats.regionalCapableCount})
+                  </TabsTrigger>
+                  <TabsTrigger value="platform-only" className="text-xs px-3">
+                    Platform Only ({stats.platformOnlyCount})
+                  </TabsTrigger>
+                  {categories.map((cat) => (
+                    <TabsTrigger key={cat} value={cat} className="text-xs px-3">
+                      {cat}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             </div>
-            <div className="w-full sm:w-64">
+
+            {/* Search Box */}
+            <div className="relative w-full md:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search permissions..."
+                placeholder="Search key, name, description..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-sm"
               />
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Loading permissions...</div>
+            <div className="text-center py-16 text-muted-foreground">Loading security catalog...</div>
+          ) : displayedPermissions.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground border rounded-lg border-dashed">
+              <Key className="h-10 w-10 mx-auto text-muted-foreground/40 mb-2" />
+              <p className="font-semibold text-foreground">No permissions found</p>
+              <p className="text-xs">Adjust category or search filter.</p>
+            </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="rounded-lg border overflow-hidden">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableHead>Permission Name</TableHead>
-                    <TableHead>Key</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-[280px]">Permission Key</TableHead>
+                    <TableHead className="w-[200px]">Display Name</TableHead>
+                    <TableHead className="w-[160px]">Domain Category</TableHead>
+                    <TableHead className="w-[160px]">Scope Compatibility</TableHead>
+                    <TableHead>Functional Description</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {permissions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                        No permissions found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    permissions.map((permission) => (
-                      <TableRow key={permission.id}>
-                        <TableCell className="font-medium">{permission.name}</TableCell>
+                  {displayedPermissions.map((permission: Permission) => {
+                    const isPlatformOnly = PLATFORM_ONLY_PERMISSIONS.has(permission.key);
+
+                    return (
+                      <TableRow key={permission.key} className="hover:bg-muted/40 transition-colors">
+                        {/* Key with Copy */}
                         <TableCell>
-                          <Badge variant="secondary">{permission.key}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{permission.description || "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => openEditDialog(permission)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(permission)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                          <div className="flex items-center gap-1.5">
+                            <code className="text-xs bg-muted px-2 py-1 rounded font-mono font-medium text-foreground">
+                              {permission.key}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(permission.key)}
+                              className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+                              title="Copy permission key">
+                              {copiedKey === permission.key ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
                           </div>
                         </TableCell>
+
+                        {/* Name */}
+                        <TableCell className="font-semibold text-sm text-foreground">
+                          {permission.name}
+                        </TableCell>
+
+                        {/* Category */}
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs font-normal">
+                            {permission.category}
+                          </Badge>
+                        </TableCell>
+
+                        {/* Scope Compatibility */}
+                        <TableCell>
+                          {isPlatformOnly ? (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5 text-xs">
+                              <Lock className="h-3 w-3" />
+                              Platform Only
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 text-xs">
+                              <Globe className="h-3 w-3" />
+                              Regional Capable
+                            </Badge>
+                          )}
+                        </TableCell>
+
+                        {/* Description */}
+                        <TableCell className="text-xs text-muted-foreground max-w-md">
+                          {permission.description || "Grants operational access to this capability."}
+                        </TableCell>
                       </TableRow>
-                    ))
-                  )}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
           )}
-
-          {!isLoading && !search && totalCount > 0 && (
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalCount={totalCount}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-            />
-          )}
         </CardContent>
       </Card>
-
-      {/* Create Dialog */}
-      <ResponsiveDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        title="Create New Permission"
-        description="Add a new permission to the system">
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <Label htmlFor="create-name">Permission Name</Label>
-            <Input
-              id="create-name"
-              value={formValues.name}
-              onChange={(e) => setFormValues({ ...formValues, name: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="create-key">Permission Key</Label>
-            <Input
-              id="create-key"
-              value={formValues.key}
-              onChange={(e) => setFormValues({ ...formValues, key: e.target.value })}
-              placeholder="e.g., create_user, delete_report"
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="create-description">Description</Label>
-            <textarea
-              id="create-description"
-              className="w-full rounded border border-input p-2 text-sm"
-              value={formValues.description}
-              onChange={(e) => setFormValues({ ...formValues, description: e.target.value })}
-              rows={3}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isCreating}>
-              {isCreating ? "Creating..." : "Create"}
-            </Button>
-          </div>
-        </form>
-      </ResponsiveDialog>
-
-      {/* Edit Dialog */}
-      <ResponsiveDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        title="Edit Permission"
-        description="Update permission information">
-        <form onSubmit={handleEdit} className="space-y-4">
-          <div>
-            <Label htmlFor="edit-name">Permission Name</Label>
-            <Input
-              id="edit-name"
-              value={formValues.name}
-              onChange={(e) => setFormValues({ ...formValues, name: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-key">Permission Key</Label>
-            <Input
-              id="edit-key"
-              value={formValues.key}
-              onChange={(e) => setFormValues({ ...formValues, key: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-description">Description</Label>
-            <textarea
-              id="edit-description"
-              className="w-full rounded border border-input p-2 text-sm"
-              value={formValues.description}
-              onChange={(e) => setFormValues({ ...formValues, description: e.target.value })}
-              rows={3}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isEditing}>
-              {isEditing ? "Updating..." : "Update"}
-            </Button>
-          </div>
-        </form>
-      </ResponsiveDialog>
-
-      {/* Delete Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Permission</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the permission &quot;{selectedPermission?.name}&quot;? This action cannot
-              be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

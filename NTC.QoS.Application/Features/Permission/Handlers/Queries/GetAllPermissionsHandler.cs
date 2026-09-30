@@ -1,30 +1,44 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.Permission.Requests;
-using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Permission;
 
 namespace NTC.QoS.Application.Features.Permission.Handlers.Queries;
 
-public class GetAllPermissionsHandler(IRepository<Domain.Entities.Permission> repository) : IRequestHandler<GetAllPermissionsRequest, PaginatedResponse<PermissionDto>>
+public class GetAllPermissionsHandler : IRequestHandler<GetAllPermissionsRequest, PaginatedResponse<PermissionDto>>
 {
-    private readonly IRepository<Domain.Entities.Permission> _repository = repository;
-    public async Task<PaginatedResponse<PermissionDto>> Handle(GetAllPermissionsRequest request, CancellationToken cancellationToken)
+    public Task<PaginatedResponse<PermissionDto>> Handle(GetAllPermissionsRequest request, CancellationToken cancellationToken)
     {
-        var permissionsQuery = _repository.Query();
+        var items = PermissionsRegistry.All.AsEnumerable();
 
-        if (!string.IsNullOrEmpty(request.Search))
+        if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            permissionsQuery = _repository.ApplySearch(permissionsQuery, request.Search, p => p.Name, p => p.Key);
+            var search = request.Search.Trim();
+            items = items.Where(p =>
+                p.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                p.Key.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                p.Category.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
-        var permissionDtosQuery = permissionsQuery.Select(static p => new PermissionDto
-        {
-            Id = p.Id,
-            Name = p.Name,
-            Key = p.Key,
-            Description = p.Description
-        });
+        var totalRows = items.Count();
+        var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
+        var pageNumber = request.PageNumber <= 0 ? 1 : request.PageNumber;
 
-        return await _repository.PaginateAsync(permissionDtosQuery, request.PageNumber, request.PageSize, cancellationToken);
+        var pagedItems = items
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new PermissionDto
+            {
+                Key = p.Key,
+                Name = p.Name,
+                Category = p.Category,
+                Description = p.Description
+            })
+            .ToList();
+
+        var response = new PaginatedResponse<PermissionDto>(pagedItems, pageNumber, pageSize, totalRows);
+
+        return Task.FromResult(response);
     }
 }

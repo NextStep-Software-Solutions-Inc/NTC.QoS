@@ -37,8 +37,10 @@ public class Program
             .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables();
 
-        // Validate Clerk secret for both Development and Production
-        var clerkSecret = builder.Configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk Secret Key is not configured.");
+        // Fail-fast configuration validation at startup for Clerk authentication, webhooks, and routing
+        builder.Configuration.ValidateClerkConfiguration(env);
+
+        var clerkSecret = builder.Configuration["Clerk:SecretKey"]!;
         builder.Services.AddClerkApiClient(config =>
         {
             config.SecretKey = clerkSecret;

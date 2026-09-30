@@ -16,7 +16,10 @@ This checklist ensures that sensitive credentials are properly handled during de
 ### ? Environment Variables Setup
 
 - [ ] `DEFAULT_ADMIN_PASSWORD`: Set in deployment environment
-- [ ] `Clerk__SecretKey`: Set in deployment environment
+- [ ] `Clerk__SecretKey`: Set in deployment environment (starts with `sk_live_`)
+- [ ] `Clerk__WebhookSecret`: Set in deployment environment (starts with `whsec_`)
+- [ ] `Clerk__Authority`: Set in deployment environment (HTTPS URI)
+- [ ] `Clerk__FrontendUrl`: Set in deployment environment (HTTPS URI)
 - [ ] Connection strings: Set in deployment environment
 - [ ] Other API keys: Set in deployment environment
 

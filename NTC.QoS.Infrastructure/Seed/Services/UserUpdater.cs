@@ -27,9 +27,6 @@ public class UserUpdater : IUserUpdater
         var role = await _context.Roles
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Key == "super_admin");
-        var organization = await _context.Organizations
-            .AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Name.ToLower() == "national");
 
         string authUserId;
         var existingClerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(config.Email);
@@ -41,7 +38,6 @@ public class UserUpdater : IUserUpdater
                 PublicMetadata = new Dictionary<string, object>
                 {
                     { "role", role?.Key ?? "super_admin" },
-                    { "organization", organization?.Name ?? "national" },
                     { "isDefaultAdmin", true }
                 }
             };
@@ -58,7 +54,6 @@ public class UserUpdater : IUserUpdater
                 PublicMetadata = new Dictionary<string, object>
                 {
                     { "role", role?.Key ?? "super_admin" },
-                    { "organization", organization?.Name ?? "national" },
                     { "isDefaultAdmin", true }
                 },
                 PrivateMetadata = new Dictionary<string, object>
@@ -82,7 +77,6 @@ public class UserUpdater : IUserUpdater
             userToUpdate.FirstName = config.FirstName;
             userToUpdate.LastName = config.LastName;
             if (role != null) userToUpdate.RoleId = role.Id;
-            if (organization != null) userToUpdate.OrganizationId = organization.Id;
             userToUpdate.UpdatedAt = DateTime.UtcNow;
             userToUpdate.UpdatedBy = "System";
 
@@ -92,11 +86,11 @@ public class UserUpdater : IUserUpdater
                 oldAuthUserId, authUserId, config.Email);
 
             // Auto-assign active regions to superadmin
-            await AssignAllRegionsToUserAsync(userToUpdate.Id);
+            await AssignAllRegionsToUserAsync(userToUpdate.Id, userToUpdate.RoleId);
         }
     }
 
-    private async Task AssignAllRegionsToUserAsync(Guid userId)
+    private async Task AssignAllRegionsToUserAsync(Guid userId, Guid? roleId = null)
     {
         var allRegions = await _context.Regions
             .AsNoTracking()
@@ -113,9 +107,19 @@ public class UserUpdater : IUserUpdater
         var hasUpdates = false;
         foreach (var existing in existingUserRegions)
         {
+            var updated = false;
             if (existing.Status != UserRegionStatus.Active.ToString())
             {
                 existing.Status = UserRegionStatus.Active.ToString();
+                updated = true;
+            }
+            if (roleId.HasValue && existing.RoleId != roleId.Value)
+            {
+                existing.RoleId = roleId.Value;
+                updated = true;
+            }
+            if (updated)
+            {
                 existing.UpdatedAt = DateTime.UtcNow;
                 existing.UpdatedBy = "System";
                 hasUpdates = true;
@@ -131,6 +135,7 @@ public class UserUpdater : IUserUpdater
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 RegionId = regionId,
+                RoleId = roleId,
                 Status = UserRegionStatus.Active.ToString(),
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System",

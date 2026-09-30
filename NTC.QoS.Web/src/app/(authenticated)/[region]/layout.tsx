@@ -55,7 +55,7 @@ export default async function RegionLayout({ children, params: paramsAsync }: La
 
   if (userError instanceof Error && userError.name === "AbortError") return <Timeout />;
   if (userError) return <ErrorComponent error={userError} />;
-  if (userResponse.data.role.key === "super_admin") return children;
+  if (userResponse?.data?.role?.key === "super_admin") return children;
 
   // Level 3 : Check for user-region access
   const [userRegionResponse, userRegionError] = await tryCatch(async () => {

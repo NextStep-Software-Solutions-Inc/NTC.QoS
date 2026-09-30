@@ -4,7 +4,18 @@ import type { User } from "../types/User";
 
 const endpoint = "/users/invite";
 
-export type InviteUserPayload = { email: string; roleId: string; organizationId: string };
+export type InviteUserRegionItem = {
+  regionId: string;
+  roleId?: string;
+  status?: string;
+};
+
+export type InviteUserPayload = {
+  email: string;
+  roleId: string;
+  redirectUrl?: string;
+  regions?: InviteUserRegionItem[];
+};
 
 export const inviteUserRequest: MutationBlueprintFromTemplate<
   typeof endpoint,

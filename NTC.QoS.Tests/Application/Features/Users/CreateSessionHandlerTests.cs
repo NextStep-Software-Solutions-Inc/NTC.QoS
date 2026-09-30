@@ -1,8 +1,8 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NTC.QoS.Application.Features.User.Handlers.Commands;
 using NTC.QoS.Application.Features.User.Requests;
-using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using System.Linq.Expressions;
@@ -51,28 +51,12 @@ public class CreateSessionHandlerTests
         var authUserId = "user_valid_123";
         var request = new CreateSessionRequest { AuthUserId = authUserId };
 
-        var permission1 = new Permission { Id = Guid.NewGuid(), Key = "read:reports", Name = "Read Reports", IsDeleted = false };
-        var permission2 = new Permission { Id = Guid.NewGuid(), Key = "write:reports", Name = "Write Reports", IsDeleted = false };
-        var deletedPermission = new Permission { Id = Guid.NewGuid(), Key = "delete:all", Name = "Delete All", IsDeleted = true };
-
         var role = new Role
         {
             Id = Guid.NewGuid(),
             Key = "admin",
             Name = "Admin",
-            RolePermissions =
-            [
-                new RolePermission { Id = Guid.NewGuid(), PermissionId = permission1.Id, Permission = permission1, IsDeleted = false },
-                new RolePermission { Id = Guid.NewGuid(), PermissionId = permission2.Id, Permission = permission2, IsDeleted = false },
-                new RolePermission { Id = Guid.NewGuid(), PermissionId = deletedPermission.Id, Permission = deletedPermission, IsDeleted = false },
-                new RolePermission { Id = Guid.NewGuid(), PermissionId = Guid.NewGuid(), Permission = null, IsDeleted = false }
-            ]
-        };
-
-        var org = new Organization
-        {
-            Id = Guid.NewGuid(),
-            Name = "National"
+            Permissions = ["read:reports", "write:reports"]
         };
 
         var user = new User
@@ -82,8 +66,6 @@ public class CreateSessionHandlerTests
             Email = "admin@ntc.gov.ph",
             Role = role,
             RoleId = role.Id,
-            Organization = org,
-            OrganizationId = org.Id,
             IsDeleted = false
         };
 
@@ -109,7 +91,6 @@ public class CreateSessionHandlerTests
         var publicMeta = capturedPayload!.PublicMetadata as Dictionary<string, object>;
         publicMeta.Should().NotBeNull();
         publicMeta!["role"].Should().Be("admin");
-        publicMeta["organization"].Should().Be("National");
 
         var permissions = publicMeta["permissions"] as List<string>;
         permissions.Should().NotBeNull();
@@ -129,7 +110,6 @@ public class CreateSessionHandlerTests
             AuthUserId = authUserId,
             Email = "user@example.com",
             Role = null!,
-            Organization = null!,
             IsDeleted = false
         };
 
@@ -154,7 +134,83 @@ public class CreateSessionHandlerTests
         var publicMeta = capturedPayload!.PublicMetadata as Dictionary<string, object>;
         publicMeta.Should().NotBeNull();
         publicMeta!["role"].Should().Be("unknown");
-        publicMeta["organization"].Should().Be("unknown");
         publicMeta["permissions"].Should().BeEquivalentTo(new List<string>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenClerkUpdateFails_ReturnsFailureResponseWithoutCrashing()
+    {
+        // Arrange
+        var authUserId = "user_clerk_err";
+        var request = new CreateSessionRequest { AuthUserId = authUserId };
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = "error@example.com",
+            Role = new Role { Id = Guid.NewGuid(), Key = "admin", Name = "Admin", Permissions = [] },
+            IsDeleted = false
+        };
+
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns(new List<User> { user }.AsQueryable());
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        _clerkUserServiceMock.Setup(c => c.UpdateUserMetadataAsync(authUserId, It.IsAny<UserMetadataPayload>()))
+            .ThrowsAsync(new HttpRequestException("Clerk API timeout"));
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Data.Should().BeFalse();
+        result.Message.Should().Contain("Failed to synchronize session metadata with Clerk: Clerk API timeout");
+    }
+
+    [Fact]
+    public async Task Handle_WhenClerkUpdateFailsWithLogger_LogsContextualErrorWithoutLeakingSensitiveUserData()
+    {
+        // Arrange
+        var loggerMock = new Mock<ILogger<CreateSessionHandler>>();
+        var handlerWithLogger = new CreateSessionHandler(_userRepositoryMock.Object, _clerkUserServiceMock.Object, loggerMock.Object);
+
+        var authUserId = "user_clerk_logged_err";
+        var request = new CreateSessionRequest { AuthUserId = authUserId };
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = "sensitive-pii@example.com",
+            Role = new Role { Id = Guid.NewGuid(), Key = "regional_admin", Name = "Regional Admin", Permissions = ["read:region", "write:region"] },
+            IsDeleted = false
+        };
+
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns(new List<User> { user }.AsQueryable());
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        _clerkUserServiceMock.Setup(c => c.UpdateUserMetadataAsync(authUserId, It.IsAny<UserMetadataPayload>()))
+            .ThrowsAsync(new HttpRequestException("Connection reset"));
+
+        // Act
+        var result = await handlerWithLogger.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(authUserId) &&
+                                             v.ToString()!.Contains("regional_admin") &&
+                                             !v.ToString()!.Contains("sensitive-pii@example.com")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 }

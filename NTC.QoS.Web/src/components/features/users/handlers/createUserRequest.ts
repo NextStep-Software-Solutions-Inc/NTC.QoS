@@ -4,7 +4,14 @@ import type { User } from "../types/User";
 
 const endpoint = "/users";
 
-export type CreateUserPayload = { roleId: string; organizationId: string; authUserId: string };
+export type CreateUserPayload = {
+  authUserId: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  roleId: string;
+  regions?: { regionId: string; roleId?: string; status?: string }[];
+};
 
 export const createUserRequest: MutationBlueprintFromTemplate<
   typeof endpoint,

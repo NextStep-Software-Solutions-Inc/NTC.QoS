@@ -12,9 +12,8 @@ internal sealed class UserRegionRepository(ApplicationDbContext context) : Repos
         var query = _context.Set<UserRegion>()
             .Include(ur => ur.User)
                 .ThenInclude(u => u.Role)
-            .Include(ur => ur.User)
-                .ThenInclude(u => u.Organization)
             .Include(ur => ur.Region)
+            .Include(ur => ur.Role)
             .AsQueryable();
 
         if (expression != null)

@@ -4,7 +4,13 @@ import { type Role } from "../types/Role";
 
 const endpoint = "/roles";
 
-type CreateRolePayload = { name: string; key: string; description?: string };
+type CreateRolePayload = {
+  name: string;
+  key: string;
+  description?: string;
+  scope?: string;
+  regionId?: string;
+};
 
 export const createRoleRequest: MutationBlueprintFromTemplate<
   typeof endpoint,

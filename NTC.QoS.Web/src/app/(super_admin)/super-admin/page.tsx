@@ -27,7 +27,7 @@ const managementCards = [
     name: "Users",
     href: "/super-admin/users",
     icon: Users,
-    description: "Manage user accounts, roles, and organizations",
+    description: "Manage user accounts, roles, and regional jurisdictions",
     color: "text-blue-500",
   },
   {
@@ -49,34 +49,37 @@ const managementCards = [
     href: "/super-admin/role-permissions",
     icon: UserCog,
     description: "Assign permissions to roles",
-    color: "text-green-500",
+    color: "text-emerald-500",
   },
+];
+
+const adminSections = [
   {
     name: "User Regions",
     href: "/super-admin/user-regions",
     icon: MapPin,
     description: "Manage user region assignments",
-    color: "text-red-500",
+    color: "text-blue-500",
   },
   {
     name: "Regions",
     href: "/super-admin/regions",
     icon: Map,
-    description: "Manage regional divisions",
+    description: "Manage region records",
     color: "text-indigo-500",
   },
   {
     name: "Provinces",
     href: "/super-admin/provinces",
     icon: Building,
-    description: "Manage provincial data",
+    description: "Manage province records",
     color: "text-cyan-500",
   },
   {
     name: "Municipalities",
     href: "/super-admin/municipalities",
     icon: Building2,
-    description: "Manage city and municipal data",
+    description: "Manage municipality records",
     color: "text-teal-500",
   },
   {
@@ -92,13 +95,6 @@ const managementCards = [
     icon: Briefcase,
     description: "Manage service type categories",
     color: "text-pink-500",
-  },
-  {
-    name: "Organizations",
-    href: "/super-admin/organizations",
-    icon: Layers,
-    description: "Manage organization records",
-    color: "text-violet-500",
   },
 ];
 

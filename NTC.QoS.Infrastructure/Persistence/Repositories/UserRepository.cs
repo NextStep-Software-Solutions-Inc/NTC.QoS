@@ -10,10 +10,7 @@ internal sealed class UserRepository(ApplicationDbContext context) : Repository<
     public override IQueryable<User> Query(Expression<Func<User, bool>>? expression = null)
     {
         var query = _context.Set<User>()
-            .Include(u => u.Organization)
             .Include(u => u.Role)
-                .ThenInclude(r => r.RolePermissions)
-                    .ThenInclude(rp => rp.Permission)
             .AsQueryable();
 
         if (expression != null)

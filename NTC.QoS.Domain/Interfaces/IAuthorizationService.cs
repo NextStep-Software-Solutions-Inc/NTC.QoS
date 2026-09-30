@@ -47,12 +47,6 @@ public interface IUserAuthorizationService
     Task<bool> HasRoleAsync(string role, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks if the current user belongs to the specified organization
-    /// </summary>
-    /// <param name="organizationId">Organization ID to check</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>True if user belongs to organization, false otherwise</returns>
-    Task<bool> BelongsToOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the regions accessible by the current user
@@ -77,9 +71,20 @@ public interface IUserAuthorizationService
     Task<List<string>> GetUserPermissionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the current user's organization ID
+    /// Gets the current user's effective permissions within a specific region.
+    /// Evaluates regional role assignments if assigned, falling back to primary role permissions.
     /// </summary>
+    /// <param name="regionId">Region ID to evaluate permissions for</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Organization ID or null if not found</returns>
-    Task<Guid?> GetUserOrganizationIdAsync(CancellationToken cancellationToken = default);
+    /// <returns>List of permission keys valid in this region</returns>
+    Task<List<string>> GetUserPermissionsInRegionAsync(Guid regionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if the current user has the specified permission within a specific region.
+    /// </summary>
+    /// <param name="permission">Permission key to check</param>
+    /// <param name="regionId">Region ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if user has permission in the region, false otherwise</returns>
+    Task<bool> HasPermissionInRegionAsync(string permission, Guid regionId, CancellationToken cancellationToken = default);
 }
