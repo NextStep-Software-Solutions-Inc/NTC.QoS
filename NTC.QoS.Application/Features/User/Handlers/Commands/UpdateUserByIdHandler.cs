@@ -57,6 +57,30 @@ public class UpdateUserByIdHandler(
             }
         }
 
+        // Prevent non-superadmins from modifying a superadmin user
+        if (_userAuthorizationService != null)
+        {
+            var isCallerSuperAdmin = await _userAuthorizationService.HasRoleAsync(Roles.SuperAdmin, cancellationToken);
+            if (!isCallerSuperAdmin)
+            {
+                var currentTargetRole = await _roleRepository.FirstOrDefaultAsync(
+                    _roleRepository.Query(r => r.Id == user.RoleId), cancellationToken);
+
+                if (currentTargetRole != null && Roles.IsSuperAdmin(currentTargetRole.Key))
+                {
+                    return new ApiResponse<UserDto>
+                    {
+                        Succeeded = false,
+                        Message = "You cannot modify accounts with Super Administrator privileges.",
+                        Errors = new Dictionary<string, string[]>
+                        {
+                            { "Authorization", ["Insufficient privileges to modify a Super Administrator."] }
+                        }
+                    };
+                }
+            }
+        }
+
         Domain.Entities.Role? role = null;
         if (request.User.RoleId.HasValue)
         {

@@ -95,8 +95,29 @@ export default function RegionalPersonnelPage() {
     enabled: !!currentRegion?.id,
   });
 
-  const users = useMemo(() => usersData?.data ?? [], [usersData?.data]);
-  const totalCount = usersData?.totalRows || 0;
+  const isSuperAdminUser = (u: User) => {
+    const roleKey = u.role?.key?.toLowerCase();
+    const roleName = u.role?.name?.toLowerCase();
+    return (
+      roleKey === "super_admin" ||
+      roleKey === "super-admin" ||
+      roleName === "superadmin" ||
+      roleName === "super admin"
+    );
+  };
+
+  const users = useMemo(() => {
+    const raw = usersData?.data ?? [];
+    return raw.filter((u) => !isSuperAdminUser(u));
+  }, [usersData?.data]);
+
+  const totalCount = useMemo(() => {
+    const raw = usersData?.data ?? [];
+    const superAdminCount = raw.filter(isSuperAdminUser).length;
+    const rawTotal = usersData?.totalRows ?? raw.length;
+    return Math.max(0, rawTotal - superAdminCount);
+  }, [usersData?.totalRows, usersData?.data]);
+
   const totalPages = Math.ceil(totalCount / pageSize);
 
   const stats = useMemo(() => {

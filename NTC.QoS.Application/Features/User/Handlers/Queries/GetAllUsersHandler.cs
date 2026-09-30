@@ -33,11 +33,18 @@ public class GetAllUsersHandler(
             {
                 query = query.Where(u => u.UserRegions.Any(ur => accessibleRegions.Contains(ur.RegionId)));
             }
+
+            // Lower-level administrators and regional staff must never see SuperAdmin accounts
+            query = query.Where(u => u.Role == null || (u.Role.Key != Roles.SuperAdmin && u.Role.Key != "super-admin"));
         }
         else if (request.RegionIds is not null && request.RegionIds.Count > 0)
         {
             query = query.Where(u => u.UserRegions.Any(ur => request.RegionIds.Contains(ur.RegionId)));
+
+            // Regional personnel directory should only display operational regional personnel, not platform SuperAdmins
+            query = query.Where(u => u.Role == null || (u.Role.Key != Roles.SuperAdmin && u.Role.Key != "super-admin"));
         }
+
         if (request.AuthUserIds is not null && request.AuthUserIds.Count > 0)
         {
             query = query.Where(u => request.AuthUserIds.Contains(u.AuthUserId));

@@ -73,6 +73,13 @@ export function UserAccessSheet({
   const queryClient = useQueryClient();
   const { currentUser } = usePermissions();
   const isSelf = Boolean(currentUser && user && currentUser.id === user.id);
+  const isTargetSuperAdmin = Boolean(
+    user?.role?.key === "super_admin" ||
+    user?.role?.key === "super-admin" ||
+    user?.role?.name?.toLowerCase().includes("super admin") ||
+    user?.role?.name?.toLowerCase() === "superadmin"
+  );
+  const canManageTarget = Boolean(currentUser?.isSuperAdmin || !isTargetSuperAdmin);
 
   const [activeTab, setActiveTab] = useState<string>("role");
   const [roleForm, setRoleForm] = useState({ roleId: "" });
@@ -137,7 +144,7 @@ export function UserAccessSheet({
 
   const handleUpdateRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || isSelf) return;
+    if (!user || isSelf || !canManageTarget) return;
 
     if (!roleForm.roleId) {
       toast.error("Please select a primary role.");
@@ -157,7 +164,7 @@ export function UserAccessSheet({
   };
 
   const handleAssignRegion = async () => {
-    if (!user || !newRegionForm.regionId) {
+    if (!user || !newRegionForm.regionId || !canManageTarget) {
       toast.error("Please select a region to assign.");
       return;
     }
@@ -183,8 +190,8 @@ export function UserAccessSheet({
   };
 
   const handleUpdateRegionStatus = async (userRegionId: string, activate: boolean) => {
-    if (isSelf) {
-      toast.error("You cannot approve or change your own region status.");
+    if (isSelf || !canManageTarget) {
+      toast.error("You cannot modify this region status.");
       return;
     }
 
@@ -204,6 +211,7 @@ export function UserAccessSheet({
   };
 
   const handleRemoveRegion = async (userRegionId: string) => {
+    if (!canManageTarget) return;
     try {
       await removeUserRegionMutation.mutateAsync({ pathParams: { id: userRegionId } });
       toast.success("Region assignment removed.");
@@ -279,6 +287,16 @@ export function UserAccessSheet({
               </div>
             )}
 
+            {!canManageTarget && (
+              <div className="p-3.5 bg-purple-500/10 border border-purple-500/20 rounded-lg text-xs text-purple-800 dark:text-purple-300 flex items-start gap-2.5">
+                <Shield className="h-4 w-4 shrink-0 mt-0.5 text-purple-600 dark:text-purple-400" />
+                <div>
+                  <strong className="font-semibold block">Protected Super Administrator Account:</strong>
+                  Super Administrator accounts cannot be modified or re-scoped from regional consoles.
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleUpdateRole} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="user-sheet-role" className="text-xs font-semibold">
@@ -287,7 +305,7 @@ export function UserAccessSheet({
                 <Select
                   value={roleForm.roleId}
                   onValueChange={(val) => setRoleForm({ roleId: val })}
-                  disabled={isSelf}>
+                  disabled={isSelf || !canManageTarget}>
                   <SelectTrigger id="user-sheet-role" className="h-10">
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
@@ -312,7 +330,7 @@ export function UserAccessSheet({
               <div className="pt-4 flex justify-end">
                 <Button
                   type="submit"
-                  disabled={isSelf || updateUserMutation.isPending}
+                  disabled={isSelf || !canManageTarget || updateUserMutation.isPending}
                   className="gap-2 min-w-[140px]">
                   {updateUserMutation.isPending ? (
                     <>
@@ -351,68 +369,70 @@ export function UserAccessSheet({
             )}
 
             {/* Quick Assign Region */}
-            <div className="p-4 rounded-lg border bg-card space-y-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                Assign New Region
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <Select
-                  value={newRegionForm.regionId || "none"}
-                  onValueChange={(val) => setNewRegionForm((prev) => ({ ...prev, regionId: val === "none" ? "" : val }))}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Select region..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Choose region</SelectItem>
-                    {regions.map((reg: Region) => (
-                      <SelectItem key={reg.id} value={reg.id}>
-                        {reg.name} ({reg.code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {canManageTarget && (
+              <div className="p-4 rounded-lg border bg-card space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Plus className="h-3.5 w-3.5" />
+                  Assign New Region
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <Select
+                    value={newRegionForm.regionId || "none"}
+                    onValueChange={(val) => setNewRegionForm((prev) => ({ ...prev, regionId: val === "none" ? "" : val }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select region..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Choose region</SelectItem>
+                      {regions.map((reg: Region) => (
+                        <SelectItem key={reg.id} value={reg.id}>
+                          {reg.name} ({reg.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select
-                  value={newRegionForm.roleId || user?.role?.id || ""}
-                  onValueChange={(val) => setNewRegionForm((prev) => ({ ...prev, roleId: val }))}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Regional role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map((r: Role) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Select
+                    value={newRegionForm.roleId || user?.role?.id || ""}
+                    onValueChange={(val) => setNewRegionForm((prev) => ({ ...prev, roleId: val }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Regional role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map((r: Role) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select
-                  value={newRegionForm.status}
-                  onValueChange={(val) => setNewRegionForm((prev) => ({ ...prev, status: val }))}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Initial status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active (Immediate)</SelectItem>
-                    <SelectItem value="Pending">Pending Review</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Select
+                    value={newRegionForm.status}
+                    onValueChange={(val) => setNewRegionForm((prev) => ({ ...prev, status: val }))}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Initial status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active (Immediate)</SelectItem>
+                      <SelectItem value="Pending">Pending Review</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAssignRegion}
+                    disabled={!newRegionForm.regionId || createUserRegionMutation.isPending}
+                    className="h-8 text-xs gap-1.5">
+                    <UserCheck className="h-3.5 w-3.5" />
+                    Assign Region
+                  </Button>
+                </div>
               </div>
-
-              <div className="flex justify-end pt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleAssignRegion}
-                  disabled={!newRegionForm.regionId || createUserRegionMutation.isPending}
-                  className="h-8 text-xs gap-1.5">
-                  <UserCheck className="h-3.5 w-3.5" />
-                  Assign Region
-                </Button>
-              </div>
-            </div>
+            )}
 
             {/* Assigned Regions List */}
             <div className="space-y-2.5">
@@ -467,7 +487,7 @@ export function UserAccessSheet({
                               variant="outline"
                               size="sm"
                               onClick={() => handleUpdateRegionStatus(ur.id, true)}
-                              disabled={isSelf || updateUserRegionStatusMutation.isPending}
+                              disabled={isSelf || !canManageTarget || updateUserRegionStatusMutation.isPending}
                               className="h-7 px-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 gap-1"
                               title={isSelf ? "Self-approval forbidden" : "Approve region request"}>
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -481,7 +501,7 @@ export function UserAccessSheet({
                               variant="ghost"
                               size="sm"
                               onClick={() => handleUpdateRegionStatus(ur.id, false)}
-                              disabled={isSelf || updateUserRegionStatusMutation.isPending}
+                              disabled={isSelf || !canManageTarget || updateUserRegionStatusMutation.isPending}
                               className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 gap-1"
                               title={isSelf ? "Self-modification forbidden" : "Deactivate region access"}>
                               <XCircle className="h-3.5 w-3.5" />
@@ -494,7 +514,7 @@ export function UserAccessSheet({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRemoveRegion(ur.id)}
-                            disabled={removeUserRegionMutation.isPending}
+                            disabled={!canManageTarget || removeUserRegionMutation.isPending}
                             className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-500/10"
                             title="Remove region access">
                             <Trash2 className="h-3.5 w-3.5" />
