@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Entities;
@@ -15,7 +16,8 @@ public class InviteUserHandler(
     IRepository<Domain.Entities.Region> regionRepository,
     IClerkUserService clerkUserService,
     IConfiguration configuration,
-    IUserAuthorizationService authorizationService) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
+    IUserAuthorizationService authorizationService,
+    ILogger<InviteUserHandler>? logger = null) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
@@ -23,6 +25,7 @@ public class InviteUserHandler(
     private readonly IClerkUserService _clerkUserService = clerkUserService;
     private readonly IConfiguration _configuration = configuration;
     private readonly IUserAuthorizationService _authorizationService = authorizationService;
+    private readonly ILogger<InviteUserHandler>? _logger = logger;
 
     public async Task<ApiResponse<UserDto>> Handle(InviteUserRequest request, CancellationToken cancellationToken)
     {
@@ -179,6 +182,7 @@ public class InviteUserHandler(
         }
         catch (Exception ex)
         {
+            _logger?.LogError(ex, "Failed to send invitation via Clerk for {Email}: {Message}", request.User.Email, ex.Message);
             return new ApiResponse<UserDto>
             {
                 Succeeded = false,
@@ -194,19 +198,28 @@ public class InviteUserHandler(
         try
         {
             var existingInvitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var newInvitationId = newInvitation?.Id;
             var priorInvites = existingInvitations
                 .Where(i => string.Equals(i.EmailAddress, request.User.Email, StringComparison.OrdinalIgnoreCase) &&
-                            !string.Equals(i.Id, newInvitation.Id, StringComparison.OrdinalIgnoreCase))
+                            (newInvitationId == null || !string.Equals(i.Id, newInvitationId, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
 
             foreach (var priorInvite in priorInvites)
             {
-                await _clerkUserService.RevokeInvitationAsync(priorInvite.Id);
+                try
+                {
+                    await _clerkUserService.RevokeInvitationAsync(priorInvite.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to revoke prior pending invitation {InvitationId} for {Email}", priorInvite.Id, request.User.Email);
+                }
             }
         }
-        catch
+        catch (Exception ex)
         {
             // Non-fatal: if cleanup of old invites fails, the fresh invitation is already active
+            _logger?.LogWarning(ex, "Failed to query or clean up prior pending invitations for {Email}", request.User.Email);
         }
 
         return new ApiResponse<UserDto>

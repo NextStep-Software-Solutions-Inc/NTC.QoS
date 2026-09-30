@@ -135,4 +135,37 @@ public class CreateSessionHandlerTests
         publicMeta!["role"].Should().Be("unknown");
         publicMeta["permissions"].Should().BeEquivalentTo(new List<string>());
     }
+
+    [Fact]
+    public async Task Handle_WhenClerkUpdateFails_ReturnsFailureResponseWithoutCrashing()
+    {
+        // Arrange
+        var authUserId = "user_clerk_err";
+        var request = new CreateSessionRequest { AuthUserId = authUserId };
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = "error@example.com",
+            Role = new Role { Id = Guid.NewGuid(), Key = "admin", Name = "Admin", Permissions = [] },
+            IsDeleted = false
+        };
+
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns(new List<User> { user }.AsQueryable());
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        _clerkUserServiceMock.Setup(c => c.UpdateUserMetadataAsync(authUserId, It.IsAny<UserMetadataPayload>()))
+            .ThrowsAsync(new HttpRequestException("Clerk API timeout"));
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Data.Should().BeFalse();
+        result.Message.Should().Contain("Failed to synchronize session metadata with Clerk: Clerk API timeout");
+    }
 }

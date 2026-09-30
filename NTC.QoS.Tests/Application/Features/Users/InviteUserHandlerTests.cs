@@ -183,7 +183,7 @@ public class InviteUserHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPriorPendingInviteExists_RevokesPriorInviteBeforeCreatingNewOne()
+    public async Task Handle_WhenPriorPendingInviteExists_CreatesNewInviteAndRevokesPriorInvite()
     {
         // Arrange
         var roleId = Guid.NewGuid();
@@ -203,8 +203,17 @@ public class InviteUserHandlerTests
             EmailAddress = "test@example.com",
             Status = "pending"
         };
+        var newInvite = new ClerkInvitationResponse
+        {
+            Id = "inv_new_456",
+            EmailAddress = "test@example.com",
+            Status = "pending"
+        };
+
+        _clerkUserServiceMock.Setup(c => c.CreateInvitationAsync(It.IsAny<CreateClerkInvitationPayload>()))
+            .ReturnsAsync(newInvite);
         _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync("pending"))
-            .ReturnsAsync(new List<ClerkInvitationResponse> { priorInvite });
+            .ReturnsAsync(new List<ClerkInvitationResponse> { priorInvite, newInvite });
 
         var request = new InviteUserRequest(new InviteUserDto
         {
@@ -217,7 +226,8 @@ public class InviteUserHandlerTests
 
         // Assert
         result.Succeeded.Should().BeTrue();
-        _clerkUserServiceMock.Verify(c => c.RevokeInvitationAsync("inv_prior_123"), Times.Once);
         _clerkUserServiceMock.Verify(c => c.CreateInvitationAsync(It.IsAny<CreateClerkInvitationPayload>()), Times.Once);
+        _clerkUserServiceMock.Verify(c => c.RevokeInvitationAsync("inv_prior_123"), Times.Once);
+        _clerkUserServiceMock.Verify(c => c.RevokeInvitationAsync("inv_new_456"), Times.Never);
     }
 }

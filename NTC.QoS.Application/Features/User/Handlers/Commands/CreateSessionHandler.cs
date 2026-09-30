@@ -1,15 +1,20 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
-public class CreateSessionHandler(IUserRepository userRepository, IClerkUserService clerkUserService) : IRequestHandler<CreateSessionRequest, ApiResponse<bool>>
+public class CreateSessionHandler(
+    IUserRepository userRepository,
+    IClerkUserService clerkUserService,
+    ILogger<CreateSessionHandler>? logger = null) : IRequestHandler<CreateSessionRequest, ApiResponse<bool>>
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly IClerkUserService _clerkUserService = clerkUserService;
+    private readonly ILogger<CreateSessionHandler>? _logger = logger;
 
     public async Task<ApiResponse<bool>> Handle(CreateSessionRequest request, CancellationToken cancellationToken)
     {
@@ -28,14 +33,27 @@ public class CreateSessionHandler(IUserRepository userRepository, IClerkUserServ
 
         var permissions = user.Role?.Permissions ?? [];
 
-        await _clerkUserService.UpdateUserMetadataAsync(user.AuthUserId, new UserMetadataPayload
+        try
         {
-            PublicMetadata = new Dictionary<string, object>
+            await _clerkUserService.UpdateUserMetadataAsync(user.AuthUserId, new UserMetadataPayload
             {
-                { "role", user.Role?.Key ?? "unknown" },
-                { "permissions", permissions }
-            }
-        });
+                PublicMetadata = new Dictionary<string, object>
+                {
+                    { "role", user.Role?.Key ?? "unknown" },
+                    { "permissions", permissions }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to synchronize Clerk metadata for AuthUserId {AuthUserId}: {Message}", user.AuthUserId, ex.Message);
+            return new ApiResponse<bool>
+            {
+                Data = false,
+                Succeeded = false,
+                Message = $"Failed to synchronize session metadata with Clerk: {ex.Message}"
+            };
+        }
 
         return new ApiResponse<bool>
         {

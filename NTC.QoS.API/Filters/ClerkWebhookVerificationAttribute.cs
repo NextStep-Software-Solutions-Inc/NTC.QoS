@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Svix;
 using System.Net;
 using System.Text.Json;
@@ -15,10 +17,12 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
     };
     public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        var logger = context.HttpContext.RequestServices.GetService<ILogger<ClerkWebhookVerificationAttribute>>();
         var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var webhookSecret = configuration["Clerk:WebhookSecret"];
         if (string.IsNullOrEmpty(webhookSecret))
         {
+            logger?.LogError("Clerk webhook verification failed: Webhook secret not configured in application settings.");
             context.Result = new BadRequestObjectResult("Webhook secret not configured");
             return;
         }
@@ -40,6 +44,13 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
         var svixTimestamp = headers["svix-timestamp"].ToString();
         var svixSignature = headers["svix-signature"].ToString();
 
+        if (string.IsNullOrWhiteSpace(svixId) || string.IsNullOrWhiteSpace(svixTimestamp) || string.IsNullOrWhiteSpace(svixSignature))
+        {
+            logger?.LogWarning("Clerk webhook verification rejected: Missing required Svix headers (svix-id={SvixId}, svix-timestamp={SvixTimestamp})", svixId, svixTimestamp);
+            context.Result = new UnauthorizedObjectResult("Invalid signature");
+            return;
+        }
+
         var svixHeaders = new WebHeaderCollection
         {
             ["svix-id"] = svixId,
@@ -52,8 +63,9 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
         {
             wh.Verify(body, svixHeaders);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger?.LogWarning(ex, "Clerk webhook verification failed for svix-id {SvixId}: {Message}", svixId, ex.Message);
             context.Result = new UnauthorizedObjectResult("Invalid signature");
             return;
         }
