@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ChevronRight, Globe2, Grid, List, MapPin, Sparkles } from "lucide-react";
+import { ChevronRight, Globe2, Grid, Info, List, MapPin, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { getRegionsRequest } from "@/components/features/region/handlers/getRegionsRequest";
@@ -75,6 +75,14 @@ export default function RegionList() {
   );
 
   const [view, setView] = useState<"list" | "grid">("grid");
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  const hasNoRegions =
+    !isLoading &&
+    !isSuperAdmin &&
+    !isPlatformUser &&
+    (authUser?.data as any)?.role?.key !== SUPER_ADMIN_ROLE_KEY &&
+    userAccessibleRegionIds.size === 0;
 
   const handleRegionClick = useCallback(
     (regionId: string, e: React.MouseEvent) => {
@@ -136,6 +144,29 @@ export default function RegionList() {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
+      {hasNoRegions && !bannerDismissed && (
+        <div className="mb-4 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 sm:p-5 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-500 relative flex items-start gap-3.5">
+          <div className="p-2 rounded-xl bg-blue-500/15 text-blue-500 shrink-0 mt-0.5">
+            <Info className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0 pr-6">
+            <h3 className="text-sm sm:text-base font-semibold text-foreground">
+              Welcome to the NTC QoS Portal
+            </h3>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1 leading-relaxed">
+              You do not currently have assigned access to any regional dashboard. To get started, select your designated region below and click <span className="font-semibold text-foreground">Request Access</span>, or contact your regional administrator to assign your regional role.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBannerDismissed(true)}
+            aria-label="Dismiss banner"
+            className="absolute top-4 right-4 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* View toggle with animation */}
       <div
         className="flex justify-end mb-6 animate-in fade-in slide-in-from-top-4 duration-700"
