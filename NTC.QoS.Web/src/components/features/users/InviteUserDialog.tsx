@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Globe, Plus, Shield, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Globe, Lock, MapPin, Plus, Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ResponsiveDialog } from "@/components/ResponsiveDialog";
 import { useGetRegions } from "@/components/features/region/hooks/useGetRegions";
 import { getAllRolesRequest } from "@/components/features/role/handlers/getAllRolesRequest";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,8 @@ interface InviteUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  fixedRegionId?: string;
+  allowedRoleScope?: "Regional" | "Platform" | "All";
 }
 
 interface RegionRow {
@@ -30,7 +33,13 @@ interface RegionRow {
   roleId: string;
 }
 
-export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDialogProps) {
+export function InviteUserDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+  fixedRegionId,
+  allowedRoleScope = "All",
+}: InviteUserDialogProps) {
   const [email, setEmail] = useState("");
   const [primaryRoleId, setPrimaryRoleId] = useState("");
   const [assignedRegions, setAssignedRegions] = useState<RegionRow[]>([]);
@@ -42,8 +51,39 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
   const roles = rolesData?.data ?? [];
   const regions = regionsData?.data ?? [];
 
+  const filteredRoles = useMemo(() => {
+    if (allowedRoleScope === "Regional") {
+      return roles.filter(
+        (r) =>
+          r.scope === "Regional" &&
+          r.key !== "super_admin" &&
+          !r.name.toLowerCase().includes("super admin")
+      );
+    }
+    if (allowedRoleScope === "Platform") {
+      return roles.filter(
+        (r) =>
+          r.scope === "Platform" ||
+          r.key === "super_admin" ||
+          r.name.toLowerCase().includes("super admin")
+      );
+    }
+    return roles;
+  }, [roles, allowedRoleScope]);
+
   const selectedRole = roles.find((r) => r.id === primaryRoleId);
   const isSuperAdmin = selectedRole?.key === "super_admin" || selectedRole?.name.toLowerCase().includes("super admin");
+
+  const fixedRegion = useMemo(() => {
+    if (!fixedRegionId) return null;
+    return regions.find((r) => r.id === fixedRegionId);
+  }, [regions, fixedRegionId]);
+
+  useEffect(() => {
+    if (open && fixedRegionId) {
+      setAssignedRegions([{ regionId: fixedRegionId, roleId: primaryRoleId }]);
+    }
+  }, [open, fixedRegionId, primaryRoleId]);
 
   // Unselected regions available to add
   const availableRegions = useMemo(() => {
@@ -101,14 +141,18 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
   const resetForm = () => {
     setEmail("");
     setPrimaryRoleId("");
-    setAssignedRegions([]);
+    if (fixedRegionId) {
+      setAssignedRegions([{ regionId: fixedRegionId, roleId: "" }]);
+    } else {
+      setAssignedRegions([]);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email || !primaryRoleId) {
-      toast.error("Please enter email and select a primary role.");
+      toast.error("Please enter email and select a role.");
       return;
     }
 
@@ -119,13 +163,15 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
 
     const regionsPayload: InviteUserRegionItem[] = isSuperAdmin
       ? []
-      : assignedRegions
-          .filter((r) => r.regionId)
-          .map((r) => ({
-            regionId: r.regionId,
-            roleId: r.roleId || primaryRoleId,
-            status: "Active",
-          }));
+      : fixedRegionId
+        ? [{ regionId: fixedRegionId, roleId: primaryRoleId, status: "Active" }]
+        : assignedRegions
+            .filter((r) => r.regionId)
+            .map((r) => ({
+              regionId: r.regionId,
+              roleId: r.roleId || primaryRoleId,
+              status: "Active",
+            }));
 
     toast.promise(
       inviteUserMutation.mutateAsync({
@@ -159,8 +205,12 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
     <ResponsiveDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Invite User"
-      description="Send a Clerk invitation with assigned operational regions and custom roles per region.">
+      title={fixedRegionId ? "Invite Regional Personnel" : "Invite User"}
+      description={
+        fixedRegionId
+          ? `Send an invitation to onboard personnel to ${fixedRegion?.name ?? "this region"}.`
+          : "Send a Clerk invitation with assigned operational regions and custom roles per region."
+      }>
       <form onSubmit={handleSubmit} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
         <div>
           <Label htmlFor="email" className="font-medium">
@@ -179,7 +229,7 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
 
         <div>
           <Label htmlFor="role" className="font-medium">
-            Primary Role <span className="text-destructive">*</span>
+            {fixedRegionId ? "Role in Region" : "Primary Role"} <span className="text-destructive">*</span>
           </Label>
           <Select
             value={primaryRoleId}
@@ -194,10 +244,10 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
               );
             }}>
             <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Select primary role" />
+              <SelectValue placeholder={fixedRegionId ? "Select regional role" : "Select primary role"} />
             </SelectTrigger>
             <SelectContent>
-              {roles.map((role) => (
+              {filteredRoles.map((role) => (
                 <SelectItem key={role.id} value={role.id}>
                   <div className="flex items-center gap-2">
                     <Shield className="h-3.5 w-3.5 text-muted-foreground" />
@@ -211,12 +261,31 @@ export function InviteUserDialog({ open, onOpenChange, onSuccess }: InviteUserDi
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-1">
-            This will be the user's primary system role.
+            {fixedRegionId
+              ? "Designates the operational role and permissions for this region."
+              : "This will be the user's primary system role."}
           </p>
         </div>
 
         {/* Operational Regions Assignment */}
-        {isSuperAdmin ? (
+        {fixedRegionId ? (
+          <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-3 flex items-start gap-3">
+            <MapPin className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">
+                  Assigned Jurisdiction: {fixedRegion?.name ?? "Active Region"}
+                </p>
+                <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground">
+                  <Lock className="h-3 w-3" /> Scoped
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Personnel invited through this workspace will be automatically provisioned with access to this region.
+              </p>
+            </div>
+          </div>
+        ) : isSuperAdmin ? (
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-start gap-3">
             <Globe className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>

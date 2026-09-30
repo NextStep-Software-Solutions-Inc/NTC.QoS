@@ -1,24 +1,40 @@
 using MediatR;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.User;
 
 namespace NTC.QoS.Application.Features.User.Handlers.Queries;
 
-public class GetAllUsersHandler(IUserRepository repository) : IRequestHandler<GetAllUsersRequest, PaginatedResponse<UserDto>>
+public class GetAllUsersHandler(
+    IUserRepository repository,
+    IUserAuthorizationService authorizationService) : IRequestHandler<GetAllUsersRequest, PaginatedResponse<UserDto>>
 {
     private readonly IUserRepository _repository = repository;
+    private readonly IUserAuthorizationService _authorizationService = authorizationService;
 
     public async Task<PaginatedResponse<UserDto>> Handle(GetAllUsersRequest request, CancellationToken cancellationToken)
     {
         var query = _repository.Query();
 
-        if (request.RoleId.HasValue)
-        {
-            query = query.Where(u => u.RoleId == request.RoleId.Value);
-        }
+        // Scope check: If caller is not a Super Admin or Platform officer, enforce their accessible regions
+        var currentUser = await _authorizationService.GetCurrentUserAsync(cancellationToken);
+        var isPlatformUser = currentUser?.Role != null && Roles.IsPlatformRole(currentUser.Role.Key);
 
-        if (request.RegionIds is not null && request.RegionIds.Count > 0)
+        if (!isPlatformUser)
+        {
+            var accessibleRegions = await _authorizationService.GetAccessibleRegionsAsync(cancellationToken);
+            if (request.RegionIds is not null && request.RegionIds.Count > 0)
+            {
+                var filteredRegionIds = request.RegionIds.Where(accessibleRegions.Contains).ToList();
+                query = query.Where(u => u.UserRegions.Any(ur => filteredRegionIds.Contains(ur.RegionId)));
+            }
+            else
+            {
+                query = query.Where(u => u.UserRegions.Any(ur => accessibleRegions.Contains(ur.RegionId)));
+            }
+        }
+        else if (request.RegionIds is not null && request.RegionIds.Count > 0)
         {
             query = query.Where(u => u.UserRegions.Any(ur => request.RegionIds.Contains(ur.RegionId)));
         }

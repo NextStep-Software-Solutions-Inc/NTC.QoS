@@ -58,16 +58,25 @@ interface UserAccessSheetProps {
   onOpenChange: (open: boolean) => void;
   user: User | null;
   onSuccess: () => void;
+  fixedRegionId?: string;
+  allowedRoleScope?: "Regional" | "Platform" | "All";
 }
 
-export function UserAccessSheet({ open, onOpenChange, user, onSuccess }: UserAccessSheetProps) {
+export function UserAccessSheet({
+  open,
+  onOpenChange,
+  user,
+  onSuccess,
+  fixedRegionId,
+  allowedRoleScope = "All",
+}: UserAccessSheetProps) {
   const queryClient = useQueryClient();
   const { currentUser } = usePermissions();
   const isSelf = Boolean(currentUser && user && currentUser.id === user.id);
 
   const [activeTab, setActiveTab] = useState<string>("role");
   const [roleForm, setRoleForm] = useState({ roleId: "" });
-  const [newRegionForm, setNewRegionForm] = useState({ regionId: "", roleId: "", status: "Active" });
+  const [newRegionForm, setNewRegionForm] = useState({ regionId: fixedRegionId ?? "", roleId: "", status: "Active" });
 
   const { data: rolesData } = useGetAllRoles({ pathParams: {}, queryParams: {} });
   const { data: regionsData } = useGetRegions({
@@ -90,15 +99,35 @@ export function UserAccessSheet({ open, onOpenChange, user, onSuccess }: UserAcc
   const regions: Region[] = (regionsData?.data ?? []) as Region[];
   const userRegions = userRegionsData?.data ?? [];
 
+  const filteredRoles = React.useMemo(() => {
+    if (allowedRoleScope === "Regional") {
+      return roles.filter(
+        (r: Role) =>
+          r.scope === "Regional" &&
+          r.key !== "super_admin" &&
+          !r.name.toLowerCase().includes("super admin")
+      );
+    }
+    if (allowedRoleScope === "Platform") {
+      return roles.filter(
+        (r: Role) =>
+          r.scope === "Platform" ||
+          r.key === "super_admin" ||
+          r.name.toLowerCase().includes("super admin")
+      );
+    }
+    return roles;
+  }, [roles, allowedRoleScope]);
+
   // Initialize roleForm when user changes
   React.useEffect(() => {
     if (user) {
       setRoleForm({
         roleId: user.role?.id ?? "",
       });
-      setNewRegionForm({ regionId: "", roleId: user.role?.id ?? "", status: "Active" });
+      setNewRegionForm({ regionId: fixedRegionId ?? "", roleId: user.role?.id ?? "", status: "Active" });
     }
-  }, [user]);
+  }, [user, fixedRegionId]);
 
   const initials = user
     ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "U"
@@ -263,7 +292,7 @@ export function UserAccessSheet({ open, onOpenChange, user, onSuccess }: UserAcc
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map((r: Role) => (
+                    {filteredRoles.map((r: Role) => (
                       <SelectItem key={r.id} value={r.id}>
                         <div className="flex items-center gap-2">
                           <span>{r.name}</span>

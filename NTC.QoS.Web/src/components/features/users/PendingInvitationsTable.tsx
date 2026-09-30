@@ -48,9 +48,10 @@ const useRevokeInvitation = createMutationHookFromTemplate(revokeInvitationReque
 
 interface PendingInvitationsTableProps {
   onInviteClick?: () => void;
+  regionId?: string;
 }
 
-export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTableProps) {
+export function PendingInvitationsTable({ onInviteClick, regionId }: PendingInvitationsTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedInviteToRevoke, setSelectedInviteToRevoke] = useState<Invitation | null>(null);
@@ -79,6 +80,15 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
         return false;
       }
 
+      // Region filter: if regionId is provided, show invitations assigned to this region OR platform-wide (unrestricted)
+      if (regionId) {
+        const matchesThisRegion = inv.regions.some((r) => r.regionId === regionId);
+        const isPlatformOrGlobal = inv.roleScope === "Platform" || inv.regions.length === 0;
+        if (!matchesThisRegion && !isPlatformOrGlobal) {
+          return false;
+        }
+      }
+
       // Search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -90,7 +100,7 @@ export function PendingInvitationsTable({ onInviteClick }: PendingInvitationsTab
 
       return true;
     });
-  }, [rawInvitations, statusFilter, searchQuery]);
+  }, [rawInvitations, statusFilter, searchQuery, regionId]);
 
   const handleCopyLink = async (invitation: Invitation) => {
     if (!invitation.url) {

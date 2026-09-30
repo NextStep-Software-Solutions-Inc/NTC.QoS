@@ -3,7 +3,7 @@ import type { PaginationResponse, QueryBlueprintFromTemplate } from "@/types/reu
 import type { User } from "../types/User";
 
 const endpoint = "/users" as const;
-type QueryParams = { pageNumber?: number; pageSize?: number; search?: string };
+type QueryParams = { pageNumber?: number; pageSize?: number; search?: string; regionIds?: string[]; roleId?: string };
 
 export const getAllUsersRequest: QueryBlueprintFromTemplate<typeof endpoint, PaginationResponse<User>, QueryParams> = {
   endpoint,

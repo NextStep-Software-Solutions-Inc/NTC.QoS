@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -13,13 +14,15 @@ public class InviteUserHandler(
     IRepository<Domain.Entities.Role> roleRepository,
     IRepository<Domain.Entities.Region> regionRepository,
     IClerkUserService clerkUserService,
-    IConfiguration configuration) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
+    IConfiguration configuration,
+    IUserAuthorizationService authorizationService) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
     private readonly IRepository<Domain.Entities.Region> _regionRepository = regionRepository;
     private readonly IClerkUserService _clerkUserService = clerkUserService;
     private readonly IConfiguration _configuration = configuration;
+    private readonly IUserAuthorizationService _authorizationService = authorizationService;
 
     public async Task<ApiResponse<UserDto>> Handle(InviteUserRequest request, CancellationToken cancellationToken)
     {
@@ -52,6 +55,43 @@ public class InviteUserHandler(
                     { "NullRole", ["Role with the specified Id does not exist"] }
                 }
             };
+        }
+
+        // Privilege and jurisdiction checks for regional inviters
+        var currentUser = await _authorizationService.GetCurrentUserAsync(cancellationToken);
+        var isPlatformCaller = currentUser?.Role != null && Roles.IsPlatformRole(currentUser.Role.Key);
+
+        if (!isPlatformCaller)
+        {
+            if (Roles.IsPlatformRole(role.Key) || string.Equals(role.Scope, Roles.ScopePlatform, StringComparison.OrdinalIgnoreCase))
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "Regional administrators cannot invite personnel with platform-level roles."
+                };
+            }
+
+            var accessibleRegions = await _authorizationService.GetAccessibleRegionsAsync(cancellationToken);
+
+            if (request.User.Regions is null || request.User.Regions.Count == 0)
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "Regional administrators must assign invited personnel to their regional jurisdiction."
+                };
+            }
+
+            var targetRegionIds = request.User.Regions.Select(r => r.RegionId).Distinct().ToList();
+            if (targetRegionIds.Any(id => !accessibleRegions.Contains(id)))
+            {
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = "You can only invite personnel to regions within your regional jurisdiction."
+                };
+            }
         }
 
         // Validate any target regions provided

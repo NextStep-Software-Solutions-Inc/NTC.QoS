@@ -6,6 +6,7 @@ using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.Role;
 using NTC.QoS.Domain.Models.DTOs.User;
 using System.Linq.Expressions;
 using Xunit;
@@ -18,6 +19,7 @@ public class InviteUserHandlerTests
     private readonly Mock<IRepository<Role>> _roleRepositoryMock;
     private readonly Mock<IRepository<Region>> _regionRepositoryMock;
     private readonly Mock<IClerkUserService> _clerkUserServiceMock;
+    private readonly Mock<IUserAuthorizationService> _userAuthorizationServiceMock;
     private readonly IConfiguration _configuration;
     private readonly InviteUserHandler _handler;
 
@@ -27,6 +29,7 @@ public class InviteUserHandlerTests
         _roleRepositoryMock = new Mock<IRepository<Role>>();
         _regionRepositoryMock = new Mock<IRepository<Region>>();
         _clerkUserServiceMock = new Mock<IClerkUserService>();
+        _userAuthorizationServiceMock = new Mock<IUserAuthorizationService>();
 
         var inMemorySettings = new Dictionary<string, string?>
         {
@@ -36,12 +39,29 @@ public class InviteUserHandlerTests
             .AddInMemoryCollection(inMemorySettings)
             .Build();
 
+        var caller = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            Email = "caller@example.com",
+            AuthUserId = "user_caller",
+            Role = new RoleDto
+            {
+                Id = Guid.NewGuid(),
+                Key = Roles.SuperAdmin,
+                Name = "Super Admin",
+                Scope = Roles.ScopePlatform
+            }
+        };
+        _userAuthorizationServiceMock.Setup(a => a.GetCurrentUserAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(caller);
+
         _handler = new InviteUserHandler(
             _userRepositoryMock.Object,
             _roleRepositoryMock.Object,
             _regionRepositoryMock.Object,
             _clerkUserServiceMock.Object,
-            _configuration);
+            _configuration,
+            _userAuthorizationServiceMock.Object);
     }
 
     [Fact]
