@@ -22,7 +22,7 @@ function FileList({ type }: FileListProps) {
 
   return (
     <div className="">
-      <FileTable data={files?.data ?? []} actions={["write"]} readonly={false} isLoading={isLoading} />
+      <FileTable data={files?.data ?? []} actions={["write"]} readonly={false} isLoading={isLoading} type={type} />
     </div>
   );
 }

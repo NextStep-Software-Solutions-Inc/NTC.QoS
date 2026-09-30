@@ -19,17 +19,20 @@ import { Input } from "@/components/ui/input";
 import { useInvalidateQuery } from "@/hooks/invalidate-query";
 import UploadFileDialog from "../../dialogs/UploadFileDialog";
 
+type FileType = "Speedtest" | "NAP" | "Cell" | "Cellular" | "WirelessValidation" | "CellularCoverage";
+
 interface ToolbarProps {
   table: Table<File>;
+  type?: FileType;
 }
-export default function Toolbar({ table }: ToolbarProps) {
+export default function Toolbar({ table, type: propType }: ToolbarProps) {
   const readonly = table.options.meta?.readonly;
   const actions = table.options.meta?.actions ?? [];
   const [openUpload, setOpenUpload] = useState(false);
   const invalidateQuery = useInvalidateQuery();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const type = searchParams.get("type") as "Speedtest" | "NAP" | "Cell" | "Cellular" | null;
+  const type = propType ?? (searchParams.get("type") as FileType | null);
 
   // Handle file upload success - invalidate all relevant queries
   const handleUploadSuccess = () => {
