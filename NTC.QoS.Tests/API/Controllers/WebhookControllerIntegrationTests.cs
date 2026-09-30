@@ -489,4 +489,84 @@ public class WebhookControllerIntegrationTests
         _mediatorMock.Verify(m => m.Send(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
         _mediatorMock.Verify(m => m.Send(It.IsAny<UpdateUserByIdRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task WebhookRetries_WhenDownstreamProvisioningFails_Returns500ToTriggerClerkRetries()
+    {
+        // Arrange
+        const string authUserId = "user_clerk_retry_fail";
+        var webhookBody = JsonSerializer.Serialize(new
+        {
+            type = "user.created",
+            data = new
+            {
+                id = authUserId,
+                first_name = "Transient",
+                last_name = "Failure",
+                email_addresses = new[] { new { email_address = "retry@ntc.gov.ph" } }
+            }
+        });
+
+        _mediatorMock.Setup(m => m.Send(It.IsAny<GetUserByAuthUserIdRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false });
+
+        _mediatorMock.Setup(m => m.Send(It.IsAny<GetAllUsersRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        // Simulate a database failure or timeout in CreateUserRequest
+        _mediatorMock.Setup(m => m.Send(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "Database connection timed out during user creation."
+            });
+
+        var httpContext = CreateHttpContextWithFilter(webhookBody);
+
+        // Act
+        var result = await ExecuteWebhookPipelineAsync(httpContext);
+
+        // Assert: Must return 500 so Clerk/Svix retries delivery with backoff
+        result.Should().BeOfType<ObjectResult>();
+        var objResult = (ObjectResult)result;
+        objResult.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var apiResponse = objResult.Value as ApiResponse<UserDto>;
+        apiResponse.Should().NotBeNull();
+        apiResponse!.Succeeded.Should().BeFalse();
+        apiResponse.Message.Should().Contain("Database connection timed out");
+    }
+
+    [Fact]
+    public async Task WebhookRetries_WhenDownstreamThrowsUnexpectedException_Returns500ToTriggerClerkRetries()
+    {
+        // Arrange
+        const string authUserId = "user_clerk_exception";
+        var webhookBody = JsonSerializer.Serialize(new
+        {
+            type = "user.created",
+            data = new
+            {
+                id = authUserId,
+                email_addresses = new[] { new { email_address = "crash@ntc.gov.ph" } }
+            }
+        });
+
+        // Simulate unexpected transient exception (e.g. Npgsql network partition or timeout)
+        _mediatorMock.Setup(m => m.Send(It.IsAny<GetUserByAuthUserIdRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TimeoutException("PostgreSQL connection pool exhausted."));
+
+        var httpContext = CreateHttpContextWithFilter(webhookBody);
+
+        // Act
+        var result = await ExecuteWebhookPipelineAsync(httpContext);
+
+        // Assert: Must return 500 without crashing the pipeline so Clerk/Svix retries delivery
+        result.Should().BeOfType<ObjectResult>();
+        var objResult = (ObjectResult)result;
+        objResult.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var apiResponse = objResult.Value as ApiResponse<UserDto>;
+        apiResponse.Should().NotBeNull();
+        apiResponse!.Succeeded.Should().BeFalse();
+        apiResponse.Message.Should().Contain("An internal error occurred");
+    }
 }

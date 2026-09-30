@@ -8,6 +8,7 @@ using NTC.QoS.Domain.Models;
 using NTC.QoS.Domain.Models.DTOs.User;
 
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Helper;
 
 namespace NTC.QoS.API.Controllers;
 
@@ -44,6 +45,8 @@ public class WebhookController(
     [AllowAnonymous]
     [ClerkWebhookVerification]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> HandleWebhook()
     {
         if (HttpContext.Items["ClerkWebhookPayload"] is not ClerkWebhookPayload payload)
@@ -58,26 +61,41 @@ public class WebhookController(
             return BadRequest("Invalid webhook payload structure");
         }
 
-        var response = payload.Type switch
+        try
         {
-            "user.created" or "user.updated" => await HandleUserWebhook(payload.Type, payload.Data),
-            "session.created" => await HandleSessionCreated(payload.Data),
-            "session.ended" => await HandleSessionEnded(payload.Data),
-            "session.removed" => await HandleSessionRemoved(payload.Data),
-            _ => new Domain.Models.DTOs.ApiResponse<UserDto>
+            var response = payload.Type switch
             {
-                Succeeded = true,
-                Message = $"No action required for event type '{payload.Type}'."
-            },
-        };
+                "user.created" or "user.updated" => await HandleUserWebhook(payload.Type, payload.Data),
+                "session.created" => await HandleSessionCreated(payload.Data),
+                "session.ended" => await HandleSessionEnded(payload.Data),
+                "session.removed" => await HandleSessionRemoved(payload.Data),
+                _ => new Domain.Models.DTOs.ApiResponse<UserDto>
+                {
+                    Succeeded = true,
+                    Message = $"No action required for event type '{payload.Type}'."
+                },
+            };
 
-        if (!response.Succeeded)
-        {
-            _logger?.LogError("Downstream Clerk webhook processing failed for event '{EventType}': {ErrorMessage}",
-                payload.Type, response.Message);
+            if (!response.Succeeded)
+            {
+                _logger?.LogError("Downstream Clerk webhook processing failed for event '{EventType}': {ErrorMessage}",
+                    payload.Type, StringHelper.SanitizeLogMessage(response.Message));
+                return StatusCode(StatusCodes.Status500InternalServerError, response);
+            }
+
+            return Ok(response);
         }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Unexpected exception during Clerk webhook processing for event '{EventType}': {ErrorMessage}",
+                payload.Type, StringHelper.SanitizeLogMessage(ex.Message));
 
-        return response.Succeeded ? Ok(response) : BadRequest(response);
+            return StatusCode(StatusCodes.Status500InternalServerError, new Domain.Models.DTOs.ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = $"An internal error occurred while processing the webhook: {StringHelper.SanitizeLogMessage(ex.Message)}"
+            });
+        }
     }
 
     private async Task<Domain.Models.DTOs.ApiResponse<UserDto>> HandleUserWebhook(string eventType, object userDataObj)
