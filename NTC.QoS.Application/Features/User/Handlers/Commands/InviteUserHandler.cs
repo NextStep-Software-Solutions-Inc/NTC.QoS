@@ -170,27 +170,12 @@ public class InviteUserHandler(
             IgnoreExisting = true
         };
 
-        // Automatically revoke any prior pending invitations for this email to prevent duplicates and token conflicts
+        // Issue the new invitation via Clerk first (with IgnoreExisting = true)
+        // This ensures that if Clerk API fails, existing invitations are NOT prematurely revoked
+        ClerkInvitationResponse newInvitation;
         try
         {
-            var existingInvitations = await _clerkUserService.GetInvitationsAsync("pending");
-            var pendingForEmail = existingInvitations
-                .Where(i => string.Equals(i.EmailAddress, request.User.Email, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            foreach (var priorInvite in pendingForEmail)
-            {
-                await _clerkUserService.RevokeInvitationAsync(priorInvite.Id);
-            }
-        }
-        catch
-        {
-            // Non-fatal: if cleanup of old invites fails, continue creating the fresh invitation
-        }
-
-        try
-        {
-            await _clerkUserService.CreateInvitationAsync(invitationPayload);
+            newInvitation = await _clerkUserService.CreateInvitationAsync(invitationPayload);
         }
         catch (Exception ex)
         {
@@ -203,6 +188,25 @@ public class InviteUserHandler(
                     { "Clerk", [ex.Message] }
                 }
             };
+        }
+
+        // Only after the new invitation is successfully created, clean up prior older pending invitations for this email
+        try
+        {
+            var existingInvitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var priorInvites = existingInvitations
+                .Where(i => string.Equals(i.EmailAddress, request.User.Email, StringComparison.OrdinalIgnoreCase) &&
+                            !string.Equals(i.Id, newInvitation.Id, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var priorInvite in priorInvites)
+            {
+                await _clerkUserService.RevokeInvitationAsync(priorInvite.Id);
+            }
+        }
+        catch
+        {
+            // Non-fatal: if cleanup of old invites fails, the fresh invitation is already active
         }
 
         return new ApiResponse<UserDto>

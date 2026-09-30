@@ -46,46 +46,82 @@ public class ResendInvitationHandler(
                 };
             }
 
-            // Extract role_id and regions from metadata
+            // Extract role_id and regions from metadata safely
             Guid? roleId = null;
             var regionDtos = new List<InviteUserRegionDto>();
 
-            if (target.PublicMetadata.HasValue && target.PublicMetadata.Value.ValueKind == JsonValueKind.Object)
+            try
             {
-                var meta = target.PublicMetadata.Value;
-                if (meta.TryGetProperty("role_id", out var roleIdProp) &&
-                    Guid.TryParse(roleIdProp.GetString(), out var parsedRoleId))
+                if (target.PublicMetadata.HasValue && target.PublicMetadata.Value.ValueKind == JsonValueKind.Object)
                 {
-                    roleId = parsedRoleId;
-                }
+                    var meta = target.PublicMetadata.Value;
 
-                if (meta.TryGetProperty("regions", out var regionsProp) &&
-                    regionsProp.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var elem in regionsProp.EnumerateArray())
+                    // Safely extract primary role_id
+                    if (meta.TryGetProperty("role_id", out var roleIdProp) &&
+                        roleIdProp.ValueKind == JsonValueKind.String &&
+                        Guid.TryParse(roleIdProp.GetString(), out var parsedRoleId))
                     {
-                        if (elem.TryGetProperty("region_id", out var regIdProp) &&
-                            Guid.TryParse(regIdProp.GetString(), out var regId))
+                        roleId = parsedRoleId;
+                    }
+
+                    // Safely extract regional assignments
+                    if (meta.TryGetProperty("regions", out var regionsProp) &&
+                        regionsProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var elem in regionsProp.EnumerateArray())
                         {
-                            Guid? regRoleId = null;
-                            if (elem.TryGetProperty("role_id", out var regRoleIdProp) &&
-                                Guid.TryParse(regRoleIdProp.GetString(), out var parsedRegRoleId))
+                            if (elem.ValueKind == JsonValueKind.Object &&
+                                elem.TryGetProperty("region_id", out var regIdProp) &&
+                                regIdProp.ValueKind == JsonValueKind.String &&
+                                Guid.TryParse(regIdProp.GetString(), out var regId))
                             {
-                                regRoleId = parsedRegRoleId;
+                                Guid? regRoleId = null;
+                                if (elem.TryGetProperty("role_id", out var regRoleIdProp) &&
+                                    regRoleIdProp.ValueKind == JsonValueKind.String &&
+                                    Guid.TryParse(regRoleIdProp.GetString(), out var parsedRegRoleId))
+                                {
+                                    regRoleId = parsedRegRoleId;
+                                }
+
+                                string status = "Active";
+                                if (elem.TryGetProperty("status", out var stProp) &&
+                                    stProp.ValueKind == JsonValueKind.String)
+                                {
+                                    status = stProp.GetString() ?? "Active";
+                                }
+
+                                regionDtos.Add(new InviteUserRegionDto
+                                {
+                                    RegionId = regId,
+                                    RoleId = regRoleId,
+                                    Status = status
+                                });
                             }
-
-                            string status = elem.TryGetProperty("status", out var stProp)
-                                ? stProp.GetString() ?? "Active"
-                                : "Active";
-
-                            regionDtos.Add(new InviteUserRegionDto
-                            {
-                                RegionId = regId,
-                                RoleId = regRoleId,
-                                Status = status
-                            });
                         }
                     }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Public metadata parsing encountered an unexpected structure for invitation {InvitationId}", request.InvitationId);
+            }
+
+            // Fallback: If role_id was not in metadata or structure drifted, recover from local database if existing user row exists
+            if (!roleId.HasValue && !string.IsNullOrEmpty(target.EmailAddress))
+            {
+                try
+                {
+                    var userLookup = await _mediator.Send(new GetAllUsersRequest(pageSize: 1, pageNumber: 1, email: target.EmailAddress), cancellationToken);
+                    var matchedUser = userLookup?.Data?.FirstOrDefault();
+                    if (matchedUser?.Role != null)
+                    {
+                        roleId = matchedUser.Role.Id;
+                        _logger.LogInformation("Recovered role {RoleId} from database for resending invitation to {Email}", roleId, target.EmailAddress);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to recover role from database for invitation {InvitationId}", request.InvitationId);
                 }
             }
 
@@ -94,11 +130,11 @@ public class ResendInvitationHandler(
                 return new ApiResponse<UserDto>
                 {
                     Succeeded = false,
-                    Message = "Cannot resend invitation: original role information is missing. Please issue a new invitation."
+                    Message = $"Cannot resend invitation for {target.EmailAddress}: role assignment information is missing. The existing invitation remains intact. Please issue a new invitation."
                 };
             }
 
-            // Delegate to InviteUserHandler via mediator: validates jurisdiction, auto-revokes old pending invites, and issues fresh invite
+            // Delegate to InviteUserHandler via mediator: validates jurisdiction, creates new invite first, and only then revokes older pending invites
             var inviteDto = new InviteUserDto
             {
                 Email = target.EmailAddress,
@@ -107,11 +143,18 @@ public class ResendInvitationHandler(
             };
 
             var result = await _mediator.Send(new InviteUserRequest(inviteDto), cancellationToken);
-            if (result.Succeeded)
+            if (!result.Succeeded)
             {
-                result.Message = $"Invitation for {target.EmailAddress} was resent successfully.";
+                _logger.LogWarning("Resend creation failed for {Email}: {Message}. Original invitation was preserved.", target.EmailAddress, result.Message);
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = false,
+                    Message = $"Failed to issue replacement invitation for {target.EmailAddress}: {result.Message}. The original invitation remains active.",
+                    Errors = result.Errors
+                };
             }
 
+            result.Message = $"Invitation for {target.EmailAddress} was resent successfully.";
             return result;
         }
         catch (Exception ex)

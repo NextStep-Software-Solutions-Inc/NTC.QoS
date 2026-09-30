@@ -49,62 +49,76 @@ public class GetInvitationsHandler(
                     UpdatedAt = ConvertTimestamp(inv.UpdatedAt)
                 };
 
-                if (inv.PublicMetadata.HasValue && inv.PublicMetadata.Value.ValueKind == JsonValueKind.Object)
+                try
                 {
-                    var meta = inv.PublicMetadata.Value;
-
-                    // Resolve primary role
-                    if (meta.TryGetProperty("role_id", out var roleIdProp) &&
-                        Guid.TryParse(roleIdProp.GetString(), out var roleId))
+                    if (inv.PublicMetadata.HasValue && inv.PublicMetadata.Value.ValueKind == JsonValueKind.Object)
                     {
-                        dto.RoleId = roleId;
-                        if (roleMap.TryGetValue(roleId, out var role))
-                        {
-                            dto.RoleName = role.Name;
-                            dto.RoleScope = role.Scope;
-                        }
-                    }
+                        var meta = inv.PublicMetadata.Value;
 
-                    // Resolve target regions
-                    if (meta.TryGetProperty("regions", out var regionsProp) &&
-                        regionsProp.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var elem in regionsProp.EnumerateArray())
+                        // Resolve primary role
+                        if (meta.TryGetProperty("role_id", out var roleIdProp) &&
+                            roleIdProp.ValueKind == JsonValueKind.String &&
+                            Guid.TryParse(roleIdProp.GetString(), out var roleId))
                         {
-                            if (elem.TryGetProperty("region_id", out var regIdProp) &&
-                                Guid.TryParse(regIdProp.GetString(), out var regId))
+                            dto.RoleId = roleId;
+                            if (roleMap.TryGetValue(roleId, out var role))
                             {
-                                regionMap.TryGetValue(regId, out var regEntity);
+                                dto.RoleName = role.Name;
+                                dto.RoleScope = role.Scope;
+                            }
+                        }
 
-                                Guid? regRoleId = null;
-                                if (elem.TryGetProperty("role_id", out var regRoleIdProp) &&
-                                    Guid.TryParse(regRoleIdProp.GetString(), out var parsedRoleId))
+                        // Resolve target regions
+                        if (meta.TryGetProperty("regions", out var regionsProp) &&
+                            regionsProp.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var elem in regionsProp.EnumerateArray())
+                            {
+                                if (elem.ValueKind == JsonValueKind.Object &&
+                                    elem.TryGetProperty("region_id", out var regIdProp) &&
+                                    regIdProp.ValueKind == JsonValueKind.String &&
+                                    Guid.TryParse(regIdProp.GetString(), out var regId))
                                 {
-                                    regRoleId = parsedRoleId;
+                                    regionMap.TryGetValue(regId, out var regEntity);
+
+                                    Guid? regRoleId = null;
+                                    if (elem.TryGetProperty("role_id", out var regRoleIdProp) &&
+                                        regRoleIdProp.ValueKind == JsonValueKind.String &&
+                                        Guid.TryParse(regRoleIdProp.GetString(), out var parsedRoleId))
+                                    {
+                                        regRoleId = parsedRoleId;
+                                    }
+
+                                    string? regRoleName = null;
+                                    if (regRoleId.HasValue && roleMap.TryGetValue(regRoleId.Value, out var regRole))
+                                    {
+                                        regRoleName = regRole.Name;
+                                    }
+
+                                    string status = "Active";
+                                    if (elem.TryGetProperty("status", out var stProp) &&
+                                        stProp.ValueKind == JsonValueKind.String)
+                                    {
+                                        status = stProp.GetString() ?? "Active";
+                                    }
+
+                                    dto.Regions.Add(new InvitationRegionDto
+                                    {
+                                        RegionId = regId,
+                                        RegionName = regEntity?.Name ?? regId.ToString(),
+                                        RegionCode = regEntity?.Code,
+                                        RoleId = regRoleId,
+                                        RoleName = regRoleName,
+                                        Status = status
+                                    });
                                 }
-
-                                string? regRoleName = null;
-                                if (regRoleId.HasValue && roleMap.TryGetValue(regRoleId.Value, out var regRole))
-                                {
-                                    regRoleName = regRole.Name;
-                                }
-
-                                string status = elem.TryGetProperty("status", out var stProp)
-                                    ? stProp.GetString() ?? "Active"
-                                    : "Active";
-
-                                dto.Regions.Add(new InvitationRegionDto
-                                {
-                                    RegionId = regId,
-                                    RegionName = regEntity?.Name ?? regId.ToString(),
-                                    RegionCode = regEntity?.Code,
-                                    RoleId = regRoleId,
-                                    RoleName = regRoleName,
-                                    Status = status
-                                });
                             }
                         }
                     }
+                }
+                catch
+                {
+                    // Non-fatal: if metadata for a specific invitation is corrupted or drifted, continue listing
                 }
 
                 dtos.Add(dto);

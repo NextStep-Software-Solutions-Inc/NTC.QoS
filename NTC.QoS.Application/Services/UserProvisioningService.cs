@@ -393,36 +393,83 @@ public class UserProvisioningService : IUserProvisioningService
         Guid roleId = Guid.Empty;
         var regions = new List<CreateUserRegionAssignmentDto>();
 
-        if (publicMetadata.HasValue && publicMetadata.Value.ValueKind == System.Text.Json.JsonValueKind.Object)
+        if (!publicMetadata.HasValue || publicMetadata.Value.ValueKind != System.Text.Json.JsonValueKind.Object)
+        {
+            return (roleId, regions);
+        }
+
+        try
         {
             var meta = publicMetadata.Value;
-            if (meta.TryGetProperty("role_id", out var roleProp) && Guid.TryParse(roleProp.GetString(), out var parsedRoleId))
+
+            // Safely parse role_id (supports string, raw text, and legacy 'role' key)
+            if (meta.TryGetProperty("role_id", out var roleProp) || meta.TryGetProperty("role", out roleProp))
             {
-                roleId = parsedRoleId;
+                var roleStr = roleProp.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? roleProp.GetString()
+                    : roleProp.ValueKind == System.Text.Json.JsonValueKind.Number ? roleProp.GetRawText() : null;
+
+                if (Guid.TryParse(roleStr, out var parsedRoleId))
+                {
+                    roleId = parsedRoleId;
+                }
             }
 
+            // Safely parse regions array (supports both object array and legacy ID string array)
             if (meta.TryGetProperty("regions", out var regionsProp) && regionsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
             {
                 foreach (var rElem in regionsProp.EnumerateArray())
                 {
-                    if (rElem.TryGetProperty("region_id", out var regIdProp) && Guid.TryParse(regIdProp.GetString(), out var regId))
+                    // Case 1: Structured object with region_id, role_id, status
+                    if (rElem.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                        rElem.TryGetProperty("region_id", out var regIdProp))
                     {
-                        Guid? regionalRoleId = null;
-                        if (rElem.TryGetProperty("role_id", out var rRoleProp) && Guid.TryParse(rRoleProp.GetString(), out var parsedRRole))
+                        var regIdStr = regIdProp.ValueKind == System.Text.Json.JsonValueKind.String ? regIdProp.GetString() : null;
+                        if (Guid.TryParse(regIdStr, out var regId))
                         {
-                            regionalRoleId = parsedRRole;
-                        }
+                            Guid? regionalRoleId = null;
+                            if (rElem.TryGetProperty("role_id", out var rRoleProp) &&
+                                rRoleProp.ValueKind == System.Text.Json.JsonValueKind.String &&
+                                Guid.TryParse(rRoleProp.GetString(), out var parsedRRole))
+                            {
+                                regionalRoleId = parsedRRole;
+                            }
 
-                        var status = rElem.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : "Active";
-                        regions.Add(new CreateUserRegionAssignmentDto
+                            string status = "Active";
+                            if (rElem.TryGetProperty("status", out var statusProp) &&
+                                statusProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                status = statusProp.GetString() ?? "Active";
+                            }
+
+                            regions.Add(new CreateUserRegionAssignmentDto
+                            {
+                                RegionId = regId,
+                                RoleId = regionalRoleId,
+                                Status = string.IsNullOrWhiteSpace(status) ? "Active" : status
+                            });
+                        }
+                    }
+                    // Case 2: Legacy array of raw region ID strings or codes
+                    else if (rElem.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var rawStr = rElem.GetString();
+                        if (Guid.TryParse(rawStr, out var rawGuid))
                         {
-                            RegionId = regId,
-                            RoleId = regionalRoleId,
-                            Status = string.IsNullOrWhiteSpace(status) ? "Active" : status
-                        });
+                            regions.Add(new CreateUserRegionAssignmentDto
+                            {
+                                RegionId = rawGuid,
+                                RoleId = null,
+                                Status = "Active"
+                            });
+                        }
                     }
                 }
             }
+        }
+        catch
+        {
+            // Non-fatal: if metadata payload structure drifted, return whatever was parsed safely
         }
 
         return (roleId, regions);
