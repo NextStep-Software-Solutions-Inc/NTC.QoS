@@ -371,6 +371,29 @@ public class ClerkWebhookLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task Security_WhenSvixTimestampIsExpired_FilterRejectsWith401Unauthorized()
+    {
+        // Arrange - Svix enforces a 5-minute replay tolerance window. 10 minutes in the past is expired.
+        var expiredTimestamp = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var payload = JsonSerializer.Serialize(new { type = "user.created" });
+        var (svixId, svixTimestamp, svixSignature) = SvixTestHelper.GenerateSvixHeaders(payload, timestamp: expiredTimestamp);
+
+        var httpContext = CreateHttpContext(payload, omitHeaders: true);
+        httpContext.Request.Headers["svix-id"] = svixId;
+        httpContext.Request.Headers["svix-timestamp"] = svixTimestamp;
+        httpContext.Request.Headers["svix-signature"] = svixSignature;
+
+        // Act
+        var result = await DispatchWebhookThroughPipelineAsync(httpContext);
+
+        // Assert
+        result.Should().BeOfType<UnauthorizedObjectResult>()
+            .Which.Value.Should().Be("Invalid signature");
+
+        _mediatorMock.Verify(m => m.Send(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Resilience_WhenClerkMetadataSyncThrows_SessionHandlerCatchesAndLogsWithoutBreaking()
     {
         // Arrange

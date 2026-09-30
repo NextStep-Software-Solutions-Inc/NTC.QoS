@@ -73,4 +73,50 @@ public class RevokeInvitationHandlerTests
         result.Data.Should().BeFalse();
         result.Message.Should().Contain("Invitation not found or already revoked.");
     }
+
+    [Fact]
+    public async Task Handle_WhenInvitationDoesNotExistInClerk_ReturnsFailureWithErrorDetails()
+    {
+        // Arrange
+        var nonExistentInvitationId = "inv_non_existent_999";
+        _clerkUserServiceMock.Setup(c => c.RevokeInvitationAsync(nonExistentInvitationId))
+            .ThrowsAsync(new InvalidOperationException("Resource not found: invitation inv_non_existent_999 does not exist."));
+
+        // Act
+        var result = await _handler.Handle(new RevokeInvitationRequest(nonExistentInvitationId), CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Data.Should().BeFalse();
+        result.Message.Should().Contain("Resource not found");
+        result.Errors.Should().ContainKey("Revoke");
+        result.Errors!["Revoke"].Should().ContainSingle(e => e.Contains("inv_non_existent_999"));
+
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(nonExistentInvitationId)),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenInvitationAlreadyAccepted_ReturnsFailureWithErrorDetails()
+    {
+        // Arrange
+        var acceptedInvitationId = "inv_already_accepted";
+        _clerkUserServiceMock.Setup(c => c.RevokeInvitationAsync(acceptedInvitationId))
+            .ThrowsAsync(new InvalidOperationException("Invitation has already been accepted and cannot be revoked."));
+
+        // Act
+        var result = await _handler.Handle(new RevokeInvitationRequest(acceptedInvitationId), CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Data.Should().BeFalse();
+        result.Message.Should().Contain("already been accepted");
+        result.Errors.Should().ContainKey("Revoke");
+    }
 }

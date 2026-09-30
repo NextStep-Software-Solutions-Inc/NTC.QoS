@@ -230,4 +230,175 @@ public class InviteUserHandlerTests
         _clerkUserServiceMock.Verify(c => c.RevokeInvitationAsync("inv_prior_123"), Times.Once);
         _clerkUserServiceMock.Verify(c => c.RevokeInvitationAsync("inv_new_456"), Times.Never);
     }
+
+    [Fact]
+    public async Task Handle_WhenRegionalAdminAttemptsToInvitePlatformRole_ReturnsPlatformRoleViolationError()
+    {
+        // Arrange
+        var regionalAdminCaller = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            Email = "regional_admin@example.com",
+            AuthUserId = "user_regional_admin",
+            Role = new RoleDto
+            {
+                Id = Guid.NewGuid(),
+                Key = Roles.RegionalAdmin,
+                Name = "Regional Admin",
+                Scope = Roles.ScopeRegional
+            }
+        };
+        _userAuthorizationServiceMock.Setup(a => a.GetCurrentUserAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(regionalAdminCaller);
+
+        var platformRoleId = Guid.NewGuid();
+        var platformRole = new Role
+        {
+            Id = platformRoleId,
+            Key = Roles.SuperAdmin,
+            Name = "Super Admin",
+            Scope = Roles.ScopePlatform
+        };
+
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns(new List<Role> { platformRole }.AsQueryable());
+        _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(platformRole);
+
+        var request = new InviteUserRequest(new InviteUserDto
+        {
+            Email = "target@example.com",
+            RoleId = platformRoleId
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("Regional administrators cannot invite personnel with platform-level roles.");
+        _clerkUserServiceMock.Verify(c => c.CreateInvitationAsync(It.IsAny<CreateClerkInvitationPayload>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenRegionalAdminInvitesWithoutSpecifyingJurisdiction_ReturnsJurisdictionRequiredError()
+    {
+        // Arrange
+        var regionalAdminCaller = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            Email = "regional_admin@example.com",
+            AuthUserId = "user_regional_admin",
+            Role = new RoleDto
+            {
+                Id = Guid.NewGuid(),
+                Key = Roles.RegionalAdmin,
+                Name = "Regional Admin",
+                Scope = Roles.ScopeRegional
+            }
+        };
+        _userAuthorizationServiceMock.Setup(a => a.GetCurrentUserAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(regionalAdminCaller);
+
+        var regionalStaffRoleId = Guid.NewGuid();
+        var regionalStaffRole = new Role
+        {
+            Id = regionalStaffRoleId,
+            Key = Roles.RegionalStaff,
+            Name = "Regional Staff",
+            Scope = Roles.ScopeRegional
+        };
+
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns(new List<Role> { regionalStaffRole }.AsQueryable());
+        _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(regionalStaffRole);
+
+        var request = new InviteUserRequest(new InviteUserDto
+        {
+            Email = "target@example.com",
+            RoleId = regionalStaffRoleId,
+            Regions = [] // No jurisdiction specified
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("Regional administrators must assign invited personnel to their regional jurisdiction.");
+        _clerkUserServiceMock.Verify(c => c.CreateInvitationAsync(It.IsAny<CreateClerkInvitationPayload>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenRegionalAdminInvitesToRegionOutsideJurisdiction_ReturnsJurisdictionViolationError()
+    {
+        // Arrange
+        var allowedRegionId = Guid.NewGuid();
+        var forbiddenRegionId = Guid.NewGuid();
+
+        var regionalAdminCaller = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            Email = "regional_admin@example.com",
+            AuthUserId = "user_regional_admin",
+            Role = new RoleDto
+            {
+                Id = Guid.NewGuid(),
+                Key = Roles.RegionalAdmin,
+                Name = "Regional Admin",
+                Scope = Roles.ScopeRegional
+            }
+        };
+        _userAuthorizationServiceMock.Setup(a => a.GetCurrentUserAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(regionalAdminCaller);
+        _userAuthorizationServiceMock.Setup(a => a.GetAccessibleRegionsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Guid> { allowedRegionId });
+
+        var regionalStaffRoleId = Guid.NewGuid();
+        var regionalStaffRole = new Role
+        {
+            Id = regionalStaffRoleId,
+            Key = Roles.RegionalStaff,
+            Name = "Regional Staff",
+            Scope = Roles.ScopeRegional
+        };
+
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns(new List<Role> { regionalStaffRole }.AsQueryable());
+        _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(regionalStaffRole);
+
+        var request = new InviteUserRequest(new InviteUserDto
+        {
+            Email = "target@example.com",
+            RoleId = regionalStaffRoleId,
+            Regions =
+            [
+                new InviteUserRegionDto
+                {
+                    RegionId = forbiddenRegionId,
+                    RoleId = regionalStaffRoleId,
+                    Status = "Active"
+                }
+            ]
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("You can only invite personnel to regions within your regional jurisdiction.");
+        _clerkUserServiceMock.Verify(c => c.CreateInvitationAsync(It.IsAny<CreateClerkInvitationPayload>()), Times.Never);
+    }
 }

@@ -222,4 +222,29 @@ public class ClerkWebhookVerificationFilterTests
         sessionData.Id.Should().Be("sess_12345");
         sessionData.UserId.Should().Be("user_clerk_session_1");
     }
+
+    [Fact]
+    public async Task OnActionExecutionAsync_WhenTimestampIsExpired_ReturnsUnauthorized()
+    {
+        // Arrange - Svix enforces a 5-minute replay tolerance window. 10 minutes in the past is expired.
+        var expiredTimestamp = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var payload = "{\"type\":\"user.created\",\"data\":{\"id\":\"user_expired_test\"}}";
+        var (svixId, svixTimestamp, svixSignature) = SvixTestHelper.GenerateSvixHeaders(payload, timestamp: expiredTimestamp);
+        var config = new Dictionary<string, string?> { { "Clerk:WebhookSecret", SvixTestHelper.TestSecret } };
+
+        var (context, next, nextCalled) = CreateContext(payload, config, headers =>
+        {
+            headers["svix-id"] = svixId;
+            headers["svix-timestamp"] = svixTimestamp;
+            headers["svix-signature"] = svixSignature;
+        });
+
+        // Act
+        await _filter.OnActionExecutionAsync(context, next);
+
+        // Assert
+        context.Result.Should().BeOfType<UnauthorizedObjectResult>()
+            .Which.Value.Should().Be("Invalid signature");
+        nextCalled().Should().BeFalse();
+    }
 }

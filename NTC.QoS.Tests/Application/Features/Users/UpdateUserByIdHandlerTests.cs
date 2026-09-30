@@ -204,4 +204,130 @@ public class UpdateUserByIdHandlerTests
         result.Message.Should().Contain("cannot modify your own role");
         _userRepositoryMock.Verify(r => r.Update(It.IsAny<User>()), Times.Never);
     }
+
+    [Fact]
+    public async Task Handle_WhenNonSuperAdminAttemptsToAssignPlatformRole_ReturnsJurisdictionViolationError()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var currentRoleId = Guid.NewGuid();
+        var currentRole = new Role
+        {
+            Id = currentRoleId,
+            Key = Roles.RegionalStaff,
+            Name = "Regional Staff",
+            Scope = Roles.ScopeRegional
+        };
+
+        var platformRoleId = Guid.NewGuid();
+        var platformRole = new Role
+        {
+            Id = platformRoleId,
+            Key = Roles.SuperAdmin,
+            Name = "Super Admin",
+            Scope = Roles.ScopePlatform
+        };
+
+        var existingUser = new User
+        {
+            Id = userId,
+            AuthUserId = "other_user_id",
+            RoleId = currentRoleId,
+            Email = "other@example.com"
+        };
+
+        var users = new List<User> { existingUser };
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns<Expression<Func<User, bool>>>(expr => users.AsQueryable().Where(expr));
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<User> q, CancellationToken ct) => q.FirstOrDefault());
+
+        var roles = new List<Role> { currentRole, platformRole };
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns<Expression<Func<Role, bool>>>(expr => roles.AsQueryable().Where(expr));
+        _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<Role> q, CancellationToken ct) => q.FirstOrDefault());
+
+        _userContextServiceMock.Setup(c => c.GetCurrentUserId()).Returns("caller_auth_id");
+        _userAuthorizationServiceMock.Setup(a => a.HasRoleAsync(Roles.SuperAdmin, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var request = new UpdateUserByIdRequest(userId, new UpdateUserDto
+        {
+            RoleId = platformRoleId
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("Only Super Administrators can assign Platform-scoped roles.");
+        _userRepositoryMock.Verify(r => r.Update(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenNonSuperAdminAttemptsToAssignRegionalRoleOutsideJurisdiction_ReturnsJurisdictionViolationError()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var currentRoleId = Guid.NewGuid();
+        var currentRole = new Role
+        {
+            Id = currentRoleId,
+            Key = Roles.RegionalStaff,
+            Name = "Regional Staff",
+            Scope = Roles.ScopeRegional
+        };
+
+        var forbiddenRegionId = Guid.NewGuid();
+        var regionalRoleId = Guid.NewGuid();
+        var regionalRole = new Role
+        {
+            Id = regionalRoleId,
+            Key = Roles.RegionalAdmin,
+            Name = "Regional Admin",
+            Scope = Roles.ScopeRegional,
+            RegionId = forbiddenRegionId
+        };
+
+        var existingUser = new User
+        {
+            Id = userId,
+            AuthUserId = "other_user_id",
+            RoleId = currentRoleId,
+            Email = "other@example.com"
+        };
+
+        var users = new List<User> { existingUser };
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns<Expression<Func<User, bool>>>(expr => users.AsQueryable().Where(expr));
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<User> q, CancellationToken ct) => q.FirstOrDefault());
+
+        var roles = new List<Role> { currentRole, regionalRole };
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns<Expression<Func<Role, bool>>>(expr => roles.AsQueryable().Where(expr));
+        _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IQueryable<Role> q, CancellationToken ct) => q.FirstOrDefault());
+
+        _userContextServiceMock.Setup(c => c.GetCurrentUserId()).Returns("caller_auth_id");
+        _userAuthorizationServiceMock.Setup(a => a.HasRoleAsync(Roles.SuperAdmin, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _userAuthorizationServiceMock.Setup(a => a.HasRegionAccessAsync(forbiddenRegionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var request = new UpdateUserByIdRequest(userId, new UpdateUserDto
+        {
+            RoleId = regionalRoleId
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("You do not have administrative access to assign roles from this region.");
+        _userRepositoryMock.Verify(r => r.Update(It.IsAny<User>()), Times.Never);
+    }
 }

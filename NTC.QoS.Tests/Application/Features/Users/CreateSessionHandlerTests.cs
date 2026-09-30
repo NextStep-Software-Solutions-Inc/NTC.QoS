@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NTC.QoS.Application.Features.User.Handlers.Commands;
 using NTC.QoS.Application.Features.User.Requests;
@@ -167,5 +168,49 @@ public class CreateSessionHandlerTests
         result.Succeeded.Should().BeFalse();
         result.Data.Should().BeFalse();
         result.Message.Should().Contain("Failed to synchronize session metadata with Clerk: Clerk API timeout");
+    }
+
+    [Fact]
+    public async Task Handle_WhenClerkUpdateFailsWithLogger_LogsContextualErrorWithoutLeakingSensitiveUserData()
+    {
+        // Arrange
+        var loggerMock = new Mock<ILogger<CreateSessionHandler>>();
+        var handlerWithLogger = new CreateSessionHandler(_userRepositoryMock.Object, _clerkUserServiceMock.Object, loggerMock.Object);
+
+        var authUserId = "user_clerk_logged_err";
+        var request = new CreateSessionRequest { AuthUserId = authUserId };
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = "sensitive-pii@example.com",
+            Role = new Role { Id = Guid.NewGuid(), Key = "regional_admin", Name = "Regional Admin", Permissions = ["read:region", "write:region"] },
+            IsDeleted = false
+        };
+
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<User, bool>>>()))
+            .Returns(new List<User> { user }.AsQueryable());
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+
+        _clerkUserServiceMock.Setup(c => c.UpdateUserMetadataAsync(authUserId, It.IsAny<UserMetadataPayload>()))
+            .ThrowsAsync(new HttpRequestException("Connection reset"));
+
+        // Act
+        var result = await handlerWithLogger.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(authUserId) &&
+                                             v.ToString()!.Contains("regional_admin") &&
+                                             !v.ToString()!.Contains("sensitive-pii@example.com")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 }

@@ -31,6 +31,7 @@ public class CreateSessionHandler(
             };
         }
 
+        var roleKey = user.Role?.Key ?? "unknown";
         var permissions = user.Role?.Permissions ?? [];
 
         try
@@ -39,14 +40,20 @@ public class CreateSessionHandler(
             {
                 PublicMetadata = new Dictionary<string, object>
                 {
-                    { "role", user.Role?.Key ?? "unknown" },
+                    { "role", roleKey },
                     { "permissions", permissions }
                 }
             });
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to synchronize Clerk metadata for AuthUserId {AuthUserId}: {Message}", user.AuthUserId, ex.Message);
+            _logger?.LogError(ex,
+                "Failed to synchronize Clerk metadata for AuthUserId {AuthUserId} (Role: {RoleKey}, PermissionsCount: {PermissionsCount}): {ErrorMessage}",
+                user.AuthUserId,
+                roleKey,
+                permissions.Count,
+                ex.Message);
+
             return new ApiResponse<bool>
             {
                 Data = false,
