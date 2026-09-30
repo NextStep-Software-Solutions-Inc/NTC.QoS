@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -182,7 +183,7 @@ public class InviteUserHandler(
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to send invitation via Clerk for {Email}: {Message}", request.User.Email, ex.Message);
+            _logger?.LogError(ex, "Failed to send invitation via Clerk for {Email}: {Message}", StringHelper.MaskEmail(request.User.Email), StringHelper.SanitizeLogMessage(ex.Message));
             return new ApiResponse<UserDto>
             {
                 Succeeded = false,
@@ -212,14 +213,14 @@ public class InviteUserHandler(
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Failed to revoke prior pending invitation {InvitationId} for {Email}", priorInvite.Id, request.User.Email);
+                    _logger?.LogWarning(ex, "Failed to revoke prior pending invitation {InvitationId} for {Email}", priorInvite.Id, StringHelper.MaskEmail(request.User.Email));
                 }
             }
         }
         catch (Exception ex)
         {
             // Non-fatal: if cleanup of old invites fails, the fresh invitation is already active
-            _logger?.LogWarning(ex, "Failed to query or clean up prior pending invitations for {Email}", request.User.Email);
+            _logger?.LogWarning(ex, "Failed to query or clean up prior pending invitations for {Email}", StringHelper.MaskEmail(request.User.Email));
         }
 
         return new ApiResponse<UserDto>

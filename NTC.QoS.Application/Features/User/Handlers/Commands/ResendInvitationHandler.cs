@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -136,7 +137,7 @@ public class ResendInvitationHandler(
                     if (matchedUser?.Role != null)
                     {
                         roleId = matchedUser.Role.Id;
-                        _logger.LogInformation("Recovered role {RoleId} from database for resending invitation to {Email}", roleId, target.EmailAddress);
+                        _logger.LogInformation("Recovered role {RoleId} from database for resending invitation to {Email}", roleId, StringHelper.MaskEmail(target.EmailAddress));
                     }
                 }
                 catch (Exception ex)
@@ -165,7 +166,7 @@ public class ResendInvitationHandler(
             var result = await _mediator.Send(new InviteUserRequest(inviteDto), cancellationToken);
             if (!result.Succeeded)
             {
-                _logger.LogWarning("Resend creation failed for {Email}: {Message}. Original invitation was preserved.", target.EmailAddress, result.Message);
+                _logger.LogWarning("Resend creation failed for {Email}: {Message}. Original invitation was preserved.", StringHelper.MaskEmail(target.EmailAddress), StringHelper.SanitizeLogMessage(result.Message));
                 return new ApiResponse<UserDto>
                 {
                     Succeeded = false,
@@ -179,7 +180,7 @@ public class ResendInvitationHandler(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to resend invitation {InvitationId}: {Message}", request.InvitationId, ex.Message);
+            _logger.LogError(ex, "Failed to resend invitation {InvitationId}: {Message}", request.InvitationId, StringHelper.SanitizeLogMessage(ex.Message));
             return new ApiResponse<UserDto>
             {
                 Succeeded = false,

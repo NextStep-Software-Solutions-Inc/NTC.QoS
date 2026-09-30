@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Svix;
 using System.Net;
 using System.Text.Json;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Models;
 
 namespace NTC.QoS.API.Filters;
@@ -66,7 +67,7 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Clerk webhook verification failed for svix-id {SvixId}: {Message}", svixId, ex.Message);
+            logger?.LogWarning(ex, "Clerk webhook verification failed for svix-id {SvixId}: {Message}", svixId, StringHelper.SanitizeLogMessage(ex.Message));
             context.Result = new UnauthorizedObjectResult("Invalid signature");
             return;
         }

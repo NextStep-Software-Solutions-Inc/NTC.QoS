@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 
@@ -52,7 +53,7 @@ public class CreateSessionHandler(
                 user.AuthUserId,
                 roleKey,
                 permissions.Count,
-                ex.Message);
+                StringHelper.SanitizeLogMessage(ex.Message));
 
             return new ApiResponse<bool>
             {
