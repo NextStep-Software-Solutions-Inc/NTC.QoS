@@ -46,9 +46,6 @@ const PLATFORM_ONLY_PERMISSIONS = new Set([
   "system:admin",
   "system:logs",
   "system:settings",
-  "organizations:create",
-  "organizations:update",
-  "organizations:delete",
   "regions:create",
   "regions:update",
   "regions:delete",
@@ -116,7 +113,6 @@ function getCategoryIcon(category: string) {
   if (cat.includes("role") || cat.includes("permission")) return <Shield className="h-4 w-4" />;
   if (cat.includes("region") || cat.includes("province") || cat.includes("municipality") || cat.includes("barangay"))
     return <MapIcon className="h-4 w-4" />;
-  if (cat.includes("organization")) return <Layers className="h-4 w-4" />;
   if (cat.includes("speedtest")) return <Activity className="h-4 w-4" />;
   if (cat.includes("broadband") || cat.includes("nap") || cat.includes("cell")) return <Radio className="h-4 w-4" />;
   if (cat.includes("device") || cat.includes("hardware")) return <Server className="h-4 w-4" />;
