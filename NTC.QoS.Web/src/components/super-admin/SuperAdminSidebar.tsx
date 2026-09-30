@@ -15,12 +15,14 @@ import {
   MapPin,
   Menu,
   Shield,
+  ShieldCheck,
   Sparkles,
   UserCog,
   Users,
   X,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { UserButton, useUser } from "@clerk/nextjs";
@@ -68,7 +70,7 @@ const navigation = [
 export function SuperAdminSidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const { isLoaded } = useUser();
+  const { user, isLoaded } = useUser();
 
   return (
     <>
@@ -78,12 +80,20 @@ export function SuperAdminSidebar() {
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
         <h2 className="text-lg font-semibold text-foreground">Super Admin</h2>
-        <div className="w-8 h-8 flex items-center justify-center">
-          {!isLoaded ? (
-            <div className="animate-pulse rounded-full bg-gray-300 w-8 h-8" />
-          ) : (
-            <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
-          )}
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className="text-[10px] px-1.5 py-0 h-4 font-medium bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800 hidden sm:inline-flex items-center gap-1">
+            <ShieldCheck className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+            <span>SuperAdmin</span>
+          </Badge>
+          <div className="w-8 h-8 flex items-center justify-center">
+            {!isLoaded ? (
+              <div className="animate-pulse rounded-full bg-gray-300 w-8 h-8" />
+            ) : (
+              <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -149,8 +159,17 @@ export function SuperAdminSidebar() {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">Account</p>
-                <p className="text-xs text-muted-foreground truncate">Manage profile</p>
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {user?.fullName || user?.primaryEmailAddress?.emailAddress || "Super Admin"}
+                </p>
+                <div className="mt-0.5">
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 h-4 font-medium bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800 inline-flex items-center gap-1">
+                    <ShieldCheck className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                    <span>SuperAdmin</span>
+                  </Badge>
+                </div>
               </div>
             </div>
             <Link
