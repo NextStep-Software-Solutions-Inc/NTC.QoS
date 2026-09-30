@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -145,7 +146,7 @@ public class GetInvitationsHandler(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve invitations: {Message}", ex.Message);
+            _logger.LogError(ex, "Failed to retrieve invitations: {Message}", StringHelper.SanitizeLogMessage(ex.Message));
             return new ApiResponse<List<InvitationDto>>
             {
                 Succeeded = false,

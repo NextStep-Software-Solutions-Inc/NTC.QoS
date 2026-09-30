@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 
@@ -40,7 +41,7 @@ public class RevokeInvitationHandler(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to revoke invitation {InvitationId}: {Message}", request.InvitationId, ex.Message);
+            _logger.LogError(ex, "Failed to revoke invitation {InvitationId}: {Message}", request.InvitationId, StringHelper.SanitizeLogMessage(ex.Message));
             return new ApiResponse<bool>
             {
                 Data = false,

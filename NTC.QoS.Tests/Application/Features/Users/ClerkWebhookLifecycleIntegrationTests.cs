@@ -766,6 +766,96 @@ public class ClerkWebhookLifecycleIntegrationTests
         _clerkUserServiceMock.Verify(c => c.UpdateUserMetadataAsync(authUserId, It.IsAny<UserMetadataPayload>()), Times.Once);
     }
 
+    [Fact]
+    public async Task WebhookAcceptance_WhenConcurrentRequestsAttemptJITCreationSimultaneously_RecoversIdempotentlyWithoutFailing()
+    {
+        // Arrange: User accepts invitation and Clerk dispatches user.created simultaneously with user login
+        const string authUserId = "user_clerk_race_condition_101";
+        const string email = "concurrent.officer@domain.gov.ph";
+        var roleId = Guid.NewGuid();
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "user.created",
+            data = new
+            {
+                id = authUserId,
+                first_name = "Concurrent",
+                last_name = "User",
+                email_addresses = new[] { new { email_address = email } },
+                public_metadata = new
+                {
+                    role_id = roleId.ToString()
+                }
+            }
+        });
+
+        var existingUserDto = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = email,
+            FirstName = "Concurrent",
+            LastName = "User",
+            Role = new RoleDto { Id = roleId, Key = Roles.FieldEngineer, Name = "Field Engineer" }
+        };
+
+        // First check: user does not exist initially
+        var querySequence = _mediatorMock.SetupSequence(m => m.Send(
+            It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false }) // Initial query
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Data = existingUserDto }); // Race condition retry query
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetAllUsersRequest>(r => r.Email == email),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        // Simulate concurrent creation collision: CreateUserRequest fails because another thread just inserted it
+        _mediatorMock.Setup(m => m.Send(
+            It.IsAny<CreateUserRequest>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "User already exists (unique constraint violation)."
+            });
+
+        // The idempotent retry update succeeds
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<UpdateUserByIdRequest>(r => r.Id == existingUserDto.Id),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = true,
+                Data = existingUserDto,
+                Message = "User updated successfully."
+            });
+
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync(It.IsAny<string?>()))
+            .ReturnsAsync(new List<ClerkInvitationResponse>());
+
+        var httpContext = CreateHttpContext(payload);
+
+        // Act: Dispatch through the full verification & controller pipeline
+        var result = await DispatchWebhookThroughPipelineAsync(httpContext);
+
+        // Assert: The pipeline catches the race collision, falls back to idempotent recovery, and returns 200 OK
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = (OkObjectResult)result;
+        var response = okResult.Value as ApiResponse<UserDto>;
+        response.Should().NotBeNull();
+        response!.Succeeded.Should().BeTrue();
+        response.Data!.AuthUserId.Should().Be(authUserId);
+
+        // Verify update was dispatched to reconcile the concurrently created record
+        _mediatorMock.Verify(m => m.Send(
+            It.Is<UpdateUserByIdRequest>(r => r.Id == existingUserDto.Id),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     [Theory]
     [InlineData(null, "whsec_test_valid_placeholder_secret", "https://clerk.accounts.dev", "http://localhost:3000", "Clerk:SecretKey is required", "Development")]
     [InlineData("invalid_key_no_sk", "whsec_test_valid_placeholder_secret", "https://clerk.accounts.dev", "http://localhost:3000", "Clerk:SecretKey is malformed", "Development")]
