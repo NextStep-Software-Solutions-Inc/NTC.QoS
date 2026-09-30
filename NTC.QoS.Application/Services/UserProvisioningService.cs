@@ -191,6 +191,14 @@ public class UserProvisioningService : IUserProvisioningService
         var createResponse = await _mediator.Send(createUserRequest, cancellationToken);
         if (!createResponse.Succeeded)
         {
+            // Concurrent race condition recovery: if another thread created the user simultaneously,
+            // re-query and return the existing user record idempotently.
+            var retryUser = await _mediator.Send(userQuery, cancellationToken);
+            if (retryUser.Succeeded && retryUser.Data != null)
+            {
+                return retryUser;
+            }
+
             _logger.LogError("Failed to create user for AuthUserId {AuthUserId}: {Message}", authUserId, createResponse.Message);
             return createResponse;
         }
@@ -225,6 +233,8 @@ public class UserProvisioningService : IUserProvisioningService
         var userResponse = await _mediator.Send(userQuery, cancellationToken);
         if (userResponse.Succeeded && userResponse.Data != null)
         {
+            await ReconcileUserInvitationAsync(userResponse.Data, cancellationToken);
+
             var updateRequest = new UpdateUserByIdRequest(userResponse.Data.Id, new UpdateUserDto
             {
                 AuthUserId = userData.Id,
@@ -321,7 +331,29 @@ public class UserProvisioningService : IUserProvisioningService
             Regions = metaRegions.Count > 0 ? metaRegions : null
         });
 
-        return await _mediator.Send(createRequest, cancellationToken);
+        var createResponse = await _mediator.Send(createRequest, cancellationToken);
+        if (!createResponse.Succeeded)
+        {
+            // Webhook retry or race condition recovery: if another event created the record concurrently,
+            // fetch the existing record, reconcile any unsettled invitation metadata, and update it.
+            var retryUser = await _mediator.Send(userQuery, cancellationToken);
+            if (retryUser.Succeeded && retryUser.Data != null)
+            {
+                await ReconcileUserInvitationAsync(retryUser.Data, cancellationToken);
+
+                var updateRequest = new UpdateUserByIdRequest(retryUser.Data.Id, new UpdateUserDto
+                {
+                    AuthUserId = userData.Id,
+                    FirstName = userData.FirstName ?? retryUser.Data.FirstName ?? "",
+                    LastName = userData.LastName ?? retryUser.Data.LastName ?? "",
+                    Email = webhookEmail ?? retryUser.Data.Email ?? ""
+                });
+
+                return await _mediator.Send(updateRequest, cancellationToken);
+            }
+        }
+
+        return createResponse;
     }
 
     private async Task ReconcileUserInvitationAsync(UserDto existingUser, CancellationToken cancellationToken)

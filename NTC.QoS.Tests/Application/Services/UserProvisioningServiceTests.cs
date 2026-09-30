@@ -426,4 +426,97 @@ public class UserProvisioningServiceTests
             r.User.Regions!.Count == 1 &&
             r.User.Regions[0].RegionId == regionId), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task EnsureUserExistsAsync_WhenConcurrentRequestCreatesUser_RecoversExistingUserIdempotently()
+    {
+        // Arrange
+        var authUserId = "user_concurrent_race";
+        var existingUserDto = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = "concurrent@example.com",
+            Role = null,
+            FirstName = "Concurrent",
+            LastName = "User"
+        };
+
+        // First query returns not found; retry query after create failure returns the created user
+        _mediatorMock.SetupSequence(m => m.Send(It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false, Message = "User not found." })
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Data = existingUserDto });
+
+        _clerkUserServiceMock.Setup(c => c.GetUserByIdAsync(authUserId))
+            .ReturnsAsync(new ClerkUserResponse
+            {
+                Id = authUserId,
+                FirstName = "Concurrent",
+                LastName = "User",
+                EmailAddresses = [new() { EmailAddress = "concurrent@example.com" }]
+            });
+
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync(null))
+            .ReturnsAsync(new List<ClerkInvitationResponse>());
+
+        // CreateUser fails because concurrent thread just created it
+        _mediatorMock.Setup(m => m.Send(It.Is<CreateUserRequest>(r => r.User.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false, Message = "User already exists." });
+
+        // Act
+        var result = await _service.EnsureUserExistsAsync(authUserId);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Data.Should().BeEquivalentTo(existingUserDto);
+    }
+
+    [Fact]
+    public async Task UpsertUserFromWebhookAsync_WhenCreateFailsDueToRaceCondition_FetchesAndUpdatesExistingUserIdempotently()
+    {
+        // Arrange
+        var authUserId = "user_webhook_race";
+        var existingUserId = Guid.NewGuid();
+        var existingUserDto = new UserDto
+        {
+            Id = existingUserId,
+            AuthUserId = authUserId,
+            Email = "race@example.com",
+            Role = null,
+            FirstName = "Initial",
+            LastName = "Name"
+        };
+
+        var userData = new ClerkUserData
+        {
+            Id = authUserId,
+            FirstName = "UpdatedFirst",
+            LastName = "UpdatedLast",
+            EmailAddresses = [new() { EmailAddress = "race@example.com" }]
+        };
+
+        // First user query returns not found, second query (after create failure) returns the existing user
+        _mediatorMock.SetupSequence(m => m.Send(It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false, Message = "User not found." })
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Data = existingUserDto });
+
+        _mediatorMock.Setup(m => m.Send(It.Is<GetAllUsersRequest>(r => r.Email == "race@example.com"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        _mediatorMock.Setup(m => m.Send(It.Is<CreateUserRequest>(r => r.User.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false, Message = "User already exists." });
+
+        _mediatorMock.Setup(m => m.Send(It.Is<UpdateUserByIdRequest>(r => r.Id == existingUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Message = "User updated." });
+
+        // Act
+        var result = await _service.UpsertUserFromWebhookAsync(userData);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        _mediatorMock.Verify(m => m.Send(It.Is<UpdateUserByIdRequest>(r =>
+            r.Id == existingUserId &&
+            r.User.FirstName == "UpdatedFirst" &&
+            r.User.LastName == "UpdatedLast"), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
