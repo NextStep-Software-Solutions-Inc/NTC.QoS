@@ -57,6 +57,14 @@ public class UsersController(IMediator mediator) : ControllerBase
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 
+    [HttpPost("invitations/{id}/resend")]
+    [RequirePermission(Permissions.InviteUsers)]
+    public async Task<ActionResult<ApiResponse<UserDto>>> ResendInvitation(string id)
+    {
+        var result = await _mediator.Send(new ResendInvitationRequest(id));
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     [HttpGet]
     [RequirePermission(Permissions.ViewUsers)]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetAllUsers(int pageSize = 10,

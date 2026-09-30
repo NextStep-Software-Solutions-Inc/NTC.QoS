@@ -35,6 +35,15 @@ public class GetCurrentUserHandler(
         var user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
         if (user == null)
         {
+            var provisionedUser = await _userAuthorizationService.GetCurrentUserAsync(cancellationToken);
+            if (provisionedUser != null)
+            {
+                user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
+            }
+        }
+
+        if (user == null)
+        {
             return new ApiResponse<CurrentUserDto>
             {
                 Succeeded = false,

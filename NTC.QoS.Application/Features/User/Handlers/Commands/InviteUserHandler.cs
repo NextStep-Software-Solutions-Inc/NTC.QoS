@@ -170,6 +170,24 @@ public class InviteUserHandler(
             IgnoreExisting = true
         };
 
+        // Automatically revoke any prior pending invitations for this email to prevent duplicates and token conflicts
+        try
+        {
+            var existingInvitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var pendingForEmail = existingInvitations
+                .Where(i => string.Equals(i.EmailAddress, request.User.Email, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var priorInvite in pendingForEmail)
+            {
+                await _clerkUserService.RevokeInvitationAsync(priorInvite.Id);
+            }
+        }
+        catch
+        {
+            // Non-fatal: if cleanup of old invites fails, continue creating the fresh invitation
+        }
+
         try
         {
             await _clerkUserService.CreateInvitationAsync(invitationPayload);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { ChevronRight, Globe2, Grid, List, MapPin, Sparkles } from "lucide-react";
@@ -17,6 +17,7 @@ import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTe
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { extractErrorMessage } from "@/lib/extract-error-message";
 import { formatNumber } from "@/lib/format-number";
+import { usePermissions } from "@/providers/PermissionsContext";
 
 const SUPER_ADMIN_ROLE_KEY = "super_admin";
 
@@ -30,13 +31,20 @@ export default function RegionList() {
   const [isPending, startTransition] = useTransition();
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const { userId } = useAuth();
+  const { hasRegionAccess, isSuperAdmin, isPlatformUser } = usePermissions();
   const { data: authUser } = useAuthUser({ pathParams: { id: userId! }, queryParams: {} });
   const { data: regions, isLoading } = useRegions({ pathParams: {}, queryParams: { pageNumber: 1, pageSize: 100 } });
-  const { data: userRegions } = useUserRegions({
+  const { data: userRegions, refetch: refetchUserRegions } = useUserRegions({
     pathParams: {},
     queryParams: { pageNumber: 1, pageSize: 100, authUserIds: userId ? [userId] : [], statuses: ["Active"] },
   });
   const { mutateAsync: createUserRegion } = useCreateUserRegion();
+
+  useEffect(() => {
+    if (authUser?.data?.id) {
+      refetchUserRegions();
+    }
+  }, [authUser?.data?.id, refetchUserRegions]);
 
   const userAccessibleRegionIds = useMemo(
     () => new Set(userRegions?.data.map((ur) => ur.region.id) ?? []),
@@ -161,7 +169,11 @@ export default function RegionList() {
             {(regions?.data ?? []).map((region, index) => {
               const isSelected = selectedRegionId === region.id;
               const hasAccess =
-                userAccessibleRegionIds.has(region.id) || (authUser?.data as any)?.role?.key === SUPER_ADMIN_ROLE_KEY;
+                isSuperAdmin ||
+                isPlatformUser ||
+                hasRegionAccess(region.id) ||
+                userAccessibleRegionIds.has(region.id) ||
+                (authUser?.data as any)?.role?.key === SUPER_ADMIN_ROLE_KEY;
               return (
                 <li
                   key={region.id}
@@ -244,7 +256,11 @@ export default function RegionList() {
             {(regions?.data ?? []).map((region, index) => {
               const isSelected = selectedRegionId === region.id;
               const hasAccess =
-                userAccessibleRegionIds.has(region.id) || (authUser?.data as any)?.role?.key === "super_admin";
+                isSuperAdmin ||
+                isPlatformUser ||
+                hasRegionAccess(region.id) ||
+                userAccessibleRegionIds.has(region.id) ||
+                (authUser?.data as any)?.role?.key === SUPER_ADMIN_ROLE_KEY;
               return (
                 <div
                   key={region.id}

@@ -55,6 +55,9 @@ public class InviteUserHandlerTests
         _userAuthorizationServiceMock.Setup(a => a.GetCurrentUserAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(caller);
 
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync(It.IsAny<string?>()))
+            .ReturnsAsync(new List<ClerkInvitationResponse>());
+
         _handler = new InviteUserHandler(
             _userRepositoryMock.Object,
             _roleRepositoryMock.Object,
@@ -176,6 +179,45 @@ public class InviteUserHandlerTests
 
         // Assert
         result.Succeeded.Should().BeTrue();
+        _clerkUserServiceMock.Verify(c => c.CreateInvitationAsync(It.IsAny<CreateClerkInvitationPayload>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPriorPendingInviteExists_RevokesPriorInviteBeforeCreatingNewOne()
+    {
+        // Arrange
+        var roleId = Guid.NewGuid();
+        var superAdminRole = new Role { Id = roleId, Key = Roles.SuperAdmin, Name = "Super Admin" };
+
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((User?)null);
+
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns(new List<Role> { superAdminRole }.AsQueryable());
+        _roleRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(superAdminRole);
+
+        var priorInvite = new ClerkInvitationResponse
+        {
+            Id = "inv_prior_123",
+            EmailAddress = "test@example.com",
+            Status = "pending"
+        };
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync("pending"))
+            .ReturnsAsync(new List<ClerkInvitationResponse> { priorInvite });
+
+        var request = new InviteUserRequest(new InviteUserDto
+        {
+            Email = "test@example.com",
+            RoleId = roleId
+        });
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        _clerkUserServiceMock.Verify(c => c.RevokeInvitationAsync("inv_prior_123"), Times.Once);
         _clerkUserServiceMock.Verify(c => c.CreateInvitationAsync(It.IsAny<CreateClerkInvitationPayload>()), Times.Once);
     }
 }

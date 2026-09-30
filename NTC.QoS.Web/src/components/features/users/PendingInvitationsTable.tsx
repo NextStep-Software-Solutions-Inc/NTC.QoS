@@ -12,6 +12,7 @@ import {
   Mail,
   MapPin,
   RefreshCw,
+  RotateCw,
   Search,
   Send,
   Shield,
@@ -40,11 +41,13 @@ import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTe
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { extractErrorMessage } from "@/lib/extract-error-message";
 import { getInvitationsRequest } from "./handlers/getInvitationsRequest";
+import { resendInvitationRequest } from "./handlers/resendInvitationRequest";
 import { revokeInvitationRequest } from "./handlers/revokeInvitationRequest";
 import type { Invitation } from "./types/Invitation";
 
 const useGetInvitations = createQueryHookFromTemplate(getInvitationsRequest);
 const useRevokeInvitation = createMutationHookFromTemplate(revokeInvitationRequest);
+const useResendInvitation = createMutationHookFromTemplate(resendInvitationRequest);
 
 interface PendingInvitationsTableProps {
   onInviteClick?: () => void;
@@ -56,6 +59,7 @@ export function PendingInvitationsTable({ onInviteClick, regionId }: PendingInvi
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedInviteToRevoke, setSelectedInviteToRevoke] = useState<Invitation | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const {
     data: invitationsResponse,
@@ -70,6 +74,7 @@ export function PendingInvitationsTable({ onInviteClick, regionId }: PendingInvi
   });
 
   const revokeMutation = useRevokeInvitation();
+  const resendMutation = useResendInvitation();
 
   const rawInvitations = useMemo(() => invitationsResponse?.data ?? [], [invitationsResponse?.data]);
 
@@ -133,6 +138,27 @@ export function PendingInvitationsTable({ onInviteClick, regionId }: PendingInvi
       setRevokeError(errMsg);
       toast.error(errMsg);
     }
+  };
+
+  const handleResend = async (invitation: Invitation) => {
+    setResendingId(invitation.id);
+    toast.promise(
+      resendMutation.mutateAsync({
+        pathParams: { id: invitation.id },
+      }),
+      {
+        loading: `Resending invitation to ${invitation.email}...`,
+        success: () => {
+          setResendingId(null);
+          refetch();
+          return `Invitation for ${invitation.email} was resent successfully! Old links revoked.`;
+        },
+        error: (err) => {
+          setResendingId(null);
+          return extractErrorMessage(err, "Failed to resend invitation.");
+        },
+      }
+    );
   };
 
   const formatDate = (isoString?: string) => {
@@ -386,15 +412,28 @@ export function PendingInvitationsTable({ onInviteClick, regionId }: PendingInvi
                         )}
 
                         {isPending && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedInviteToRevoke(invitation)}
-                            title="Revoke Invitation"
-                            className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={resendingId === invitation.id}
+                              onClick={() => handleResend(invitation)}
+                              title="Resend Invitation (Revokes prior links and sends fresh invite)"
+                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                            >
+                              <RotateCw className={`h-3.5 w-3.5 ${resendingId === invitation.id ? "animate-spin" : ""}`} />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedInviteToRevoke(invitation)}
+                              title="Revoke Invitation"
+                              className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>

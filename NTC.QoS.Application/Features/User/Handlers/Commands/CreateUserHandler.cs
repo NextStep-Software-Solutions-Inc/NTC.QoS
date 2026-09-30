@@ -23,7 +23,11 @@ public class CreateUserHandler(
     public async Task<ApiResponse<UserDto>> Handle(CreateUserRequest request, CancellationToken cancellationToken)
     {
         // Step 1: Check if user already exists
-        var existingUser = await _userRepository.FirstOrDefaultAsync(_userRepository.Query(u => u.AuthUserId == request.User.AuthUserId), cancellationToken);
+        var existingUser = await _userRepository.FirstOrDefaultAsync(
+            _userRepository.Query(u =>
+                (!string.IsNullOrEmpty(request.User.AuthUserId) && u.AuthUserId == request.User.AuthUserId) ||
+                (!string.IsNullOrEmpty(request.User.Email) && u.Email.ToLower() == request.User.Email.ToLower())),
+            cancellationToken);
 
         if (existingUser != null)
         {
@@ -33,7 +37,7 @@ public class CreateUserHandler(
                 Message = "User already exists.",
                 Errors = new Dictionary<string, string[]>
                 {
-                    { "Duplicate", ["A user with this AuthUserId already exists."] }
+                    { "Duplicate", ["A user with this AuthUserId or email address already exists."] }
                 }
             };
         }
