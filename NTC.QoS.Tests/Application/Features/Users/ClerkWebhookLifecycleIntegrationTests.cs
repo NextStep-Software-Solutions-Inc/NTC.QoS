@@ -10,9 +10,11 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NTC.QoS.API.Controllers;
+using NTC.QoS.API.Extensions;
 using NTC.QoS.API.Filters;
 using NTC.QoS.Application.Features.User.Handlers.Commands;
 using NTC.QoS.Application.Features.User.Requests;
@@ -403,5 +405,392 @@ public class ClerkWebhookLifecycleIntegrationTests
         result.Succeeded.Should().BeFalse();
         result.Data.Should().BeFalse();
         result.Message.Should().Contain("Clerk API connection timed out.");
+    }
+
+    [Fact]
+    public async Task WebhookAcceptance_WhenPayloadContainsFullClerkRealWorldSchemaWithExtraAttributes_ParsesSuccessfully()
+    {
+        // Real-world Clerk payload format with 25+ extra fields
+        const string authUserId = "user_clerk_full_schema_999";
+        const string email = "full.schema@ntc.gov.ph";
+        var roleId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+
+        var realWorldPayload = JsonSerializer.Serialize(new
+        {
+            @object = "event",
+            type = "user.created",
+            data = new
+            {
+                backup_codes = (object?)null,
+                banned = false,
+                create_organization_enabled = true,
+                created_at = 1714000000000,
+                delete_self_enabled = true,
+                email_addresses = new[]
+                {
+                    new
+                    {
+                        created_at = 1714000000000,
+                        email_address = email,
+                        id = "idn_email_123",
+                        linked_to = Array.Empty<object>(),
+                        @object = "email_address",
+                        verification = new { status = "verified", strategy = "from_oauth_google" }
+                    }
+                },
+                first_name = "Real",
+                has_image = true,
+                id = authUserId,
+                image_url = "https://img.clerk.com/preview.png",
+                last_name = "World",
+                last_sign_in_at = 1714000000000,
+                locked = false,
+                lockout_expires_in_seconds = (object?)null,
+                mfa_disabled_at = (object?)null,
+                mfa_enabled_at = (object?)null,
+                @object = "user",
+                passkeys = Array.Empty<object>(),
+                password_enabled = false,
+                phone_numbers = Array.Empty<object>(),
+                primary_email_address_id = "idn_email_123",
+                primary_phone_number_id = (object?)null,
+                primary_web3_wallet_id = (object?)null,
+                private_metadata = new { },
+                profile_image_url = "https://images.clerk.dev/oauth_google/avatar.png",
+                public_metadata = new
+                {
+                    role_id = roleId.ToString(),
+                    regions = new[]
+                    {
+                        new
+                        {
+                            region_id = regionId.ToString(),
+                            role_id = roleId.ToString(),
+                            status = "Active"
+                        }
+                    }
+                },
+                two_factor_enabled = false,
+                unsafe_metadata = new { },
+                updated_at = 1714000000000,
+                username = (object?)null,
+                web3_wallets = Array.Empty<object>()
+            },
+            event_attributes = new { http_request = new { client_ip = "127.0.0.1", user_agent = "Clerk-Webhook/v1" } }
+        });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetAllUsersRequest>(r => r.Email == email),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        var createdUserDto = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = email,
+            FirstName = "Real",
+            LastName = "World",
+            Role = new RoleDto { Id = roleId, Key = Roles.FieldEngineer, Name = "Field Engineer" }
+        };
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<CreateUserRequest>(r =>
+                r.User.AuthUserId == authUserId &&
+                r.User.RoleId == roleId &&
+                r.User.Regions != null &&
+                r.User.Regions.Any(reg => reg.RegionId == regionId)),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Data = createdUserDto });
+
+        var httpContext = CreateHttpContext(realWorldPayload);
+        var result = await DispatchWebhookThroughPipelineAsync(httpContext);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = (OkObjectResult)result;
+        var response = okResult.Value as ApiResponse<UserDto>;
+        response.Should().NotBeNull();
+        response!.Succeeded.Should().BeTrue();
+        response.Data!.AuthUserId.Should().Be(authUserId);
+    }
+
+    [Fact]
+    public async Task WebhookAcceptance_WhenPublicMetadataIsStringifiedJson_RecoversRoleAndRegionsSafely()
+    {
+        // Edge case: Clerk metadata stored as serialized JSON string (common from direct dashboard edits)
+        const string authUserId = "user_clerk_stringified_meta";
+        const string email = "stringified@ntc.gov.ph";
+        var roleId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+
+        var stringifiedMetadata = JsonSerializer.Serialize(new
+        {
+            role_id = roleId.ToString(),
+            regions = new[]
+            {
+                new { region_id = regionId.ToString(), role_id = roleId.ToString(), status = "Active" }
+            }
+        });
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "user.created",
+            data = new
+            {
+                id = authUserId,
+                first_name = "Stringified",
+                last_name = "Metadata",
+                email_addresses = new[] { new { email_address = email } },
+                public_metadata = stringifiedMetadata
+            }
+        });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetAllUsersRequest>(r => r.Email == email),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        var createdUserDto = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = email,
+            FirstName = "Stringified",
+            LastName = "Metadata",
+            Role = new RoleDto { Id = roleId, Key = Roles.RegionalStaff, Name = "Regional Staff" }
+        };
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<CreateUserRequest>(r =>
+                r.User.AuthUserId == authUserId &&
+                r.User.RoleId == roleId &&
+                r.User.Regions != null &&
+                r.User.Regions.Any(reg => reg.RegionId == regionId)),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Data = createdUserDto });
+
+        var httpContext = CreateHttpContext(payload);
+        var result = await DispatchWebhookThroughPipelineAsync(httpContext);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = (OkObjectResult)result;
+        var response = okResult.Value as ApiResponse<UserDto>;
+        response.Should().NotBeNull();
+        response!.Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WebhookAcceptance_WhenNamesAreNullAndUserHasMultipleEmails_ExtractsPrimaryEmailAndHandlesNullNames()
+    {
+        // Edge case: Null names and multiple emails
+        const string authUserId = "user_clerk_null_names";
+        const string primaryEmail = "first.email@ntc.gov.ph";
+        var roleId = Guid.NewGuid();
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "user.created",
+            data = new
+            {
+                id = authUserId,
+                first_name = (string?)null,
+                last_name = (string?)null,
+                email_addresses = new[]
+                {
+                    new { email_address = primaryEmail },
+                    new { email_address = "secondary@ntc.gov.ph" }
+                },
+                public_metadata = new
+                {
+                    role_id = roleId.ToString()
+                }
+            }
+        });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetAllUsersRequest>(r => r.Email == primaryEmail),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        var createdUserDto = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = primaryEmail,
+            FirstName = "",
+            LastName = "",
+            Role = new RoleDto { Id = roleId, Key = Roles.User, Name = "User" }
+        };
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<CreateUserRequest>(r =>
+                r.User.AuthUserId == authUserId &&
+                r.User.FirstName == "" &&
+                r.User.LastName == "" &&
+                r.User.Email == primaryEmail),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Data = createdUserDto });
+
+        var httpContext = CreateHttpContext(payload);
+        var result = await DispatchWebhookThroughPipelineAsync(httpContext);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = (OkObjectResult)result;
+        var response = okResult.Value as ApiResponse<UserDto>;
+        response.Should().NotBeNull();
+        response!.Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task WebhookAcceptance_WhenPublicMetadataMissingOrEmpty_RecoversFromInvitationFallback()
+    {
+        // Edge case: public_metadata is empty {} (Clerk user signup directly)
+        const string authUserId = "user_clerk_empty_meta";
+        const string email = "recover.me@ntc.gov.ph";
+        var recoveredRoleId = Guid.NewGuid();
+        var recoveredRegionId = Guid.NewGuid();
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "user.created",
+            data = new
+            {
+                id = authUserId,
+                first_name = "Recovered",
+                last_name = "User",
+                email_addresses = new[] { new { email_address = email } },
+                public_metadata = new { }
+            }
+        });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = false });
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<GetAllUsersRequest>(r => r.Email == email),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        // Setup ClerkUserService to return prior invitation containing the metadata
+        var invitationMetadataDoc = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            role_id = recoveredRoleId.ToString(),
+            regions = new[]
+            {
+                new { region_id = recoveredRegionId.ToString(), role_id = recoveredRoleId.ToString(), status = "Active" }
+            }
+        }));
+
+        var fallbackInvite = new ClerkInvitationResponse
+        {
+            Id = "inv_recovery_fallback",
+            EmailAddress = email,
+            Status = "pending",
+            CreatedAt = 1714000000000,
+            PublicMetadata = invitationMetadataDoc.RootElement
+        };
+
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync(null))
+            .ReturnsAsync(new List<ClerkInvitationResponse> { fallbackInvite });
+
+        var createdUserDto = new UserDto
+        {
+            Id = Guid.NewGuid(),
+            AuthUserId = authUserId,
+            Email = email,
+            FirstName = "Recovered",
+            LastName = "User",
+            Role = new RoleDto { Id = recoveredRoleId, Key = Roles.FieldEngineer, Name = "Field Engineer" }
+        };
+
+        _mediatorMock.Setup(m => m.Send(
+            It.Is<CreateUserRequest>(r =>
+                r.User.AuthUserId == authUserId &&
+                r.User.RoleId == recoveredRoleId &&
+                r.User.Regions != null &&
+                r.User.Regions.Any(reg => reg.RegionId == recoveredRegionId)),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto> { Succeeded = true, Data = createdUserDto });
+
+        var httpContext = CreateHttpContext(payload);
+        var result = await DispatchWebhookThroughPipelineAsync(httpContext);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = (OkObjectResult)result;
+        var response = okResult.Value as ApiResponse<UserDto>;
+        response.Should().NotBeNull();
+        response!.Succeeded.Should().BeTrue();
+
+        // Verify that recovered metadata was synchronized to the Clerk user profile
+        _clerkUserServiceMock.Verify(c => c.UpdateUserMetadataAsync(authUserId, It.IsAny<UserMetadataPayload>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(null, "whsec_test_valid_placeholder_secret", "https://clerk.accounts.dev", "http://localhost:3000", "Clerk:SecretKey is required", "Development")]
+    [InlineData("invalid_key_no_sk", "whsec_test_valid_placeholder_secret", "https://clerk.accounts.dev", "http://localhost:3000", "Clerk:SecretKey is malformed", "Development")]
+    [InlineData("sk_test_123", null, "https://clerk.accounts.dev", "http://localhost:3000", "Clerk:WebhookSecret is required", "Production")]
+    [InlineData("sk_test_123", "invalid_no_whsec", "https://clerk.accounts.dev", "http://localhost:3000", "Clerk:WebhookSecret is malformed", "Development")]
+    [InlineData("sk_test_123", "whsec_test_valid_placeholder_secret", null, "http://localhost:3000", "Clerk:Authority is required", "Development")]
+    [InlineData("sk_test_123", "whsec_test_valid_placeholder_secret", "invalid_authority_uri", "http://localhost:3000", "not a valid absolute HTTP/HTTPS URI", "Development")]
+    [InlineData("sk_test_123", "whsec_test_valid_placeholder_secret", "https://clerk.accounts.dev", null, "Neither 'Clerk:FrontendUrl' nor 'Clerk:AuthorizedParties' is configured", "Development")]
+    public void StartupValidation_WhenConfigurationIsMissingOrMalformed_FailsFastWithDetailedException(
+        string? secretKey, string? webhookSecret, string? authority, string? frontendUrl, string expectedErrorMessage, string environmentName)
+    {
+        // Arrange
+        var inMemory = new Dictionary<string, string?>();
+        if (secretKey != null) inMemory["Clerk:SecretKey"] = secretKey;
+        if (webhookSecret != null) inMemory["Clerk:WebhookSecret"] = webhookSecret;
+        if (authority != null) inMemory["Clerk:Authority"] = authority;
+        if (frontendUrl != null) inMemory["Clerk:FrontendUrl"] = frontendUrl;
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(inMemory).Build();
+        var envMock = new Mock<IHostEnvironment>();
+        envMock.Setup(e => e.EnvironmentName).Returns(environmentName);
+
+        // Act
+        var act = () => configuration.ValidateClerkConfiguration(envMock.Object);
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*{expectedErrorMessage}*");
+    }
+
+    [Fact]
+    public void StartupValidation_WhenAllConfigurationsAreValid_PassesWithoutThrowing()
+    {
+        // Arrange
+        var inMemory = new Dictionary<string, string?>
+        {
+            { "Clerk:SecretKey", "sk_test_validSecretKey123" },
+            { "Clerk:WebhookSecret", "whsec_test_valid_placeholder_secret" },
+            { "Clerk:Authority", "https://clerk.accounts.dev" },
+            { "Clerk:FrontendUrl", "http://localhost:3000" }
+        };
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(inMemory).Build();
+        var envMock = new Mock<IHostEnvironment>();
+        envMock.Setup(e => e.EnvironmentName).Returns(Environments.Development);
+
+        // Act & Assert
+        var act = () => configuration.ValidateClerkConfiguration(envMock.Object);
+        act.Should().NotThrow();
     }
 }

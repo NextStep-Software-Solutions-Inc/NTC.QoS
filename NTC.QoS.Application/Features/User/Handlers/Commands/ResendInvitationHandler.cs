@@ -52,9 +52,28 @@ public class ResendInvitationHandler(
 
             try
             {
-                if (target.PublicMetadata.HasValue && target.PublicMetadata.Value.ValueKind == JsonValueKind.Object)
+                if (target.PublicMetadata.HasValue)
                 {
-                    var meta = target.PublicMetadata.Value;
+                    JsonElement meta;
+                    using var parsedDoc = target.PublicMetadata.Value.ValueKind == JsonValueKind.String
+                        ? JsonDocument.Parse(target.PublicMetadata.Value.GetString() ?? "{}")
+                        : null;
+
+                    if (parsedDoc != null)
+                    {
+                        meta = parsedDoc.RootElement;
+                    }
+                    else if (target.PublicMetadata.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        meta = target.PublicMetadata.Value;
+                    }
+                    else
+                    {
+                        meta = default;
+                    }
+
+                    if (meta.ValueKind == JsonValueKind.Object)
+                    {
 
                     // Safely extract primary role_id
                     if (meta.TryGetProperty("role_id", out var roleIdProp) &&
@@ -98,6 +117,7 @@ public class ResendInvitationHandler(
                                 });
                             }
                         }
+                    }
                     }
                 }
             }

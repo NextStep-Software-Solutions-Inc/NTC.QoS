@@ -42,14 +42,15 @@ public class WebhookControllerIntegrationTests
 
     private DefaultHttpContext CreateHttpContextWithFilter(
         string body,
-        string secret = SvixTestHelper.TestSecret,
+        string? secret = null,
         bool omitHeaders = false)
     {
+        var effectiveSecret = secret ?? SvixTestHelper.TestSecret;
         var services = new ServiceCollection();
         IConfiguration config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                { "Clerk:WebhookSecret", secret }
+                { "Clerk:WebhookSecret", effectiveSecret }
             })
             .Build();
         services.AddSingleton(config);

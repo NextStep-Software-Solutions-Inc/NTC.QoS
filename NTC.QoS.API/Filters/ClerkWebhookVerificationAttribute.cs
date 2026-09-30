@@ -13,7 +13,8 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
-        PropertyNamingPolicy = null
+        PropertyNamingPolicy = null,
+        PropertyNameCaseInsensitive = true
     };
     public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -71,7 +72,7 @@ public class ClerkWebhookVerificationAttribute : ActionFilterAttribute, IAsyncAc
         }
 
         // Store the payload in HttpContext for the action to use
-        var payload = JsonSerializer.Deserialize<ClerkWebhookPayload>(body);
+        var payload = JsonSerializer.Deserialize<ClerkWebhookPayload>(body, SerializerOptions);
         if (payload == null)
         {
             context.Result = new BadRequestObjectResult("Invalid payload");

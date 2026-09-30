@@ -270,6 +270,31 @@ public class UserProvisioningService : IUserProvisioningService
             {
                 _logger.LogWarning(ex, "Failed to retrieve invitation fallback metadata for webhook email {Email}", webhookEmail);
             }
+
+            // Sync recovered metadata to Clerk user profile so subsequent sessions/tokens have the role and regions
+            if (metaRoleId != Guid.Empty || metaRegions.Count > 0)
+            {
+                try
+                {
+                    await _clerkUserService.UpdateUserMetadataAsync(userData.Id, new UserMetadataPayload
+                    {
+                        PublicMetadata = new
+                        {
+                            role_id = metaRoleId != Guid.Empty ? metaRoleId.ToString() : null,
+                            regions = metaRegions.Select(r => new
+                            {
+                                region_id = r.RegionId.ToString(),
+                                role_id = r.RoleId?.ToString(),
+                                status = r.Status
+                            }).ToList()
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to sync recovered invitation metadata to Clerk user {AuthUserId}", userData.Id);
+                }
+            }
         }
 
         var createRequest = new CreateUserRequest(new CreateUserDto
@@ -393,14 +418,33 @@ public class UserProvisioningService : IUserProvisioningService
         Guid roleId = Guid.Empty;
         var regions = new List<CreateUserRegionAssignmentDto>();
 
-        if (!publicMetadata.HasValue || publicMetadata.Value.ValueKind != System.Text.Json.JsonValueKind.Object)
+        if (!publicMetadata.HasValue)
         {
             return (roleId, regions);
         }
 
+        System.Text.Json.JsonDocument? parsedDoc = null;
         try
         {
-            var meta = publicMetadata.Value;
+            System.Text.Json.JsonElement meta;
+            if (publicMetadata.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var jsonStr = publicMetadata.Value.GetString();
+                if (string.IsNullOrWhiteSpace(jsonStr))
+                {
+                    return (roleId, regions);
+                }
+                parsedDoc = System.Text.Json.JsonDocument.Parse(jsonStr);
+                meta = parsedDoc.RootElement;
+            }
+            else if (publicMetadata.Value.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                meta = publicMetadata.Value;
+            }
+            else
+            {
+                return (roleId, regions);
+            }
 
             // Safely parse role_id (supports string, raw text, and legacy 'role' key)
             if (meta.TryGetProperty("role_id", out var roleProp) || meta.TryGetProperty("role", out roleProp))
@@ -420,9 +464,9 @@ public class UserProvisioningService : IUserProvisioningService
             {
                 foreach (var rElem in regionsProp.EnumerateArray())
                 {
-                    // Case 1: Structured object with region_id, role_id, status
+                    // Case 1: Structured object with region_id (or id), role_id, status
                     if (rElem.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                        rElem.TryGetProperty("region_id", out var regIdProp))
+                        (rElem.TryGetProperty("region_id", out var regIdProp) || rElem.TryGetProperty("id", out regIdProp)))
                     {
                         var regIdStr = regIdProp.ValueKind == System.Text.Json.JsonValueKind.String ? regIdProp.GetString() : null;
                         if (Guid.TryParse(regIdStr, out var regId))
@@ -470,6 +514,10 @@ public class UserProvisioningService : IUserProvisioningService
         catch
         {
             // Non-fatal: if metadata payload structure drifted, return whatever was parsed safely
+        }
+        finally
+        {
+            parsedDoc?.Dispose();
         }
 
         return (roleId, regions);
