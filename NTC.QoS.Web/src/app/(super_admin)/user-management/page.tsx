@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Edit, Users } from "lucide-react";
+import { Plus, UserCog, Users } from "lucide-react";
 
-import { EditUserDialog } from "@/components/features/users/EditUserDialog";
 import { getAllUsersRequest } from "@/components/features/users/handlers/getAllUsersRequest";
 import { InviteUserDialog } from "@/components/features/users/InviteUserDialog";
-import { RegionManagementDialog } from "@/components/features/users/RegionManagementDialog";
+import { UserAccessSheet } from "@/components/features/users/UserAccessSheet";
 import type { User } from "@/components/features/users/types/User";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,11 +16,9 @@ import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate
 const useGetAllUsers = createQueryHookFromTemplate(getAllUsersRequest);
 
 export default function UserManagementPage() {
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [regionDialogOpen, setRegionDialogOpen] = useState(false);
+  const [accessSheetOpen, setAccessSheetOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [selectedUserForRegions, setSelectedUserForRegions] = useState<User | null>(null);
 
   const {
     data: usersData,
@@ -29,16 +26,9 @@ export default function UserManagementPage() {
     refetch: refetchUsers,
   } = useGetAllUsers({ pathParams: {}, queryParams: { pageNumber: 1, pageSize: 1000 } });
 
-  const handleSelectUser = (user: User) => {
+  const handleManageUser = (user: User) => {
     setSelectedUser(user);
-    setEditDialogOpen(true);
-  };
-
-  const handleManageRegion = (user: User) => {
-    // get clerk users details using its id
-
-    setSelectedUserForRegions(user);
-    setRegionDialogOpen(true);
+    setAccessSheetOpen(true);
   };
 
   const users = usersData?.data ?? [];
@@ -51,7 +41,7 @@ export default function UserManagementPage() {
           <p className="text-muted-foreground">Manage users, roles, and regional access</p>
         </div>
         <Button onClick={() => setInviteDialogOpen(true)} className="gap-2">
-          <Edit className="h-4 w-4" />
+          <Plus className="h-4 w-4" />
           Invite User
         </Button>
       </div>
@@ -66,15 +56,14 @@ export default function UserManagementPage() {
         </CardHeader>
         <CardContent>
           {usersLoading ? (
-            <div className="text-center py-8">Loading users...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading users...</div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>User ID</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Regions</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>User Identity</TableHead>
+                  <TableHead>Primary Role</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -82,27 +71,23 @@ export default function UserManagementPage() {
                   <TableRow key={user.id}>
                     <TableCell className="font-mono text-sm">
                       <div>
-                        <p className="text-primary">
-                          {user.firstName ?? "-"} {user.lastName ?? "-"}
+                        <p className="font-semibold text-foreground">
+                          {user.firstName ?? ""} {user.lastName ?? ""}
                         </p>
-                        <p className="text-xs text-muted-foreground">{user.authUserId}</p>
+                        <p className="text-xs text-muted-foreground">{user.email || user.authUserId}</p>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{user.role?.name || "No Role"}</Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {/* We'll add region display here */}
-                        <Button variant="ghost" size="sm" onClick={() => handleManageRegion(user)} className="text-xs">
-                          Manage Regions
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => handleSelectUser(user)} className="gap-2">
-                        <Edit className="h-4 w-4" />
-                        Edit
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleManageUser(user)}
+                        className="gap-1.5 text-xs font-medium">
+                        <UserCog className="h-3.5 w-3.5 text-primary" />
+                        Manage Access
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -113,26 +98,14 @@ export default function UserManagementPage() {
         </CardContent>
       </Card>
 
-      {/* Edit User Dialog */}
-      <EditUserDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
+      {/* Unified User Access Sheet (Role + Regional Access) */}
+      <UserAccessSheet
+        open={accessSheetOpen}
+        onOpenChange={setAccessSheetOpen}
         user={selectedUser}
+        allowedRoleScope="All"
         onSuccess={async () => {
-          setEditDialogOpen(false);
-          setSelectedUser(null);
           await refetchUsers();
-        }}
-      />
-
-      {/* Region Management Dialog */}
-      <RegionManagementDialog
-        open={regionDialogOpen}
-        onOpenChange={setRegionDialogOpen}
-        user={selectedUserForRegions}
-        onSuccess={async () => {
-          setRegionDialogOpen(false);
-          setSelectedUserForRegions(null);
         }}
       />
 
@@ -140,6 +113,7 @@ export default function UserManagementPage() {
       <InviteUserDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
+        allowedRoleScope="All"
         onSuccess={async () => {
           await refetchUsers();
         }}
