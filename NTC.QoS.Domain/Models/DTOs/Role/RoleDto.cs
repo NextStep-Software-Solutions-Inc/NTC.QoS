@@ -3,8 +3,8 @@ namespace NTC.QoS.Domain.Models.DTOs.Role;
 public class RoleDto
 {
     public required Guid Id { get; set; }
-    public required string Name { get; set; }
-    public required string Key { get; set; }
+    public required string Name { get; set; } = string.Empty;
+    public required string Key { get; set; } = string.Empty;
     public string? Description { get; set; }
     public bool IsSystemRole { get; set; }
     public string Scope { get; set; } = "Regional";

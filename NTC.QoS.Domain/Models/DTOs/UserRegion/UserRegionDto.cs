@@ -7,7 +7,7 @@ namespace NTC.QoS.Domain.Models.DTOs.UserRegion;
 public class UserRegionDto
 {
     public Guid Id { get; set; }
-    public string Status { get; set; } = string.Empty;
+    public string Status { get; set; } = "Active";
     public Guid? RoleId { get; set; }
     public RoleDto? Role { get; set; }
     public UserDto? User { get; set; }
