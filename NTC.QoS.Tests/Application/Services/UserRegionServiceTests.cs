@@ -223,4 +223,53 @@ public class UserRegionServiceTests
         _userRegionRepositoryMock.Verify(r => r.RemoveRange(It.IsAny<IEnumerable<UserRegion>>()), Times.Never);
         _userRegionRepositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task AssignAllRegionsToUserAsync_WhenRoleIdProvided_SetsRoleIdOnAddedAndUpdatedUserRegions()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var targetRoleId = Guid.NewGuid();
+        var region1 = new Region { Id = Guid.NewGuid(), Name = "NCR", Code = "NCR", IsDeleted = false };
+        var region2 = new Region { Id = Guid.NewGuid(), Name = "Region I", Code = "R01", IsDeleted = false };
+        var allRegions = new List<Region> { region1, region2 };
+
+        var existingUserRegion1 = new UserRegion
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            RegionId = region1.Id,
+            RoleId = null,
+            Status = UserRegionStatus.Active.ToString(),
+            IsDeleted = false
+        };
+
+        var existingList = new List<UserRegion> { existingUserRegion1 };
+
+        _regionRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Region, bool>>>()))
+            .Returns(allRegions.AsQueryable());
+        _regionRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<Region>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(allRegions);
+
+        _userRegionRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<UserRegion, bool>>>()))
+            .Returns(existingList.AsQueryable());
+        _userRegionRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<UserRegion>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingList);
+
+        List<UserRegion>? addedUserRegions = null;
+        _userRegionRepositoryMock.Setup(r => r.AddRange(It.IsAny<IEnumerable<UserRegion>>()))
+            .Callback<IEnumerable<UserRegion>>(list => addedUserRegions = list.ToList());
+
+        // Act
+        await _service.AssignAllRegionsToUserAsync(userId, targetRoleId);
+
+        // Assert
+        _userRegionRepositoryMock.Verify(r => r.Update(It.Is<UserRegion>(ur => ur.RegionId == region1.Id && ur.RoleId == targetRoleId)), Times.Once);
+        _userRegionRepositoryMock.Verify(r => r.AddRange(It.IsAny<IEnumerable<UserRegion>>()), Times.Once);
+        _userRegionRepositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        addedUserRegions.Should().NotBeNull();
+        addedUserRegions!.Single().RegionId.Should().Be(region2.Id);
+        addedUserRegions!.Single().RoleId.Should().Be(targetRoleId);
+    }
 }

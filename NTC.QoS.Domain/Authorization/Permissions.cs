@@ -48,12 +48,6 @@ public static class Permissions
     public const string CreateRolePermissions = "role_permissions.create";
     public const string DeleteRolePermissions = "role_permissions.delete";
 
-    // Organization management permissions
-    public const string ViewOrganizations = "organizations.view";
-    public const string CreateOrganizations = "organizations.create";
-    public const string UpdateOrganizations = "organizations.update";
-    public const string DeleteOrganizations = "organizations.delete";
-
     // Region management permissions
     public const string ViewRegions = "regions.view";
     public const string CreateRegions = "regions.create";

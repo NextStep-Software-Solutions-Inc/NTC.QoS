@@ -4,7 +4,12 @@ import type { User } from "../types/User";
 
 const endpoint = "/users/:id";
 
-export type UpdateUserPayload = { roleId: string; organizationId: string };
+export type UpdateUserPayload = {
+  roleId?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+};
 
 export const updateUserRequest: MutationBlueprintFromTemplate<
   typeof endpoint,

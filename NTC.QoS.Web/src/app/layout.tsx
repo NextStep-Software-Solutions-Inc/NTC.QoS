@@ -10,6 +10,7 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { PermissionsProvider } from "@/providers/PermissionsContext";
 import QueryClientProvider from "@/providers/QueryClientProvider";
 import { FloatingAIChatButton } from "@/components/FloatingAIChatButton";
 
@@ -24,11 +25,13 @@ function PublicMapLayout({ children }: { children: React.ReactNode }) {
         <body className="overscroll-none">
           <Suspense fallback={null}>
             <QueryClientProvider>
-              <Toaster richColors visibleToasts={3} expand closeButton />
-              <TooltipProvider>{children}</TooltipProvider>
-              <CookieConsentBanner />
-              <FloatingAIChatButton />
-              <Analytics />
+              <PermissionsProvider>
+                <Toaster richColors visibleToasts={3} expand closeButton />
+                <TooltipProvider>{children}</TooltipProvider>
+                <CookieConsentBanner />
+                <FloatingAIChatButton />
+                <Analytics />
+              </PermissionsProvider>
             </QueryClientProvider>
           </Suspense>
         </body>

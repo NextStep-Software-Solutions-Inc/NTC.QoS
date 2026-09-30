@@ -19,6 +19,7 @@ services:
       - ConnectionStrings__BlobStorageConnection=${BLOB_STORAGE_CONNECTION_STRING}
       - Clerk__SecretKey=${CLERK_SECRET_KEY}
       - Clerk__WebhookSecret=${CLERK_WEBHOOK_SECRET}
+      - Clerk__FrontendUrl=${CLERK_FRONTEND_URL:-https://app.qos.ntc.gov.ph}
       - GoogleAI__ApiKey=${GOOGLE_AI_API_KEY}
       - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
     expose:

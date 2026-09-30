@@ -4,7 +4,13 @@ import type { Role } from "../types/Role";
 
 const endpoint = "/roles" as const;
 
-type GetRolesQueryParams = { pageNumber?: number; pageSize?: number; search?: string };
+type GetRolesQueryParams = {
+  pageNumber?: number;
+  pageSize?: number;
+  search?: string;
+  scope?: string;
+  regionId?: string;
+};
 
 export const getAllRolesRequest: QueryBlueprintFromTemplate<typeof endpoint, PaginationResponse<Role>, GetRolesQueryParams> = {
   endpoint,
