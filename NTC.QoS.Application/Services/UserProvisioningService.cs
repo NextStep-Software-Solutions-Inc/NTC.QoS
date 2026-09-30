@@ -83,6 +83,7 @@ public class UserProvisioningService : IUserProvisioningService
             };
         }
 
+        string? matchedInvitationId = null;
         var clerkEmail = clerkUser.EmailAddresses?.FirstOrDefault()?.EmailAddress;
 
         // Check if an invited user exists with this email but without AuthUserId
@@ -110,10 +111,13 @@ public class UserProvisioningService : IUserProvisioningService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to update Clerk metadata during invited user linking for {AuthUserId}", authUserId);
+                        _logger.LogWarning(ex, "Failed to update Clerk metadata during invited user linking for user {AuthUserId}", authUserId);
                     }
                     return linkResponse;
                 }
+
+                _logger.LogError("Failed to link invited user {UserId} (Email: {Email}) with AuthUserId {AuthUserId}: {ErrorMessage}",
+                    invitedUser.Id, clerkEmail, authUserId, linkResponse.Message);
             }
         }
 
@@ -133,6 +137,7 @@ public class UserProvisioningService : IUserProvisioningService
 
                 if (invite?.PublicMetadata.HasValue == true)
                 {
+                    matchedInvitationId = invite.Id;
                     var (inviteRoleId, inviteRegions) = ParseMetadata(invite.PublicMetadata);
                     if (metaRoleId == Guid.Empty && inviteRoleId != Guid.Empty)
                     {
@@ -143,13 +148,14 @@ public class UserProvisioningService : IUserProvisioningService
                         metaRegions = inviteRegions;
                     }
 
-                    _logger.LogInformation("Recovered role {RoleId} and {RegionCount} regions from Clerk invitation for {Email}",
-                        metaRoleId, metaRegions.Count, clerkEmail);
+                    _logger.LogInformation("Recovered role {RoleId} and {RegionCount} regions from Clerk invitation {InvitationId} for user {AuthUserId} ({Email})",
+                        metaRoleId, metaRegions.Count, matchedInvitationId, authUserId, clerkEmail);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to retrieve invitation fallback metadata for email {Email}", clerkEmail);
+                _logger.LogWarning(ex, "Failed to retrieve invitation fallback metadata for user {AuthUserId} (Email: {Email}): {Message}",
+                    authUserId, clerkEmail, ex.Message);
             }
         }
 
@@ -174,7 +180,8 @@ public class UserProvisioningService : IUserProvisioningService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to sync recovered invitation metadata to Clerk user {AuthUserId}", clerkUser.Id);
+                _logger.LogWarning(ex, "Failed to sync recovered invitation metadata (from invitation {InvitationId}) to Clerk user {AuthUserId}: {Message}",
+                    matchedInvitationId ?? "none", clerkUser.Id, ex.Message);
             }
         }
 
@@ -199,11 +206,13 @@ public class UserProvisioningService : IUserProvisioningService
                 return retryUser;
             }
 
-            _logger.LogError("Failed to create user for AuthUserId {AuthUserId}: {Message}", authUserId, createResponse.Message);
+            _logger.LogError("Failed to create user for AuthUserId {AuthUserId} (Email: {Email}, Invitation: {InvitationId}): {ErrorMessage}",
+                authUserId, clerkEmail, matchedInvitationId ?? "none", createResponse.Message);
             return createResponse;
         }
 
-        _logger.LogInformation("Successfully provisioned user for AuthUserId {AuthUserId}. Syncing session metadata...", authUserId);
+        _logger.LogInformation("Successfully provisioned user for AuthUserId {AuthUserId} (Invitation: {InvitationId}). Syncing session metadata...",
+            authUserId, matchedInvitationId ?? "none");
 
         // Sync metadata to Clerk
         try
@@ -212,7 +221,8 @@ public class UserProvisioningService : IUserProvisioningService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to update Clerk metadata during provisioning for {AuthUserId}", authUserId);
+            _logger.LogWarning(ex, "Failed to update Clerk metadata during provisioning for user {AuthUserId} (Invitation: {InvitationId}): {Message}",
+                authUserId, matchedInvitationId ?? "none", ex.Message);
         }
 
         return createResponse;
@@ -222,6 +232,7 @@ public class UserProvisioningService : IUserProvisioningService
     {
         if (userData == null || string.IsNullOrWhiteSpace(userData.Id))
         {
+            _logger.LogWarning("Invalid user data in webhook payload: missing user ID.");
             return new ApiResponse<UserDto>
             {
                 Succeeded = false,
@@ -229,6 +240,7 @@ public class UserProvisioningService : IUserProvisioningService
             };
         }
 
+        string? matchedInvitationId = null;
         var userQuery = new GetUserByAuthUserIdRequest(userData.Id);
         var userResponse = await _mediator.Send(userQuery, cancellationToken);
         if (userResponse.Succeeded && userResponse.Data != null)
@@ -243,7 +255,13 @@ public class UserProvisioningService : IUserProvisioningService
                 Email = userData.EmailAddresses?.FirstOrDefault()?.EmailAddress ?? ""
             });
 
-            return await _mediator.Send(updateRequest, cancellationToken);
+            var updateResponse = await _mediator.Send(updateRequest, cancellationToken);
+            if (!updateResponse.Succeeded)
+            {
+                _logger.LogError("Failed to update user {UserId} (AuthUserId: {AuthUserId}) during webhook upsert: {ErrorMessage}",
+                    userResponse.Data.Id, userData.Id, updateResponse.Message);
+            }
+            return updateResponse;
         }
 
         var webhookEmail = userData.EmailAddresses?.FirstOrDefault()?.EmailAddress;
@@ -261,7 +279,18 @@ public class UserProvisioningService : IUserProvisioningService
                     Email = webhookEmail
                 });
 
-                return await _mediator.Send(updateRequest, cancellationToken);
+                var updateResponse = await _mediator.Send(updateRequest, cancellationToken);
+                if (!updateResponse.Succeeded)
+                {
+                    _logger.LogError("Failed to link invited user {UserId} with AuthUserId {AuthUserId} (Email: {Email}) during webhook upsert: {ErrorMessage}",
+                        invitedUser.Id, userData.Id, webhookEmail, updateResponse.Message);
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully linked invited user {UserId} (Email: {Email}) with AuthUserId {AuthUserId} during webhook upsert.",
+                        invitedUser.Id, webhookEmail, userData.Id);
+                }
+                return updateResponse;
             }
         }
 
@@ -279,6 +308,7 @@ public class UserProvisioningService : IUserProvisioningService
 
                 if (invite?.PublicMetadata.HasValue == true)
                 {
+                    matchedInvitationId = invite.Id;
                     var (inviteRoleId, inviteRegions) = ParseMetadata(invite.PublicMetadata);
                     if (metaRoleId == Guid.Empty && inviteRoleId != Guid.Empty)
                     {
@@ -288,11 +318,15 @@ public class UserProvisioningService : IUserProvisioningService
                     {
                         metaRegions = inviteRegions;
                     }
+
+                    _logger.LogInformation("Recovered role {RoleId} and {RegionCount} regions from Clerk invitation {InvitationId} for webhook user {AuthUserId} ({Email})",
+                        metaRoleId, metaRegions.Count, matchedInvitationId, userData.Id, webhookEmail);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to retrieve invitation fallback metadata for webhook email {Email}", webhookEmail);
+                _logger.LogWarning(ex, "Failed to retrieve invitation fallback metadata for webhook user {AuthUserId} (Email: {Email}): {Message}",
+                    userData.Id, webhookEmail, ex.Message);
             }
 
             // Sync recovered metadata to Clerk user profile so subsequent sessions/tokens have the role and regions
@@ -316,7 +350,8 @@ public class UserProvisioningService : IUserProvisioningService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to sync recovered invitation metadata to Clerk user {AuthUserId}", userData.Id);
+                    _logger.LogWarning(ex, "Failed to sync recovered invitation metadata (from invitation {InvitationId}) to Clerk user {AuthUserId}: {Message}",
+                        matchedInvitationId ?? "none", userData.Id, ex.Message);
                 }
             }
         }
@@ -349,8 +384,17 @@ public class UserProvisioningService : IUserProvisioningService
                     Email = webhookEmail ?? retryUser.Data.Email ?? ""
                 });
 
-                return await _mediator.Send(updateRequest, cancellationToken);
+                var updateResponse = await _mediator.Send(updateRequest, cancellationToken);
+                if (!updateResponse.Succeeded)
+                {
+                    _logger.LogError("Failed to update user {UserId} (AuthUserId: {AuthUserId}, Invitation: {InvitationId}) during webhook concurrent retry: {ErrorMessage}",
+                        retryUser.Data.Id, userData.Id, matchedInvitationId ?? "none", updateResponse.Message);
+                }
+                return updateResponse;
             }
+
+            _logger.LogError("Failed to provision user from webhook for AuthUserId {AuthUserId} (Email: {Email}, Invitation: {InvitationId}): {ErrorMessage}",
+                userData.Id, webhookEmail, matchedInvitationId ?? "none", createResponse.Message);
         }
 
         return createResponse;
@@ -403,8 +447,8 @@ public class UserProvisioningService : IUserProvisioningService
 
                 if (!hasRegions && inviteRegions.Count > 0 && _userRegionRepository != null)
                 {
-                    _logger.LogInformation("Assigning {Count} missing invited regions to existing user {UserId} ({Email})",
-                        inviteRegions.Count, existingUser.Id, existingUser.Email);
+                    _logger.LogInformation("Assigning {Count} missing invited regions from invitation {InvitationId} to user {UserId} (AuthUserId: {AuthUserId}, Email: {Email})",
+                        inviteRegions.Count, invite.Id, existingUser.Id, existingUser.AuthUserId, existingUser.Email);
 
                     var newRegions = inviteRegions
                         .GroupBy(r => r.RegionId)
@@ -425,8 +469,8 @@ public class UserProvisioningService : IUserProvisioningService
 
                 if (isDefaultUserRole && inviteRoleId != Guid.Empty && _userRepository != null)
                 {
-                    _logger.LogInformation("Updating role for existing invited user {UserId} ({Email}) to {RoleId}",
-                        existingUser.Id, existingUser.Email, inviteRoleId);
+                    _logger.LogInformation("Updating role for existing invited user {UserId} (AuthUserId: {AuthUserId}, Email: {Email}, Invitation: {InvitationId}) to {RoleId}",
+                        existingUser.Id, existingUser.AuthUserId, existingUser.Email, invite.Id, inviteRoleId);
 
                     var dbUser = await _userRepository.FirstOrDefaultAsync(
                         _userRepository.Query(u => u.Id == existingUser.Id), cancellationToken);
@@ -448,14 +492,16 @@ public class UserProvisioningService : IUserProvisioningService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to update Clerk session metadata after reconciling user {AuthUserId}", existingUser.AuthUserId);
+                        _logger.LogWarning(ex, "Failed to update Clerk session metadata after reconciling user {UserId} (AuthUserId: {AuthUserId}, Invitation: {InvitationId})",
+                            existingUser.Id, existingUser.AuthUserId, invite.Id);
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to reconcile invitation metadata for existing user {AuthUserId}", existingUser.AuthUserId);
+            _logger.LogWarning(ex, "Failed to reconcile invitation metadata for existing user {UserId} (AuthUserId: {AuthUserId}, Email: {Email}): {Message}",
+                existingUser.Id, existingUser.AuthUserId, existingUser.Email, ex.Message);
         }
     }
 

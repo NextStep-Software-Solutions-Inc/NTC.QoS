@@ -71,6 +71,14 @@ export function InviteUserDialog({
     return roles;
   }, [roles, allowedRoleScope]);
 
+  const regionalRoles = useMemo(() => {
+    return roles.filter(
+      (r) =>
+        r.scope === "Regional" ||
+        (r.scope !== "Platform" && r.key !== "super_admin" && !r.name.toLowerCase().includes("super admin"))
+    );
+  }, [roles]);
+
   const selectedRole = roles.find((r) => r.id === primaryRoleId);
   const isSuperAdmin = selectedRole?.key === "super_admin" || selectedRole?.name.toLowerCase().includes("super admin");
 
@@ -94,11 +102,12 @@ export function InviteUserDialog({
   const handleAddRegion = (regionId?: string) => {
     const targetRegionId = regionId || (availableRegions[0]?.id ?? "");
     if (!targetRegionId) return;
+    const defaultRoleId = selectedRole?.scope === "Regional" ? primaryRoleId : (regionalRoles[0]?.id ?? primaryRoleId);
     setAssignedRegions((prev) => [
       ...prev,
       {
         regionId: targetRegionId,
-        roleId: primaryRoleId,
+        roleId: defaultRoleId,
       },
     ]);
   };
@@ -366,13 +375,13 @@ export function InviteUserDialog({
 
                     <div className="flex-1">
                       <Select
-                        value={assignment.roleId || primaryRoleId}
+                        value={assignment.roleId || (selectedRole?.scope === "Regional" ? primaryRoleId : (regionalRoles[0]?.id ?? primaryRoleId))}
                         onValueChange={(val) => handleRoleChangeForRegion(index, val)}>
                         <SelectTrigger className="h-8 text-xs">
                           <SelectValue placeholder="Role in region" />
                         </SelectTrigger>
                         <SelectContent>
-                          {roles.map((role) => (
+                          {(regionalRoles.length > 0 ? regionalRoles : roles).map((role) => (
                             <SelectItem key={role.id} value={role.id} className="text-xs">
                               {role.name}
                             </SelectItem>

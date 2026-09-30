@@ -126,15 +126,24 @@ export function UserAccessSheet({
     return roles;
   }, [roles, allowedRoleScope]);
 
+  const regionalRoles = React.useMemo(() => {
+    return roles.filter(
+      (r: Role) =>
+        r.scope === "Regional" ||
+        (r.scope !== "Platform" && r.key !== "super_admin" && !r.name.toLowerCase().includes("super admin"))
+    );
+  }, [roles]);
+
   // Initialize roleForm when user changes
   React.useEffect(() => {
     if (user) {
       setRoleForm({
         roleId: user.role?.id ?? "",
       });
-      setNewRegionForm({ regionId: fixedRegionId ?? "", roleId: user.role?.id ?? "", status: "Active" });
+      const defaultRegionalRoleId = user.role?.scope === "Regional" ? (user.role?.id ?? "") : (regionalRoles[0]?.id ?? "");
+      setNewRegionForm({ regionId: fixedRegionId ?? "", roleId: defaultRegionalRoleId, status: "Active" });
     }
-  }, [user, fixedRegionId]);
+  }, [user, fixedRegionId, regionalRoles]);
 
   const initials = user
     ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() || "U"
@@ -393,13 +402,13 @@ export function UserAccessSheet({
                   </Select>
 
                   <Select
-                    value={newRegionForm.roleId || user?.role?.id || ""}
+                    value={newRegionForm.roleId || (user?.role?.scope === "Regional" ? (user?.role?.id ?? "") : (regionalRoles[0]?.id ?? ""))}
                     onValueChange={(val) => setNewRegionForm((prev) => ({ ...prev, roleId: val }))}>
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Regional role" />
                     </SelectTrigger>
                     <SelectContent>
-                      {roles.map((r: Role) => (
+                      {(regionalRoles.length > 0 ? regionalRoles : roles).map((r: Role) => (
                         <SelectItem key={r.id} value={r.id}>
                           {r.name}
                         </SelectItem>
