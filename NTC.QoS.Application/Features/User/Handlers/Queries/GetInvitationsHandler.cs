@@ -25,6 +25,15 @@ public class GetInvitationsHandler(
         try
         {
             var clerkInvitations = await _clerkUserService.GetInvitationsAsync(request.Status);
+            if (clerkInvitations.Count == 0)
+            {
+                return new ApiResponse<List<InvitationDto>>
+                {
+                    Data = [],
+                    Succeeded = true,
+                    Message = "Successfully retrieved 0 invitations."
+                };
+            }
 
             // Fetch roles and regions for metadata resolution
             var rolesQuery = _roleRepository.Query(r => true);

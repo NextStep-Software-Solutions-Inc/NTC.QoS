@@ -103,7 +103,7 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
             throw new InvalidOperationException($"Clerk get users by email failed: {(int)response.StatusCode} {response.StatusCode}");
         }
 
-        _logger.LogInformation("Clerk get users by email successful. Email: {Email} Response: {Response}", email, responseBody);
+        _logger.LogInformation("Clerk get users by email successful for {Email}", email);
         var usersResponse = JsonSerializer.Deserialize<List<ClerkUserResponse>>(responseBody, ResponseSerializerOptions);
         return usersResponse ?? new List<ClerkUserResponse>();
     }
@@ -132,13 +132,13 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
             }
             else
             {
-                _logger.LogError("Clerk get user by id failed. UserId: {UserId} Status: {Status} RawBody: {Body}", userId, response.StatusCode, responseBody);
+                _logger.LogError("Clerk get user by id failed. UserId: {UserId} Status: {Status}", userId, response.StatusCode);
             }
             
             throw new InvalidOperationException($"Clerk get user by id failed: {(int)response.StatusCode} {response.StatusCode}");
         }
 
-        _logger.LogInformation("Clerk get user by id successful. UserId: {UserId} Response: {Response}", userId, responseBody);
+        _logger.LogInformation("Clerk get user by id successful for {UserId}", userId);
         var userResponse = JsonSerializer.Deserialize<ClerkUserResponse>(responseBody, ResponseSerializerOptions);
         return userResponse;
     }
@@ -151,12 +151,12 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Failed to deserialize Clerk API error response. Body: {Body}", body);
+            _logger.LogWarning(ex, "Failed to deserialize Clerk API error response");
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during Clerk API error response deserialization. Body: {Body}", body);
+            _logger.LogError(ex, "Unexpected error during Clerk API error response deserialization");
             return null;
         }
     }
@@ -176,18 +176,18 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
             {
                 foreach (var err in parsed.Errors ?? new())
                 {
-                    _logger.LogError("Clerk metadata update error user={UserId} code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status} payload={Payload}",
-                        userId, err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode, jsonPayload);
+                    _logger.LogError("Clerk metadata update error user={UserId} code={Code} msg={Msg} detail={Detail} trace={Trace} status={Status}",
+                        userId, err.Code, err.Message, err.LongMessage, parsed.TraceId, response.StatusCode);
                 }
             }
             else
             {
-                _logger.LogError("Clerk update metadata failed for {UserId}. Status: {Status} Body: {Body} Payload: {Payload}", userId, response.StatusCode, responseBody, jsonPayload);
+                _logger.LogError("Clerk update metadata failed for {UserId}. Status: {Status}", userId, response.StatusCode);
             }
             throw new InvalidOperationException($"Clerk update metadata failed for {userId}: {(int)response.StatusCode} {response.StatusCode}");
         }
 
-        _logger.LogInformation("Clerk metadata update successful for user {UserId}. Response: {Response}", userId, responseBody);
+        _logger.LogInformation("Clerk metadata update successful for user {UserId}", userId);
     }
 
     public async Task<ClerkInvitationResponse> CreateInvitationAsync(CreateClerkInvitationPayload payload)

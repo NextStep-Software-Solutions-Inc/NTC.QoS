@@ -314,4 +314,116 @@ public class UserProvisioningServiceTests
         _mediatorMock.Verify(m => m.Send(It.Is<CreateUserRequest>(r => r.User.AuthUserId == authUserId && r.User.FirstName == "BrandNew"), It.IsAny<CancellationToken>()), Times.Once);
         _mediatorMock.Verify(m => m.Send(It.IsAny<UpdateUserByIdRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task EnsureUserExistsAsync_WhenClerkApiThrowsNetworkException_ReturnsErrorGracefully()
+    {
+        // Arrange
+        var authUserId = "user_clerk_net_err";
+        _mediatorMock.Setup(m => m.Send(It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "User not found."
+            });
+
+        _clerkUserServiceMock.Setup(c => c.GetUserByIdAsync(authUserId))
+            .ThrowsAsync(new HttpRequestException("Clerk service unavailable"));
+
+        // Act
+        var result = await _service.EnsureUserExistsAsync(authUserId);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("Clerk service unavailable");
+        _mediatorMock.Verify(m => m.Send(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpsertUserFromWebhookAsync_WhenUserDataIsNull_ReturnsErrorResponse()
+    {
+        // Act
+        var result = await _service.UpsertUserFromWebhookAsync(null!);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("Invalid user data in webhook payload: missing user ID.");
+        _mediatorMock.Verify(m => m.Send(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public async Task UpsertUserFromWebhookAsync_WhenUserDataIdIsEmpty_ReturnsErrorResponse(string? invalidId)
+    {
+        // Arrange
+        var userData = new ClerkUserData
+        {
+            Id = invalidId!,
+            FirstName = "Test"
+        };
+
+        // Act
+        var result = await _service.UpsertUserFromWebhookAsync(userData);
+
+        // Assert
+        result.Succeeded.Should().BeFalse();
+        result.Message.Should().Contain("missing user ID");
+        _mediatorMock.Verify(m => m.Send(It.IsAny<CreateUserRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpsertUserFromWebhookAsync_WhenMetadataContainsStringifiedJson_DeserializesAndAppliesRoleAndRegions()
+    {
+        // Arrange
+        var authUserId = "user_stringified_meta";
+        var roleId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+        var stringifiedJson = $"{{\"role_id\": \"{roleId}\", \"regions\": [{{\"region_id\": \"{regionId}\", \"status\": \"Active\"}}]}}";
+
+        var userData = new ClerkUserData
+        {
+            Id = authUserId,
+            FirstName = "Stringified",
+            LastName = "Meta",
+            EmailAddresses = [new() { EmailAddress = "stringified@example.com" }],
+            PublicMetadata = System.Text.Json.JsonSerializer.SerializeToElement(stringifiedJson)
+        };
+
+        _mediatorMock.Setup(m => m.Send(It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "User not found."
+            });
+
+        _mediatorMock.Setup(m => m.Send(It.Is<GetAllUsersRequest>(r => r.Email == "stringified@example.com"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>([], 1, 1, 0));
+
+        _mediatorMock.Setup(m => m.Send(It.Is<CreateUserRequest>(r =>
+                r.User.AuthUserId == authUserId &&
+                r.User.RoleId == roleId &&
+                r.User.Regions != null &&
+                r.User.Regions.Any(reg => reg.RegionId == regionId)),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = true,
+                Message = "User created successfully."
+            });
+
+        _mediatorMock.Setup(m => m.Send(It.Is<CreateSessionRequest>(r => r.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<bool> { Succeeded = true, Data = true });
+
+        // Act
+        var result = await _service.UpsertUserFromWebhookAsync(userData);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        _mediatorMock.Verify(m => m.Send(It.Is<CreateUserRequest>(r =>
+            r.User.RoleId == roleId &&
+            r.User.Regions!.Count == 1 &&
+            r.User.Regions[0].RegionId == regionId), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

@@ -111,4 +111,72 @@ public class GetInvitationsHandlerTests
         result.Succeeded.Should().BeFalse();
         result.Message.Should().Contain("Network failure to Clerk API");
     }
+
+    [Fact]
+    public async Task Handle_WhenInvitationsListIsEmpty_ReturnsEmptyListSuccessfully()
+    {
+        // Arrange
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync(It.IsAny<string?>()))
+            .ReturnsAsync(new List<ClerkInvitationResponse>());
+
+        // Act
+        var result = await _handler.Handle(new GetInvitationsRequest(), CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+        result.Data!.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WhenInvitationsHaveMissingOrMalformedMetadata_HandlesGracefullyWithoutThrowing()
+    {
+        // Arrange
+        var clerkInvitations = new List<ClerkInvitationResponse>
+        {
+            new()
+            {
+                Id = "inv_null_meta",
+                EmailAddress = "null_meta@example.com",
+                Status = "pending",
+                PublicMetadata = null
+            },
+            new()
+            {
+                Id = "inv_malformed_meta",
+                EmailAddress = "malformed_meta@example.com",
+                Status = "pending",
+                PublicMetadata = JsonSerializer.SerializeToElement("not a valid json object")
+            }
+        };
+
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync(It.IsAny<string?>()))
+            .ReturnsAsync(clerkInvitations);
+
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns(new List<Role>().AsQueryable());
+        _roleRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Role>());
+
+        _regionRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Region, bool>>>()))
+            .Returns(new List<Region>().AsQueryable());
+        _regionRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<Region>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Region>());
+
+        // Act
+        var result = await _handler.Handle(new GetInvitationsRequest(), CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        result.Data.Should().NotBeNull();
+        result.Data!.Should().HaveCount(2);
+
+        var first = result.Data!.First(i => i.Id == "inv_null_meta");
+        first.RoleName.Should().BeNull();
+        first.Regions.Should().BeEmpty();
+
+        var second = result.Data!.First(i => i.Id == "inv_malformed_meta");
+        second.RoleName.Should().BeNull();
+        second.Regions.Should().BeEmpty();
+    }
 }

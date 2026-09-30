@@ -58,7 +58,21 @@ public class UserProvisioningService : IUserProvisioningService
         _logger.LogInformation("User with AuthUserId {AuthUserId} not found in database. Fetching from Clerk...", authUserId);
 
         // Fetch user from Clerk
-        var clerkUser = await _clerkUserService.GetUserByIdAsync(authUserId);
+        ClerkUserResponse? clerkUser;
+        try
+        {
+            clerkUser = await _clerkUserService.GetUserByIdAsync(authUserId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve user {AuthUserId} from Clerk: {Message}", authUserId, ex.Message);
+            return new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = $"Failed to retrieve user '{authUserId}' from Clerk: {ex.Message}"
+            };
+        }
+
         if (clerkUser == null)
         {
             _logger.LogWarning("User with AuthUserId {AuthUserId} not found in Clerk.", authUserId);
@@ -198,7 +212,7 @@ public class UserProvisioningService : IUserProvisioningService
 
     public async Task<ApiResponse<UserDto>> UpsertUserFromWebhookAsync(ClerkUserData userData, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(userData.Id))
+        if (userData == null || string.IsNullOrWhiteSpace(userData.Id))
         {
             return new ApiResponse<UserDto>
             {
