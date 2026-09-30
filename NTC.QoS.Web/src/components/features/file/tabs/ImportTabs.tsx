@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Gauge, MapPin, Radiation, Radio, RadioTower } from "lucide-react";
 
 import FileList from "@/components/FileList";
@@ -50,17 +50,18 @@ const tabConfigs = [
 ];
 
 const ImportTabs = () => {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const type = (searchParams.get("type") ?? "NAP") as "Speedtest" | "NAP" | "Cell" | "WirelessValidation" | "CellularCoverage";
 
   const handleChangTab = (value: string) => {
-    const searchParams = new URLSearchParams(window.location.search);
-    searchParams.set("type", value);
-    window.history.replaceState({}, "", `${window.location.pathname}?${searchParams}`);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("type", value);
+    router.replace(`?${params.toString()}`, { scroll: false });
   };
 
   return (
-    <Tabs defaultValue={type} className="w-full" onValueChange={handleChangTab}>
+    <Tabs value={type} defaultValue={type} className="w-full" onValueChange={handleChangTab}>
       <div className="bg-muted/30 px-6 py-4">
         <div className="overflow-x-auto pb-1">
           <TabsList className="inline-flex h-auto min-w-max gap-2 rounded-xl border border-gray-200/50 bg-white/60 p-1.5 shadow-sm backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-800/60">

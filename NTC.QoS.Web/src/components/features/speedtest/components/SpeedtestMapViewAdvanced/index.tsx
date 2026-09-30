@@ -31,7 +31,7 @@ import {
 } from "./utils";
 
 // MapTiler API Key Configuration
-const MAPTILER_API_KEY = process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
+const MAPTILER_API_KEY = process.env.NEXT_PUBLIC_MAPTILER_API_KEY || maptilersdk.config.apiKey;
 
 // Source and Layer IDs
 const SOURCE_ID = "speedtests";
