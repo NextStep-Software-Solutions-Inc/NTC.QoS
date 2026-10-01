@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { type SpeedTest } from "@/components/features/speedtest/types/SpeedTest";
 import { DEFAULT_PROVIDER_COLOR, NBC_COLOR, SIGNAL_QUALITY_COLORS, UNKNOWN_PROVIDER } from "./constants";
 import { type ProviderCounts, type SignalQualityCounts, type SpeedtestWithMeta } from "./types";
+import { hasValidCoordinates } from "./utils";
 
 /**
  * Hook to filter speedtests by search query and visible providers
@@ -54,10 +55,10 @@ export function useSpeedtestsGeoJSON(
     return {
       type: "FeatureCollection" as const,
       features: filteredSpeedtests
-        .filter((st) => st.latitude != null && st.longitude != null)
+        .filter(hasValidCoordinates)
         .map((st) => ({
           type: "Feature" as const,
-          geometry: { type: "Point" as const, coordinates: [st.longitude!, st.latitude!] as [number, number] },
+          geometry: { type: "Point" as const, coordinates: [st.longitude, st.latitude] as [number, number] },
           properties: {
             id: st.id,
             downloadSpeed: st.downloadSpeed || 0,
