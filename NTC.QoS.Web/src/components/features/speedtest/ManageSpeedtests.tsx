@@ -28,6 +28,8 @@ export interface SpeedtestFilters {
   signalQuality?: string;
   search?: string;
   nbc?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 /**
@@ -59,6 +61,8 @@ export function ManageSpeedtests({ regionId }: ManageSpeedtestsProps) {
       signalQuality: searchParams.get("signalQuality") || undefined,
       search: searchParams.get("search") || undefined,
       nbc: searchParams.get("nbc") || undefined,
+      startDate: searchParams.get("startDate") || undefined,
+      endDate: searchParams.get("endDate") || undefined,
     }),
     [searchParams],
   );
@@ -101,6 +105,8 @@ export function ManageSpeedtests({ regionId }: ManageSpeedtestsProps) {
       signalQuality: filters.signalQuality && filters.signalQuality !== "all" ? filters.signalQuality : undefined,
       isNoBroadbandCoverage:
         filters.nbc === "nbc" ? true : filters.nbc === "non-nbc" ? false : undefined,
+      startDate: filters.startDate || undefined,
+      endDate: filters.endDate || undefined,
       // search: filters.search || undefined, // REMOVED - handled client-side for better UX
     }),
     [regionId, pageSize, pageNumber, filters],

@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -125,22 +125,57 @@ public class ProcessNAPJob : IProcessNAPJob
 
                 foreach (var sp in serviceProvidersFromData)
                 {
-                    if (sp.Name != null)
+                    if (!string.IsNullOrWhiteSpace(sp.Name))
                     {
-                        serviceProviderLookup[sp.Name] = sp.Id;
+                        serviceProviderLookup[sp.Name.Trim()] = sp.Id;
                     }
                 }
 
                 _logger.LogInformation("Preloaded {Count} service providers", serviceProviderLookup.Count);
 
-                var missingProviders = providerNames.Where(name => !serviceProviderLookup.ContainsKey(name)).ToList();
+                var validProviderNames = providerNames
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var missingProviders = validProviderNames
+                    .Where(name => !serviceProviderLookup.ContainsKey(name))
+                    .ToList();
+
                 if (missingProviders.Any())
                 {
-                    _logger.LogWarning("Missing service providers from database:");
+                    _logger.LogWarning("Missing service providers from database ({MissingCount} unique):", missingProviders.Count);
                     foreach (var missing in missingProviders)
                     {
                         _logger.LogWarning("  - '{Provider}'", missing);
                     }
+                }
+
+                // If all parsed records have no valid provider (e.g. wrong template/file type uploaded)
+                if (validProviderNames.Count == 0 || missingProviders.Count == validProviderNames.Count)
+                {
+                    var sampleMissing = missingProviders.Take(5).ToList();
+                    var sampleMissingFormatted = sampleMissing.Count > 0
+                        ? string.Join(", ", sampleMissing)
+                        : "None specified";
+
+                    var extraCount = missingProviders.Count - sampleMissing.Count;
+                    var missingSummary = extraCount > 0
+                        ? $"{sampleMissingFormatted} (+{extraCount} more)"
+                        : sampleMissingFormatted;
+
+                    var msg = validProviderNames.Count == 0
+                        ? "Provider column is missing or empty in all records. Please ensure the file follows the NAP template."
+                        : $"None of the service providers found in the file ({missingSummary}) match existing wired service providers. Please ensure the file follows the NAP template.";
+
+                    _logger.LogError(
+                        "None of the service providers found in NAP file match existing wired service providers. Sample missing: {MissingProviders}, Total missing: {MissingCount}",
+                        sampleMissing,
+                        missingProviders.Count);
+
+                    await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.NAP, msg, token);
+                    return;
                 }
 
                 var validProviderIds = serviceProviderLookup.Values.ToList();
@@ -225,7 +260,8 @@ public class ProcessNAPJob : IProcessNAPJob
 
                         try
                         {
-                            if (!serviceProviderLookup.TryGetValue(record.Provider, out var serviceProviderId))
+                            var providerName = record.Provider?.Trim();
+                            if (string.IsNullOrEmpty(providerName) || !serviceProviderLookup.TryGetValue(providerName, out var serviceProviderId))
                             {
                                 _logger.LogWarning("Service Provider not found in preloaded data: {Provider}. Skipping record.", record.Provider);
                                 processingResults.SkippedRecords++;
@@ -402,7 +438,14 @@ public class ProcessNAPJob : IProcessNAPJob
         _logger.LogInformation("- Field projection to minimize network transfer");
         _logger.LogInformation("=======================================");
 
-        file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        if (results.TotalRecords > 0 && results.SuccessfulRecords == 0)
+        {
+            file.Status = FileStatusEnum.Failed;
+        }
+        else
+        {
+            file.Status = results.ErrorRecords == 0 && results.SkippedRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        }
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 

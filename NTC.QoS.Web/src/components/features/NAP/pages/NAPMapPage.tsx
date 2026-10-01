@@ -215,8 +215,10 @@ export default function NAPMapPage({ regionId }: NAPMapPageProps) {
         }
 
         const collectedById = new Map(firstPageNaps.map((nap) => [nap.id, nap]));
+        const MAX_PAGES = 50;
+        const pagesToLoad = Math.min(totalPages, MAX_PAGES);
 
-        for (let page = 2; page <= totalPages; page++) {
+        for (let page = 2; page <= pagesToLoad; page++) {
           if (controller.signal.aborted || requestTokenRef.current !== requestToken) {
             return;
           }
@@ -239,13 +241,27 @@ export default function NAPMapPage({ regionId }: NAPMapPageProps) {
             const mergedNAPs = Array.from(collectedById.values());
             setAllNaps(mergedNAPs);
             setLoadingProgress({ loaded: mergedNAPs.length, total: serverTotalCount });
-          } catch (error) {
-            if (controller.signal.aborted) {
+          } catch (error: unknown) {
+            if (controller.signal.aborted || requestTokenRef.current !== requestToken) {
               return;
             }
+            const err = error as { name?: string; message?: string; response?: { data?: { message?: string } } };
+            if (err?.name === "AbortError") return;
+
             console.error(`Failed to load viewport page ${page}:`, error);
-            toast.error(`Failed to load some NAP data (page ${page})`);
+            const errorMessage =
+              err?.response?.data?.message ||
+              err?.message ||
+              `Failed to load NAP data (page ${page}).`;
+            toast.error(errorMessage);
+            break; // Stop loop on failure to prevent flood of failing requests
           }
+        }
+
+        if (!controller.signal.aborted && requestTokenRef.current === requestToken && totalPages > MAX_PAGES) {
+          toast.info(
+            `Loaded ${collectedById.size.toLocaleString()} of ${serverTotalCount.toLocaleString()} NAPs. Please zoom in to view more details.`,
+          );
         }
       } catch (error) {
         if (controller.signal.aborted) {
@@ -349,15 +365,15 @@ export default function NAPMapPage({ regionId }: NAPMapPageProps) {
 
     try {
       await deleteNAPMutation.mutateAsync({ pathParams: {}, queryParams: { ids: napToDelete.id } });
-      
+
       // Optimistically update cache by removing deleted item - instant UI update
       queryClient.setQueriesData(
         { predicate: (query) => query.queryKey[0] === "get-NAPs" },
         (oldData: unknown) => {
           if (!oldData || typeof oldData !== "object" || !(".data" in oldData)) return oldData;
-          
+
           const data = oldData as { data?: NAPDetails[]; totalRows?: number };
-          
+
           return {
             ...data,
             data: (data.data || []).filter((nap) => nap.id !== napToDelete.id),
@@ -365,10 +381,10 @@ export default function NAPMapPage({ regionId }: NAPMapPageProps) {
           };
         },
       );
-      
+
       // Invalidate analytics cache to refresh dashboard stats
       void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "nap-analytics", refetchType: "active" });
-      
+
       toast.success("NAP deleted successfully");
       void refetchNAPs();
     } catch (error) {

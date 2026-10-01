@@ -121,7 +121,7 @@ export const SIGNAL_QUALITY_COLORS: Record<string, string> = {
 };
 
 // Signal quality order for legend
-export const SIGNAL_QUALITY_ORDER = ["Excellent", "Good", "Average", "Weak", "VeryWeak"];
+export const SIGNAL_QUALITY_ORDER = ["Excellent", "Good", "Average", "Weak", "VeryWeak", "Unknown"];
 
 // Speed thresholds for color coding (Mbps)
 export const SPEED_THRESHOLDS = {

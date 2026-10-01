@@ -1,9 +1,10 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
@@ -139,6 +140,9 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
     {
         var version = await GetSpeedtestsVersionAsync();
 
+        var normalizedStartDate = query.StartDate.NormalizeFilterStartDate();
+        var normalizedEndDate = query.EndDate.NormalizeFilterEndDate();
+
         var cacheKey = $"{SpeedtestsCachePrefix}v{version.Count}_{version.LastModifiedAt:O}_{query.PageNumber}_{query.PageSize}_{query.Search}_{string.Join(",", query.ServiceProviderIds ?? [])}_" +
             $"{string.Join(",", query.BarangayIds ?? [])}_" +
             $"{string.Join(",", query.MunicipalityIds ?? [])}_" +
@@ -146,7 +150,7 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             $"{string.Join(",", query.RegionIds ?? [])}_" +
             $"_{string.Join(",", query.CellIds ?? [])}_{string.Join(",", query.GenerationIds ?? [])}_{string.Join(",", query.ProviderIds ?? [])}" +
             $"_{string.Join(",", query.ServiceIds ?? [])}_{query.SignalQuality}_{query.MinDownloadSpeed}_{query.MaxDownloadSpeed}" +
-            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{query.StartDate:O}_{query.EndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsNoBroadbandCoverage}";
+            $"_{query.MinUploadSpeed}_{query.MaxUploadSpeed}_{normalizedStartDate:O}_{normalizedEndDate:O}_{query.Longitude}_{query.Latitude}_{query.Distance}_{query.IsNoBroadbandCoverage}";
 
         if (memoryCache.TryGetValue(cacheKey, out PaginatedResponse<SpeedtestDto>? cachedSpeedtests))
             return Ok(cachedSpeedtests);
@@ -168,8 +172,8 @@ public class SpeedtestsController(IMediator mediator, IMemoryCache memoryCache) 
             MaxDownloadSpeed = query.MaxDownloadSpeed,
             MinUploadSpeed = query.MinUploadSpeed,
             MaxUploadSpeed = query.MaxUploadSpeed,
-            StartDate = query.StartDate,
-            EndDate = query.EndDate,
+            StartDate = normalizedStartDate,
+            EndDate = normalizedEndDate,
             IsNoBroadbandCoverage = query.IsNoBroadbandCoverage,
             Coordinate = new(x: query.Longitude, y: query.Latitude),
             Distance = query.Distance

@@ -30,6 +30,7 @@ interface FileTableProps {
   readonly?: boolean;
   actions: MetaActions;
   isLoading?: boolean;
+  type?: "Speedtest" | "NAP" | "Cell" | "Cellular" | "CellularCoverage" | "WirelessValidation";
 }
 
 export function FileTable({
@@ -40,6 +41,7 @@ export function FileTable({
   actions,
   data,
   isLoading = false,
+  type,
 }: FileTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -70,7 +72,7 @@ export function FileTable({
       {title && <h2 className="text-2xl font-bold mb-2">{title}</h2>}
       {description && <p className="text-muted-foreground mb-4">{description}</p>}
       <div className="mb-4">
-        <Toolbar table={table} />
+        <Toolbar table={table} type={type} />
       </div>
       <div className="rounded-xl border-2 border-violet-200/50 dark:border-violet-800/50 shadow-xl shadow-violet-500/10 overflow-hidden bg-card">
         <Table>
