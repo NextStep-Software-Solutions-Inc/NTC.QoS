@@ -12,8 +12,13 @@ export function useFilteredSpeedtests(
   visibleProviders: Set<string>,
   visibleSignalQualities: Set<string>,
   _searchQuery: string,
+  startDate?: string,
+  endDate?: string,
 ): SpeedtestWithMeta[] {
   return useMemo(() => {
+    const startMs = startDate ? new Date(startDate).getTime() : undefined;
+    const endMs = endDate ? new Date(endDate).getTime() : undefined;
+
     return speedtests.filter((st) => {
       const provider = st.serviceProvider?.provider?.name || UNKNOWN_PROVIDER;
       const signalQuality = st.signalQuality || "Unknown";
@@ -24,9 +29,18 @@ export function useFilteredSpeedtests(
       // Check signal quality visibility
       if (!visibleSignalQualities.has(signalQuality)) return false;
 
+      // Check date range
+      if (startMs !== undefined || endMs !== undefined) {
+        if (!st.dateTime) return false;
+        const testMs = new Date(st.dateTime).getTime();
+        if (isNaN(testMs)) return false;
+        if (startMs !== undefined && testMs < startMs) return false;
+        if (endMs !== undefined && testMs > endMs) return false;
+      }
+
       return true;
     });
-  }, [speedtests, visibleProviders, visibleSignalQualities]);
+  }, [speedtests, visibleProviders, visibleSignalQualities, startDate, endDate]);
 }
 
 /**

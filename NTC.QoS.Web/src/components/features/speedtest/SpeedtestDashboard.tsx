@@ -166,11 +166,13 @@ export function SpeedtestDashboard({
       const params = new URLSearchParams();
       if (typeof speedtest.latitude === "number") params.set("lat", String(speedtest.latitude));
       if (typeof speedtest.longitude === "number") params.set("lng", String(speedtest.longitude));
+      if (filters?.startDate) params.set("startDate", filters.startDate);
+      if (filters?.endDate) params.set("endDate", filters.endDate);
       const query = params.toString();
       const mapPath = regionId ? `/${regionId}/broadband/speedtests/map` : "/speedtests/map";
       router.push(`${mapPath}${query ? `?${query}` : ""}`);
     },
-    [regionId, router],
+    [regionId, router, filters?.startDate, filters?.endDate],
   );
 
   const handleCreateSuccess = useCallback(async () => {
@@ -347,8 +349,13 @@ export function SpeedtestDashboard({
           showMap={false}
           onToggleCollapse={() => setHeroCollapsed(!heroCollapsed)}
           onToggleMap={() => {
+            const params = new URLSearchParams();
+            if (filters?.startDate) params.set("startDate", filters.startDate);
+            if (filters?.endDate) params.set("endDate", filters.endDate);
+            if (filters?.provider && filters.provider !== "all") params.set("provider", filters.provider);
+            const query = params.toString();
             const mapPath = regionId ? `/${regionId}/broadband/speedtests/map` : "/speedtests/map";
-            router.push(mapPath);
+            router.push(`${mapPath}${query ? `?${query}` : ""}`);
           }}
           scrollContainerRef={scrollContainerRef}
         />
@@ -383,8 +390,13 @@ export function SpeedtestDashboard({
               variant="outline"
               size="sm"
               onClick={() => {
+                const params = new URLSearchParams();
+                if (filters?.startDate) params.set("startDate", filters.startDate);
+                if (filters?.endDate) params.set("endDate", filters.endDate);
+                if (filters?.provider && filters.provider !== "all") params.set("provider", filters.provider);
+                const query = params.toString();
                 const mapPath = regionId ? `/${regionId}/broadband/speedtests/map` : "/speedtests/map";
-                router.push(mapPath);
+                router.push(`${mapPath}${query ? `?${query}` : ""}`);
               }}
               className="gap-2 border-cyan-500/50 text-cyan-600 hover:bg-cyan-50 dark:text-cyan-400 dark:hover:bg-cyan-950/30">
               <Map className="h-4 w-4" />

@@ -74,6 +74,9 @@ export function SpeedtestMapViewAdvanced({
   loadingProgress,
   onBackToList,
   regionName,
+  startDate,
+  endDate,
+  onDateRangeChange,
 }: SpeedtestMapViewProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -139,6 +142,8 @@ export function SpeedtestMapViewAdvanced({
     effectiveVisibleProviders,
     visibleSignalQualities,
     searchQuery,
+    startDate,
+    endDate,
   );
   const geojsonData = useSpeedtestsGeoJSON(filteredSpeedtests, selectedSpeedtestId);
   const providerCounts = useProviderCounts(speedtestsWithMeta, effectiveVisibleProviders);
@@ -628,6 +633,9 @@ export function SpeedtestMapViewAdvanced({
         loadingProgress={loadingProgress}
         onBackToList={onBackToList}
         regionName={regionName}
+        startDate={startDate}
+        endDate={endDate}
+        onDateRangeChange={onDateRangeChange}
       />
 
       <SearchBar show={showSearch} value={searchQuery} onChange={setSearchQuery} onSearch={handleCoordinateSearch} />

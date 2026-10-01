@@ -91,6 +91,8 @@ function SpeedtestTable({
   const [localBarangayFilter, setLocalBarangayFilter] = useState("all");
   const [localSignalQualityFilter, setLocalSignalQualityFilter] = useState("all");
   const [localNbcFilter, setLocalNbcFilter] = useState("all");
+  const [localStartDate, setLocalStartDate] = useState<string | undefined>(undefined);
+  const [localEndDate, setLocalEndDate] = useState<string | undefined>(undefined);
 
   // Derived filter values - use external if available, fallback to local
   const searchTerm = externalFilters?.search ?? localSearchTerm;
@@ -101,6 +103,8 @@ function SpeedtestTable({
   const barangayFilter = externalFilters?.barangay ?? localBarangayFilter;
   const signalQualityFilter = externalFilters?.signalQuality ?? localSignalQualityFilter;
   const nbcFilter = externalFilters?.nbc ?? localNbcFilter;
+  const startDate = externalFilters?.startDate ?? localStartDate;
+  const endDate = externalFilters?.endDate ?? localEndDate;
 
   // Helper to update filters - uses external handler if available
   const updateFilter = useCallback(
@@ -150,6 +154,18 @@ function SpeedtestTable({
     /* no-op, region is from prop */
   }, []);
 
+  const handleDateRangeChange = useCallback(
+    (newStartDate?: string, newEndDate?: string) => {
+      if (onFilterChange) {
+        onFilterChange({ startDate: newStartDate, endDate: newEndDate });
+      } else {
+        setLocalStartDate(newStartDate);
+        setLocalEndDate(newEndDate);
+      }
+    },
+    [onFilterChange],
+  );
+
   // Selection
   const { isSelected, toggleSelection, toggleSelectAll, clearSelection, selectedItems, selectedCount } =
     useSelection(data);
@@ -172,8 +188,9 @@ function SpeedtestTable({
     if (barangayFilter !== "all") count++;
     if (signalQualityFilter !== "all") count++;
     if (nbcFilter !== "all") count++;
+    if (startDate || endDate) count++;
     return count;
-  }, [regionFilter, providerFilter, provinceFilter, municipalityFilter, barangayFilter, signalQualityFilter, nbcFilter, regionId]);
+  }, [regionFilter, providerFilter, provinceFilter, municipalityFilter, barangayFilter, signalQualityFilter, nbcFilter, startDate, endDate, regionId]);
 
   // Filter data locally (for search)
   const filteredData = useMemo(() => {
@@ -238,6 +255,8 @@ function SpeedtestTable({
         barangay: undefined,
         signalQuality: undefined,
         nbc: undefined,
+        startDate: undefined,
+        endDate: undefined,
       });
     } else {
       // Reset local state
@@ -248,6 +267,8 @@ function SpeedtestTable({
       setLocalBarangayFilter("all");
       setLocalSignalQualityFilter("all");
       setLocalNbcFilter("all");
+      setLocalStartDate(undefined);
+      setLocalEndDate(undefined);
     }
   }, [onFilterChange]);
 
@@ -397,12 +418,15 @@ function SpeedtestTable({
                 barangayFilter={barangayFilter}
                 signalQualityFilter={signalQualityFilter}
                 nbcFilter={nbcFilter}
+                startDate={startDate}
+                endDate={endDate}
                 onProviderFilterChange={setProviderFilter}
                 onProvinceFilterChange={setProvinceFilter}
                 onMunicipalityFilterChange={setMunicipalityFilter}
                 onBarangayFilterChange={setBarangayFilter}
                 onSignalQualityFilterChange={setSignalQualityFilter}
                 onNbcFilterChange={setNbcFilter}
+                onDateRangeChange={handleDateRangeChange}
                 providers={providers}
                 provinces={provinces}
                 municipalities={municipalities}

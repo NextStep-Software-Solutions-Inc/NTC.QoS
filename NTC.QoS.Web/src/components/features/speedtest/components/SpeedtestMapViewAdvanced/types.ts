@@ -26,6 +26,9 @@ export interface SpeedtestMapViewProps {
   loadingProgress?: { loaded: number; total: number };
   onBackToList?: () => void;
   regionName?: string;
+  startDate?: string;
+  endDate?: string;
+  onDateRangeChange?: (startDate?: string, endDate?: string) => void;
 }
 
 export interface SpeedtestWithMeta extends SpeedTest {
