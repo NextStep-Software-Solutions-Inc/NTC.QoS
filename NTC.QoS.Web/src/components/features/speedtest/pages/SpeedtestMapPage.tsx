@@ -260,7 +260,7 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
     if (!speedtestToDelete) return;
 
     try {
-      await deleteSpeedtestMutation.mutateAsync({ 
+      await deleteSpeedtestMutation.mutateAsync({
         pathParams: {},
         queryParams: { ids: [speedtestToDelete.id] }
       });

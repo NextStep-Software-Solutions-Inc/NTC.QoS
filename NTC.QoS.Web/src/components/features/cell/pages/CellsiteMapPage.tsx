@@ -172,45 +172,59 @@ export default function CellsiteMapPage({ regionId }: CellsiteMapPageProps) {
     },
   });
 
-  // Infinite loading effect - load all pages after first page
+  // Infinite loading effect - load all pages after first page with cancellation and error protection
   useEffect(() => {
-    if (!firstPageResponse || loadingRef.current) return;
+    if (!firstPageResponse) return;
 
-    const loadAllPages = async () => {
-      if (loadingRef.current) return;
-      loadingRef.current = true;
-      setIsLoadingAll(true);
+    const abortController = new AbortController();
+    loadingRef.current = true;
+    setIsLoadingAll(true);
 
-      const totalRows = firstPageResponse.totalRows || 0;
-      const totalPages = Math.ceil(totalRows / PAGE_SIZE);
+    const totalRows = firstPageResponse.totalRows || 0;
+    const totalPages = Math.ceil(totalRows / PAGE_SIZE);
 
-      setTotalCount(totalRows);
-      setLoadingProgress({ loaded: firstPageResponse.data?.length || 0, total: totalRows });
+    setTotalCount(totalRows);
+    setLoadingProgress({ loaded: firstPageResponse.data?.length || 0, total: totalRows });
 
-      // Start with first page data
-      const firstPageCells: CellMapDetails[] = (firstPageResponse.data || []).map(cellToCellMapDetails);
+    // Start with first page data and allow incremental rendering
+    const firstPageCells: CellMapDetails[] = (firstPageResponse.data || []).map(cellToCellMapDetails);
 
-      // If all data is in first page, we're done
-      if (totalPages <= 1) {
-        setAllCells(firstPageCells);
-        setIsLoadingAll(false);
-        loadingRef.current = false;
-        return;
-      }
+    // Render first page immediately so the map can show data incrementally
+    setAllCells(firstPageCells);
+    setLoadingProgress({ loaded: firstPageCells.length, total: totalRows });
+    setIsLoadingAll(false);
 
-      // Load remaining pages
+    // If all data is in first page, we're done
+    if (totalPages <= 1) {
+      loadingRef.current = false;
+      return;
+    }
+
+    // Safety threshold: cap maximum background pages to prevent client memory exhaustion
+    const MAX_PAGES = 50; // Up to 50,000 points
+    const pagesToLoad = Math.min(totalPages, MAX_PAGES);
+
+    // Load remaining pages in the background and append to the map
+    const loadRemainingPages = async () => {
       const allCellsCollected = [...firstPageCells];
 
-      for (let page = 2; page <= totalPages; page++) {
+      for (let page = 2; page <= pagesToLoad; page++) {
+        if (abortController.signal.aborted) return;
+
         try {
           // Build URL with query params
           const params = new URLSearchParams({ pageSize: String(PAGE_SIZE), pageNumber: String(page) });
-          regionId && params.append("regionIds", regionId);
+          if (regionId) params.append("regionIds", regionId);
           selectedGenerationIds.forEach((id) => params.append("generationIds", id));
           selectedBandIds.forEach((id) => params.append("bandIds", id));
           selectedTechnologyIds.forEach((id) => params.append("technologyIds", id));
 
-          const response = await request.get<PaginationResponse<Cell>>(`/cells?${params.toString()}`);
+          const response = await request.get<PaginationResponse<Cell>>(
+            `/cells?${params.toString()}`,
+            { signal: abortController.signal },
+          );
+
+          if (abortController.signal.aborted) return;
 
           const pageCells: CellMapDetails[] = (response.data || []).map(cellToCellMapDetails);
 
@@ -219,18 +233,41 @@ export default function CellsiteMapPage({ regionId }: CellsiteMapPageProps) {
 
           // Update incrementally so map shows data as it loads
           setAllCells([...allCellsCollected]);
-        } catch (error) {
+        } catch (error: unknown) {
+          if (abortController.signal.aborted) return;
+
+          const err = error as { name?: string; message?: string; response?: { data?: { message?: string } } };
+          if (err?.name === "AbortError") return;
+
           console.error(`Failed to load page ${page}:`, error);
-          toast.error(`Failed to load some cellsite data (page ${page})`);
+          const errorMessage =
+            err?.response?.data?.message ||
+            err?.message ||
+            `Failed to load cellsite data (page ${page}). Try narrowing your filter criteria.`;
+          toast.error(errorMessage);
+          break; // Stop loop on error to avoid repeated failed queries
         }
       }
 
-      setAllCells(allCellsCollected);
-      setIsLoadingAll(false);
-      loadingRef.current = false;
+      if (!abortController.signal.aborted) {
+        setAllCells(allCellsCollected);
+        setIsLoadingAll(false);
+        loadingRef.current = false;
+
+        if (totalPages > MAX_PAGES) {
+          toast.info(
+            `Loaded ${allCellsCollected.length.toLocaleString()} of ${totalRows.toLocaleString()} cellsites. Please narrow your filters to view more details.`,
+          );
+        }
+      }
     };
 
-    void loadAllPages();
+    void loadRemainingPages();
+
+    return () => {
+      abortController.abort();
+      loadingRef.current = false;
+    };
   }, [firstPageResponse, regionId, selectedGenerationIds, selectedBandIds, selectedTechnologyIds]);
 
   // Refetch all data
