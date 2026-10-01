@@ -108,46 +108,57 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
     },
   });
 
-  // Infinite loading effect - load all pages after first page
+  // Infinite loading effect - load all pages after first page with cancellation and error protection
   useEffect(() => {
-    if (!firstPageResponse || loadingRef.current) return;
+    if (!firstPageResponse) return;
 
-    const loadAllPages = async () => {
-      if (loadingRef.current) return;
-      loadingRef.current = true;
-      setIsLoadingAll(true);
+    const abortController = new AbortController();
+    loadingRef.current = true;
+    setIsLoadingAll(true);
 
-      const totalRows = firstPageResponse.totalRows || 0;
-      const totalPages = Math.ceil(totalRows / PAGE_SIZE);
+    const totalRows = firstPageResponse.totalRows || 0;
+    const totalPages = Math.ceil(totalRows / PAGE_SIZE);
 
-      setTotalCount(totalRows);
-      setLoadingProgress({ loaded: firstPageResponse.data?.length || 0, total: totalRows });
+    setTotalCount(totalRows);
+    setLoadingProgress({ loaded: firstPageResponse.data?.length || 0, total: totalRows });
 
-      // Start with first page data and allow incremental rendering
-      const firstPageData = firstPageResponse.data || [];
+    // Start with first page data and allow incremental rendering
+    const firstPageData = firstPageResponse.data || [];
 
-      // Render first page immediately so the map can show data incrementally
-      setAllSpeedtests(firstPageData);
-      setLoadingProgress({ loaded: firstPageData.length, total: totalRows });
-      setIsLoadingAll(false);
+    // Render first page immediately so the map can show data incrementally
+    setAllSpeedtests(firstPageData);
+    setLoadingProgress({ loaded: firstPageData.length, total: totalRows });
+    setIsLoadingAll(false);
 
-      // If all data is in first page, we're done
-      if (totalPages <= 1) {
-        loadingRef.current = false;
-        return;
-      }
+    // If all data is in first page, we're done
+    if (totalPages <= 1) {
+      loadingRef.current = false;
+      return;
+    }
 
-      // Load remaining pages in the background and append to the map
+    // Safety threshold: cap maximum background pages to prevent client memory exhaustion
+    const MAX_PAGES = 50; // Up to 50,000 points
+    const pagesToLoad = Math.min(totalPages, MAX_PAGES);
+
+    // Load remaining pages in the background and append to the map
+    const loadRemainingPages = async () => {
       const allDataCollected = [...firstPageData];
 
-      for (let page = 2; page <= totalPages; page++) {
+      for (let page = 2; page <= pagesToLoad; page++) {
+        if (abortController.signal.aborted) return;
+
         try {
           const params = new URLSearchParams({ pageSize: String(PAGE_SIZE), pageNumber: String(page) });
           if (regionId) params.append("regionIds", regionId);
           if (startDate) params.append("startDate", startDate);
           if (endDate) params.append("endDate", endDate);
 
-          const response = await request.get<PaginationResponse<SpeedTest>>(`/speedtests?${params.toString()}`);
+          const response = await request.get<PaginationResponse<SpeedTest>>(
+            `/speedtests?${params.toString()}`,
+            { signal: abortController.signal },
+          );
+
+          if (abortController.signal.aborted) return;
 
           const pageData = response.data || [];
           allDataCollected.push(...pageData);
@@ -155,18 +166,41 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
 
           // Append newly fetched page so the map updates incrementally
           setAllSpeedtests([...allDataCollected]);
-        } catch (error) {
+        } catch (error: unknown) {
+          if (abortController.signal.aborted) return;
+
+          const err = error as { name?: string; message?: string; response?: { data?: { message?: string } } };
+          if (err?.name === "AbortError") return;
+
           console.error(`Failed to load page ${page}:`, error);
-          toast.error(`Failed to load some speedtest data (page ${page})`);
+          const errorMessage =
+            err?.response?.data?.message ||
+            err?.message ||
+            `Failed to load speedtest data (page ${page}). Try narrowing your date range.`;
+          toast.error(errorMessage);
+          break; // Stop loop on error to avoid repeated failed queries
         }
       }
 
-      setAllSpeedtests(allDataCollected);
-      setIsLoadingAll(false);
-      loadingRef.current = false;
+      if (!abortController.signal.aborted) {
+        setAllSpeedtests(allDataCollected);
+        setIsLoadingAll(false);
+        loadingRef.current = false;
+
+        if (totalPages > MAX_PAGES) {
+          toast.info(
+            `Loaded ${allDataCollected.length.toLocaleString()} of ${totalRows.toLocaleString()} speedtests. Please narrow the date range or select a province to view more details.`,
+          );
+        }
+      }
     };
 
-    void loadAllPages();
+    void loadRemainingPages();
+
+    return () => {
+      abortController.abort();
+      loadingRef.current = false;
+    };
   }, [firstPageResponse, regionId, startDate, endDate]);
 
   // Refetch all data
