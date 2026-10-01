@@ -276,3 +276,32 @@ export function getCoverageCirclePaint() {
     "circle-opacity": 0.5,
   };
 }
+
+/**
+ * Checks whether the given latitude and longitude represent valid, finite, non-zero geographic coordinates.
+ * Excludes Null Island (0, 0), NaN/Infinite values, and values outside [-90, 90] / [-180, 180].
+ */
+export function isValidCoordinate(latitude?: number | null, longitude?: number | null): latitude is number {
+  return (
+    latitude != null &&
+    longitude != null &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    !(Math.abs(latitude) < 0.000001 && Math.abs(longitude) < 0.000001) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+/**
+ * Type guard predicate to check if an object has valid, finite, non-zero geographic coordinates.
+ * Excludes Null Island (0, 0), NaN/Infinite values, and coordinates outside the valid geographic range.
+ */
+export function hasValidCoordinates<T extends { latitude?: number | null; longitude?: number | null }>(
+  item: T,
+): item is T & { latitude: number; longitude: number } {
+  return isValidCoordinate(item.latitude, item.longitude);
+}
+

@@ -28,6 +28,7 @@ import {
   getPointsPaint,
   getSignalQualityCirclePaint,
   getSpeedCirclesPaint,
+  hasValidCoordinates,
 } from "./utils";
 
 // MapTiler API Key Configuration
@@ -432,17 +433,7 @@ export function SpeedtestMapViewAdvanced({
     const bounds = new maptilersdk.LngLatBounds();
     let validCount = 0;
     filteredSpeedtests.forEach((speedtest) => {
-      if (
-        speedtest.longitude != null &&
-        speedtest.latitude != null &&
-        Number.isFinite(speedtest.longitude) &&
-        Number.isFinite(speedtest.latitude) &&
-        !(Math.abs(speedtest.latitude) < 0.000001 && Math.abs(speedtest.longitude) < 0.000001) &&
-        speedtest.latitude >= -90 &&
-        speedtest.latitude <= 90 &&
-        speedtest.longitude >= -180 &&
-        speedtest.longitude <= 180
-      ) {
+      if (hasValidCoordinates(speedtest)) {
         bounds.extend([speedtest.longitude, speedtest.latitude]);
         validCount++;
       }
