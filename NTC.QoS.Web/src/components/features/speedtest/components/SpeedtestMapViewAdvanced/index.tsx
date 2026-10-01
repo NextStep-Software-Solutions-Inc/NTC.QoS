@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { copyMapScreenshotToClipboard, downloadMapScreenshot, exportMapScreenshotAsPDF } from "@/utils/map-screenshot";
 import { LoadingOverlay, MapControls, MapHeader, ProviderLegend, SearchBar, SignalQualityLegend } from "./components";
-import { MAP_STYLES, PH_BOUNDS, PH_CENTER, PH_ZOOM, SIGNAL_QUALITY_ORDER, VISUALIZATION_CONFIG } from "./constants";
+import { MAP_STYLES, PH_BOUNDS, PH_CENTER, PH_ZOOM, SIGNAL_QUALITY_ORDER, UNKNOWN_PROVIDER, VISUALIZATION_CONFIG } from "./constants";
 import {
   useFilteredSpeedtests,
   useProviderCounts,
@@ -99,36 +99,29 @@ export function SpeedtestMapViewAdvanced({
   const allProviders = useMemo(() => {
     const providers = new Set<string>();
     speedtests.forEach((st) => {
-      const provider = st.serviceProvider?.provider?.name || "Unknown";
+      const provider = st.serviceProvider?.provider?.name || UNKNOWN_PROVIDER;
       providers.add(provider);
     });
     return providers;
   }, [speedtests]);
 
   // Provider and signal quality visibility state
-  // Initialize with all providers visible
-  const [visibleProviders, setVisibleProviders] = useState<Set<string>>(() => new Set<string>());
+  // null indicates default unconstrained state (all available providers visible)
+  const [visibleProviders, setVisibleProviders] = useState<Set<string> | null>(null);
   const [visibleSignalQualities, setVisibleSignalQualities] = useState<Set<string>>(new Set(SIGNAL_QUALITY_ORDER));
 
-  // Keep visible providers in sync with available providers
-  // When new providers appear, add them to visible. When providers are removed, remove them.
+  // Reset provider filter to show all when region changes
+  useEffect(() => {
+    setVisibleProviders(null);
+  }, [regionId]);
+
+  // When visibleProviders is null, show all available providers.
+  // When visibleProviders is a Set (including an empty Set when user selects None), respect the user's explicit filter.
   const effectiveVisibleProviders = useMemo(() => {
-    // If no providers are visible yet, show all
-    if (visibleProviders.size === 0 && allProviders.size > 0) {
+    if (visibleProviders === null) {
       return allProviders;
     }
-    // Filter to only providers that exist in the data
-    const filtered = new Set<string>();
-    visibleProviders.forEach((p) => {
-      if (allProviders.has(p)) {
-        filtered.add(p);
-      }
-    });
-    // If filtering removed all providers, show all
-    if (filtered.size === 0 && allProviders.size > 0) {
-      return allProviders;
-    }
-    return filtered;
+    return visibleProviders;
   }, [visibleProviders, allProviders]);
 
   // Convert speedtests to SpeedtestWithMeta
@@ -436,23 +429,38 @@ export function SpeedtestMapViewAdvanced({
 
     hasAutoCenteredRef.current = true;
 
-    if (filteredSpeedtests.length === 1) {
-      const onlySpeedtest = filteredSpeedtests[0];
-      if (!onlySpeedtest) return;
-      map.flyTo({ center: [onlySpeedtest.longitude, onlySpeedtest.latitude], zoom: 14, duration: 900 });
+    const bounds = new maptilersdk.LngLatBounds();
+    let validCount = 0;
+    filteredSpeedtests.forEach((speedtest) => {
+      if (
+        speedtest.longitude != null &&
+        speedtest.latitude != null &&
+        Number.isFinite(speedtest.longitude) &&
+        Number.isFinite(speedtest.latitude) &&
+        !(Math.abs(speedtest.latitude) < 0.000001 && Math.abs(speedtest.longitude) < 0.000001) &&
+        speedtest.latitude >= -90 &&
+        speedtest.latitude <= 90 &&
+        speedtest.longitude >= -180 &&
+        speedtest.longitude <= 180
+      ) {
+        bounds.extend([speedtest.longitude, speedtest.latitude]);
+        validCount++;
+      }
+    });
+
+    if (validCount === 1) {
+      const center = bounds.getCenter();
+      map.flyTo({ center: [center.lng, center.lat], zoom: 14, duration: 900 });
       return;
     }
 
-    const bounds = new maptilersdk.LngLatBounds();
-    filteredSpeedtests.forEach((speedtest) => {
-      bounds.extend([speedtest.longitude, speedtest.latitude]);
-    });
-
-    map.fitBounds(bounds, {
-      padding: { top: 80, right: 80, bottom: 80, left: 80 },
-      duration: 900,
-      maxZoom: 13,
-    });
+    if (validCount > 1 && !bounds.isEmpty()) {
+      map.fitBounds(bounds, {
+        padding: { top: 80, right: 80, bottom: 80, left: 80 },
+        duration: 900,
+        maxZoom: 13,
+      });
+    }
   }, [filteredSpeedtests, isMapLoaded, selectedSpeedtestId, focusedLocation]);
 
   // Zoom to selected speedtest location when a specific point is selected.
@@ -525,25 +533,25 @@ export function SpeedtestMapViewAdvanced({
   }, []);
 
   // Provider visibility toggle
-  const handleToggleProvider = useCallback((provider: string) => {
-    setVisibleProviders((prev) => {
-      const next = new Set(prev);
-      if (next.has(provider)) {
-        next.delete(provider);
-      } else {
-        next.add(provider);
-      }
-      return next;
-    });
-  }, []);
+  const handleToggleProvider = useCallback(
+    (provider: string) => {
+      setVisibleProviders((prev) => {
+        const current = prev !== null ? prev : new Set(allProviders);
+        const next = new Set(current);
+        if (next.has(provider)) {
+          next.delete(provider);
+        } else {
+          next.add(provider);
+        }
+        return next;
+      });
+    },
+    [allProviders],
+  );
 
   const handleShowAllProviders = useCallback(() => {
-    const allProviders = new Set<string>();
-    speedtests.forEach((st) => {
-      allProviders.add(st.serviceProvider?.provider?.name || "Unknown");
-    });
-    setVisibleProviders(allProviders);
-  }, [speedtests]);
+    setVisibleProviders(null);
+  }, []);
 
   const handleHideAllProviders = useCallback(() => {
     setVisibleProviders(new Set());
@@ -658,7 +666,7 @@ export function SpeedtestMapViewAdvanced({
 
         {/* Provider Legend (for points mode) */}
         {visualizationMode === "points" && (
-          <div className="absolute bottom-4 left-4 z-10 max-h-[40%] w-56">
+          <div className="absolute bottom-4 left-4 z-10 max-h-[40%] w-64 sm:w-72">
             <ProviderLegend
               show={showProviderLegend}
               providerCounts={providerCounts}

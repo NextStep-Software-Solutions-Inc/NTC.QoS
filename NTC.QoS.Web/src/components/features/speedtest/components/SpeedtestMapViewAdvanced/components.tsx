@@ -740,7 +740,9 @@ export function ProviderLegend({ show, providerCounts, onToggle, onToggleProvide
                   style={{ borderColor: data.color, backgroundColor: data.visible ? data.color : "transparent" }}>
                   {data.visible && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
                 </div>
-                <span className="text-gray-700 dark:text-gray-300 truncate max-w-[80px]">{provider}</span>
+                <span className="text-gray-700 dark:text-gray-300 truncate max-w-[120px]" title={provider}>
+                  {provider}
+                </span>
                 <span className="text-gray-400 text-[10px]">({data.count})</span>
               </div>
             ))}

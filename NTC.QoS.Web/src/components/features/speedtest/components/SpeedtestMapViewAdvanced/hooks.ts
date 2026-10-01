@@ -54,7 +54,18 @@ export function useSpeedtestsGeoJSON(
     return {
       type: "FeatureCollection" as const,
       features: filteredSpeedtests
-        .filter((st) => st.latitude != null && st.longitude != null)
+        .filter(
+          (st) =>
+            st.latitude != null &&
+            st.longitude != null &&
+            Number.isFinite(st.latitude) &&
+            Number.isFinite(st.longitude) &&
+            !(Math.abs(st.latitude) < 0.000001 && Math.abs(st.longitude) < 0.000001) &&
+            st.latitude >= -90 &&
+            st.latitude <= 90 &&
+            st.longitude >= -180 &&
+            st.longitude <= 180,
+        )
         .map((st) => ({
           type: "Feature" as const,
           geometry: { type: "Point" as const, coordinates: [st.longitude!, st.latitude!] as [number, number] },
