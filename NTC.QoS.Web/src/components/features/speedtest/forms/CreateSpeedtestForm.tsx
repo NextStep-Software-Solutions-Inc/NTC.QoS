@@ -246,8 +246,9 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
       const selectedTechnology = technologiesData.data.find(
         (tech: Technology) => tech.id === watchedTechnologyId
       );
-      if (selectedTechnology?.generation?.id) {
-        form.setValue("generationId", selectedTechnology.generation.id);
+      const targetGenId = selectedTechnology?.generation?.id || selectedTechnology?.generationId;
+      if (targetGenId) {
+        form.setValue("generationId", targetGenId);
       }
     }
   }, [watchedTechnologyId, technologiesData, form]);
@@ -295,7 +296,7 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
       const generationId =
         data.generationId ||
         selectedTechnology?.generation?.id ||
-        (selectedTechnology as any)?.generationId ||
+        selectedTechnology?.generationId ||
         "";
 
       await createSpeedtestMutation.mutateAsync({
@@ -736,7 +737,7 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
                       onValueChange={(val) => {
                         field.onChange(val);
                         const tech = technologiesData?.data?.find((t: Technology) => t.id === val);
-                        const genId = tech?.generation?.id || (tech as any)?.generationId;
+                        const genId = tech?.generation?.id || tech?.generationId;
                         if (genId) {
                           form.setValue("generationId", genId, { shouldValidate: true });
                         }
