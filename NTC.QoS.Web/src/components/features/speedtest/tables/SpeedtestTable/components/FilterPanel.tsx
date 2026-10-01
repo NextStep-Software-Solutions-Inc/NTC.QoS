@@ -6,6 +6,7 @@ import { Filter, WifiOff, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateRangeFilter } from "@/components/features/speedtest/components/DateRangeFilter";
 import { SIGNAL_QUALITY_CONFIG, type SignalQuality } from "../../../types";
 
 interface FilterOption {
@@ -27,12 +28,15 @@ interface FilterPanelProps {
   barangayFilter: string;
   signalQualityFilter: string;
   nbcFilter?: string;
+  startDate?: string;
+  endDate?: string;
   onProviderFilterChange: (value: string) => void;
   onProvinceFilterChange: (value: string) => void;
   onMunicipalityFilterChange: (value: string) => void;
   onBarangayFilterChange: (value: string) => void;
   onSignalQualityFilterChange: (value: string) => void;
   onNbcFilterChange?: (value: string) => void;
+  onDateRangeChange?: (startDate?: string, endDate?: string) => void;
   // Filter options
   providers: FilterOption[];
   provinces: FilterOption[];
@@ -56,12 +60,15 @@ export function FilterPanel({
   barangayFilter,
   signalQualityFilter,
   nbcFilter = "all",
+  startDate,
+  endDate,
   onProviderFilterChange,
   onProvinceFilterChange,
   onMunicipalityFilterChange,
   onBarangayFilterChange,
   onSignalQualityFilterChange,
   onNbcFilterChange,
+  onDateRangeChange,
   providers,
   provinces,
   municipalities,
@@ -86,6 +93,16 @@ export function FilterPanel({
           </Badge>
         )}
       </div>
+
+      {/* Date Range Filter */}
+      {onDateRangeChange && (
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onChange={onDateRangeChange}
+          size="sm"
+        />
+      )}
 
       {/* Region Filter */}
       <Select value={regionFilter} onValueChange={onRegionFilterChange} disabled={isRegionPinned}>

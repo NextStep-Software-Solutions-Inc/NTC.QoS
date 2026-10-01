@@ -45,6 +45,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DateRangeFilter } from "@/components/features/speedtest/components/DateRangeFilter";
 import { cn } from "@/lib/utils";
 import { MAP_STYLES, MODE_CONFIG, SIGNAL_QUALITY_ORDER, SPEED_COLORS, VISUALIZATION_CONFIG } from "./constants";
 import {
@@ -76,6 +77,9 @@ interface MapHeaderProps {
   loadingProgress?: { loaded: number; total: number };
   onBackToList?: () => void;
   regionName?: string;
+  startDate?: string;
+  endDate?: string;
+  onDateRangeChange?: (startDate?: string, endDate?: string) => void;
 }
 
 export function MapHeader({
@@ -96,6 +100,9 @@ export function MapHeader({
   loadingProgress,
   onBackToList,
   regionName,
+  startDate,
+  endDate,
+  onDateRangeChange,
 }: MapHeaderProps) {
   return (
     <div className="p-2 sm:p-3 flex-shrink-0 border-b bg-gradient-to-r from-cyan-50 via-blue-50/30 to-indigo-50/50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
@@ -168,7 +175,19 @@ export function MapHeader({
           </div>
         )}
 
-        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+          {/* Date Range Filter */}
+          {onDateRangeChange && (
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onChange={onDateRangeChange}
+              size="sm"
+              compact
+              align="end"
+            />
+          )}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

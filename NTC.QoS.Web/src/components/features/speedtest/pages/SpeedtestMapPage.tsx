@@ -58,6 +58,10 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
   const lng = lngParam ? Number(lngParam) : NaN;
   const focusedLocation = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 
+  // Filter params
+  const startDate = searchParams.get("startDate") || undefined;
+  const endDate = searchParams.get("endDate") || undefined;
+
   // State
   const [selectedSpeedtest, setSelectedSpeedtest] = useState<SpeedTest | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -83,10 +87,25 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
     return { avgDownload, avgUpload, avgPing };
   }, [allSpeedtests]);
 
+  // Reset infinite load state when filters change
+  useEffect(() => {
+    loadingRef.current = false;
+    setAllSpeedtests([]);
+    setTotalCount(0);
+    setLoadingProgress({ loaded: 0, total: 0 });
+    setIsLoadingAll(true);
+  }, [regionId, startDate, endDate]);
+
   // Fetch first page using React Query for proper caching
   const { data: firstPageResponse, refetch: refetchFirstPage } = useGetSpeedtests({
     pathParams: {},
-    queryParams: { pageSize: PAGE_SIZE, pageNumber: 1, regionIds: [regionId] },
+    queryParams: {
+      pageSize: PAGE_SIZE,
+      pageNumber: 1,
+      regionIds: [regionId],
+      startDate,
+      endDate,
+    },
   });
 
   // Infinite loading effect - load all pages after first page
@@ -124,7 +143,9 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
       for (let page = 2; page <= totalPages; page++) {
         try {
           const params = new URLSearchParams({ pageSize: String(PAGE_SIZE), pageNumber: String(page) });
-          regionId && params.append("regionIds", regionId);
+          if (regionId) params.append("regionIds", regionId);
+          if (startDate) params.append("startDate", startDate);
+          if (endDate) params.append("endDate", endDate);
 
           const response = await request.get<PaginationResponse<SpeedTest>>(`/speedtests?${params.toString()}`);
 
@@ -146,7 +167,7 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
     };
 
     void loadAllPages();
-  }, [firstPageResponse, regionId]);
+  }, [firstPageResponse, regionId, startDate, endDate]);
 
   // Refetch all data
   const refetchSpeedtests = useCallback(async () => {
@@ -160,9 +181,31 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
   const deleteSpeedtestMutation = useDeleteSpeedtest();
 
   // Handlers
+  const handleDateRangeChange = useCallback(
+    (newStart?: string, newEnd?: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (newStart) {
+        params.set("startDate", newStart);
+      } else {
+        params.delete("startDate");
+      }
+      if (newEnd) {
+        params.set("endDate", newEnd);
+      } else {
+        params.delete("endDate");
+      }
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
   const handleBackToList = useCallback(() => {
-    router.push(`/${regionId}/broadband/speedtests`);
-  }, [router, regionId]);
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    const query = params.toString();
+    router.push(`/${regionId}/broadband/speedtests${query ? `?${query}` : ""}`);
+  }, [router, regionId, startDate, endDate]);
 
   const handleMapAddSpeedtest = useCallback((lat: number, lng: number) => {
     setPendingAddLocation({ lat, lng });
@@ -214,6 +257,9 @@ export default function SpeedtestMapPage({ regionId }: SpeedtestMapPageProps) {
         selectedSpeedtestId={selectedSpeedtest?.id}
         onBackToList={handleBackToList}
         regionName={currentRegionName || `Region ${regionId}`}
+        startDate={startDate}
+        endDate={endDate}
+        onDateRangeChange={handleDateRangeChange}
       />
 
       {/* Edit Dialog */}
