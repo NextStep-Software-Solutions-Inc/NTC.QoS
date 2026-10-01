@@ -44,49 +44,84 @@ import { createSpeedtestRequest } from "../handlers/createSpeedtestRequest";
 import { SIGNAL_QUALITY_CONFIG, type SignalQuality } from "../types";
 import { getSignalQualityFromRSSI, getSignalQualityLabel } from "../utils/signalQuality";
 
-// Helper to format Date into YYYY-MM-DDTHH:mm string in local timezone for datetime-local input
-const formatToLocalDateTimeString = (date: Date | null | undefined): string => {
-  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+// Helper to format Date (or ISO string) into YYYY-MM-DDTHH:mm string in local timezone for datetime-local input
+export const formatToLocalDateTimeString = (date: Date | string | null | undefined): string => {
+  if (!date) return "";
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) {
     return "";
   }
   const pad = (n: number) => n.toString().padStart(2, "0");
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-// Helper to parse HTML datetime-local input value (YYYY-MM-DDTHH:mm) into Date in local timezone
-const parseLocalDateTimeString = (value: string): Date | undefined => {
-  if (!value) return undefined;
-  const parts = value.split("T");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    const fallback = new Date(value);
+/**
+ * Helper to parse HTML datetime-local input value (YYYY-MM-DDTHH:mm or with seconds) into Date in local timezone.
+ * Handles boundary conditions:
+ * - Direct ISO strings with explicit offsets or UTC indicator ('Z') fallback to standard Date parsing.
+ * - Out-of-bounds calendar components (e.g. Feb 31) are rejected to prevent unintentional date rolling.
+ * - Daylight Saving Time (DST) spring-forward transitions (gap hour) and fall-back (repeated hour) are handled
+ *   gracefully via native local timezone resolution while maintaining day integrity.
+ */
+export const parseLocalDateTimeString = (value: string): Date | undefined => {
+  if (!value || typeof value !== "string") return undefined;
+
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  // If string contains explicit timezone indicator (e.g., 'Z', '+08:00', '-05:00'),
+  // respect the explicit offset via native Date constructor fallback.
+  if (/[zZ]|[+-]\d{2}(?::?\d{2})?$/.test(trimmed)) {
+    const fallback = new Date(trimmed);
     return isNaN(fallback.getTime()) ? undefined : fallback;
   }
-  const dateSubparts = parts[0].split("-");
-  const timeSubparts = parts[1].split(":");
-  if (dateSubparts.length < 3 || timeSubparts.length < 2) {
-    return undefined;
+
+  // Parse standard datetime-local format: YYYY-MM-DDTHH:mm(:ss)?
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(trimmed);
+  if (!match) {
+    const fallback = new Date(trimmed);
+    return isNaN(fallback.getTime()) ? undefined : fallback;
   }
-  const year = Number(dateSubparts[0]);
-  const month = Number(dateSubparts[1]);
-  const day = Number(dateSubparts[2]);
-  const hours = Number(timeSubparts[0]);
-  const minutes = Number(timeSubparts[1]);
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hours = Number(match[4]);
+  const minutes = Number(match[5]);
+  const seconds = match[6] ? Number(match[6]) : 0;
+
   if (
     isNaN(year) ||
     isNaN(month) ||
     isNaN(day) ||
     isNaN(hours) ||
-    isNaN(minutes)
+    isNaN(minutes) ||
+    isNaN(seconds)
   ) {
     return undefined;
   }
-  const date = new Date(year, month - 1, day, hours, minutes);
-  return isNaN(date.getTime()) ? undefined : date;
+
+  const date = new Date(year, month - 1, day, hours, minutes, seconds);
+  if (isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  // Calendar boundary validation: prevent invalid days/months (e.g. Feb 31 rolling over into March)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return undefined;
+  }
+
+  // Note on DST transitions:
+  // In timezones with DST "spring forward", a non-existent hour (e.g. 02:30 AM) is automatically shifted
+  // by the JS runtime to the next valid local hour (e.g. 03:30 AM). In "fall back", the repeated hour
+  // resolves to the prevailing local offset. The calendar date check above ensures day integrity.
+
+  return date;
 };
 
 // Create hooks
