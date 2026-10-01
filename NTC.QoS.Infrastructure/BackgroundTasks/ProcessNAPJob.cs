@@ -125,18 +125,27 @@ public class ProcessNAPJob : IProcessNAPJob
 
                 foreach (var sp in serviceProvidersFromData)
                 {
-                    if (sp.Name != null)
+                    if (!string.IsNullOrWhiteSpace(sp.Name))
                     {
-                        serviceProviderLookup[sp.Name] = sp.Id;
+                        serviceProviderLookup[sp.Name.Trim()] = sp.Id;
                     }
                 }
 
                 _logger.LogInformation("Preloaded {Count} service providers", serviceProviderLookup.Count);
 
-                var missingProviders = providerNames.Where(name => !serviceProviderLookup.ContainsKey(name)).ToList();
+                var validProviderNames = providerNames
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var missingProviders = validProviderNames
+                    .Where(name => !serviceProviderLookup.ContainsKey(name))
+                    .ToList();
+
                 if (missingProviders.Any())
                 {
-                    _logger.LogWarning("Missing service providers from database:");
+                    _logger.LogWarning("Missing service providers from database ({MissingCount} unique):", missingProviders.Count);
                     foreach (var missing in missingProviders)
                     {
                         _logger.LogWarning("  - '{Provider}'", missing);
@@ -144,12 +153,27 @@ public class ProcessNAPJob : IProcessNAPJob
                 }
 
                 // If all parsed records have no valid provider (e.g. wrong template/file type uploaded)
-                if (providerNames.Count == 0 || providerNames.All(string.IsNullOrWhiteSpace) || missingProviders.Count == providerNames.Count)
+                if (validProviderNames.Count == 0 || missingProviders.Count == validProviderNames.Count)
                 {
-                    var msg = providerNames.All(string.IsNullOrWhiteSpace)
+                    var sampleMissing = missingProviders.Take(5).ToList();
+                    var sampleMissingFormatted = sampleMissing.Count > 0
+                        ? string.Join(", ", sampleMissing)
+                        : "None specified";
+
+                    var extraCount = missingProviders.Count - sampleMissing.Count;
+                    var missingSummary = extraCount > 0
+                        ? $"{sampleMissingFormatted} (+{extraCount} more)"
+                        : sampleMissingFormatted;
+
+                    var msg = validProviderNames.Count == 0
                         ? "Provider column is missing or empty in all records. Please ensure the file follows the NAP template."
-                        : $"None of the service providers found in the file ({string.Join(", ", missingProviders.Take(5))}) match existing wired service providers. Please ensure the file follows the NAP template.";
-                    _logger.LogError("{Message}", msg);
+                        : $"None of the service providers found in the file ({missingSummary}) match existing wired service providers. Please ensure the file follows the NAP template.";
+
+                    _logger.LogError(
+                        "None of the service providers found in NAP file match existing wired service providers. Sample missing: {MissingProviders}, Total missing: {MissingCount}",
+                        sampleMissing,
+                        missingProviders.Count);
+
                     await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.NAP, msg, token);
                     return;
                 }
@@ -236,7 +260,8 @@ public class ProcessNAPJob : IProcessNAPJob
 
                         try
                         {
-                            if (!serviceProviderLookup.TryGetValue(record.Provider, out var serviceProviderId))
+                            var providerName = record.Provider?.Trim();
+                            if (string.IsNullOrEmpty(providerName) || !serviceProviderLookup.TryGetValue(providerName, out var serviceProviderId))
                             {
                                 _logger.LogWarning("Service Provider not found in preloaded data: {Provider}. Skipping record.", record.Provider);
                                 processingResults.SkippedRecords++;
