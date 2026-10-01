@@ -1,5 +1,6 @@
 using MediatR;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Constants;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
@@ -92,13 +93,15 @@ public class GetAllSpeedtestsViewportHandler : IRequestHandler<GetAllSpeedtestsV
         {
             speedtestQuery = speedtestQuery.Where(s => s.UploadSpeed <= request.MaxUploadSpeed.Value);
         }
-        if (request.StartDate.HasValue)
+        var startDate = request.StartDate.NormalizeFilterStartDate();
+        if (startDate.HasValue)
         {
-            speedtestQuery = speedtestQuery.Where(s => s.DateTime >= request.StartDate.Value);
+            speedtestQuery = speedtestQuery.Where(s => s.DateTime >= startDate.Value);
         }
-        if (request.EndDate.HasValue)
+        var endDate = request.EndDate.NormalizeFilterEndDate();
+        if (endDate.HasValue)
         {
-            speedtestQuery = speedtestQuery.Where(s => s.DateTime <= request.EndDate.Value);
+            speedtestQuery = speedtestQuery.Where(s => s.DateTime <= endDate.Value);
         }
 
         if (request.IsNoBroadbandCoverage.HasValue)

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
@@ -50,15 +51,16 @@ public class GetSpeedtestAnalyticsHandler : IRequestHandler<GetSpeedtestAnalytic
                 municipalityIds: request.MunicipalityIds,
                 barangayIds: request.BarangayIds);
 
-            if (request.StartDate.HasValue)
+            var startDate = request.StartDate.NormalizeFilterStartDate();
+            if (startDate.HasValue)
             {
-                query = query.Where(s => s.DateTime >= request.StartDate.Value);
+                query = query.Where(s => s.DateTime >= startDate.Value);
             }
 
-            if (request.EndDate.HasValue)
+            var endDate = request.EndDate.NormalizeFilterEndDate();
+            if (endDate.HasValue)
             {
-                var endOfDay = request.EndDate.Value.Date.AddDays(1).AddTicks(-1);
-                query = query.Where(s => s.DateTime <= endOfDay);
+                query = query.Where(s => s.DateTime <= endDate.Value);
             }
 
             // Fetch ALL speedtests matching filters (not paginated)

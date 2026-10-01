@@ -365,7 +365,9 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
       toast.success("Speedtest created successfully!");
       onSuccess?.();
     } catch (error: any) {
-      console.error("Failed to create speedtest:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Failed to create speedtest:", error);
+      }
       const errorMessage =
         error?.response?.data?.message ||
         error?.message ||
@@ -375,13 +377,15 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
   };
 
   const onInvalid = (errors: FieldErrors<CreateSpeedtestFormValues>) => {
-    console.warn("Speedtest creation validation errors:", errors);
+    if (process.env.NODE_ENV === "development") {
+      console.warn("Speedtest creation validation errors:", errors);
+    }
 
     const locationFields = ["dateTime", "serviceProviderId", "latitude", "longitude", "address"];
     const speedFields = ["downloadSpeed", "uploadSpeed", "ping", "jitter", "signalQuality", "isNoBroadbandCoverage"];
     const networkFields = ["technologyId", "generationId", "cellIdentifier", "mcc", "mnc", "tac", "phoneModel", "rssi"];
 
-    const errorKeys = Object.keys(errors);
+    const errorKeys = Object.keys(errors) as (keyof CreateSpeedtestFormValues)[];
     if (errorKeys.length > 0) {
       const firstError = errorKeys[0];
       if (firstError) {
@@ -393,7 +397,8 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
           setActiveTab("network");
         }
       }
-      toast.error("Please fill in all required fields.");
+      const firstErrorMessage = firstError ? errors[firstError]?.message : undefined;
+      toast.error(firstErrorMessage || "Please fill in all required fields.");
     }
   };
 

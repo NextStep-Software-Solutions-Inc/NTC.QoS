@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace NTC.QoS.Application.Helper;
 
@@ -80,5 +80,57 @@ public static class DateTimeHelper
         }
 
         return (finalStartDate, finalEndDate);
+    }
+
+    /// <summary>
+    /// Normalizes a DateTime to UTC.
+    /// Handles DateTimeKind.Utc, DateTimeKind.Local (converts to UTC), and DateTimeKind.Unspecified (assumes UTC).
+    /// Prevents subtle day-boundary off-by-one errors when comparing against PostgreSQL timestamptz columns.
+    /// </summary>
+    public static DateTime NormalizeToUtc(this DateTime dateTime)
+    {
+        return dateTime.Kind switch
+        {
+            DateTimeKind.Utc => dateTime,
+            DateTimeKind.Local => dateTime.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+        };
+    }
+
+    /// <summary>
+    /// Normalizes a nullable DateTime to UTC.
+    /// </summary>
+    public static DateTime? NormalizeToUtc(this DateTime? dateTime)
+    {
+        return dateTime.HasValue ? dateTime.Value.NormalizeToUtc() : null;
+    }
+
+    /// <summary>
+    /// Normalizes a filter start date to UTC.
+    /// </summary>
+    public static DateTime? NormalizeFilterStartDate(this DateTime? startDate)
+    {
+        if (!startDate.HasValue) return null;
+        return startDate.Value.NormalizeToUtc();
+    }
+
+    /// <summary>
+    /// Normalizes a filter end date to UTC.
+    /// If the input has no time component (midnight) and is DateTimeKind.Unspecified (e.g. date-only "YYYY-MM-DD"),
+    /// extends it to the end of that day (23:59:59.9999999) to prevent day-boundary exclusion errors.
+    /// If it already contains an explicit time component (e.g. from convertRangeToUtcIso), normalizes directly to UTC.
+    /// </summary>
+    public static DateTime? NormalizeFilterEndDate(this DateTime? endDate)
+    {
+        if (!endDate.HasValue) return null;
+
+        // If a date-only string was passed (midnight with unspecified kind), include the entire day
+        if (endDate.Value.TimeOfDay == TimeSpan.Zero && endDate.Value.Kind == DateTimeKind.Unspecified)
+        {
+            var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            return DateTime.SpecifyKind(endOfDay, DateTimeKind.Utc);
+        }
+
+        return endDate.Value.NormalizeToUtc();
     }
 }

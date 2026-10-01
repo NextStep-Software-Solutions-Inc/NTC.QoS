@@ -1,5 +1,6 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
@@ -43,8 +44,8 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
         var maxDownloadSpeed = request.MaxDownloadSpeed;
         var minUploadSpeed = request.MinUploadSpeed;
         var maxUploadSpeed = request.MaxUploadSpeed;
-        var startDate = request.StartDate;
-        var endDate = request.EndDate;
+        var startDate = request.StartDate.NormalizeFilterStartDate();
+        var endDate = request.EndDate.NormalizeFilterEndDate();
         var isNoBroadbandCoverage = request.IsNoBroadbandCoverage;
 
         // Combine all filters in a single Where clause for better query optimization
