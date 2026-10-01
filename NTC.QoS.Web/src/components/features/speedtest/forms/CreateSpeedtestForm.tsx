@@ -22,7 +22,8 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 import { getServiceProvidersRequest } from "@/components/features/service-provider/handlers/getServiceProvidersRequest";
@@ -43,40 +44,134 @@ import { createSpeedtestRequest } from "../handlers/createSpeedtestRequest";
 import { SIGNAL_QUALITY_CONFIG, type SignalQuality } from "../types";
 import { getSignalQualityFromRSSI, getSignalQualityLabel } from "../utils/signalQuality";
 
+// Helper to format Date into YYYY-MM-DDTHH:mm string in local timezone for datetime-local input
+const formatToLocalDateTimeString = (date: Date | null | undefined): string => {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return "";
+  }
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+// Helper to parse HTML datetime-local input value (YYYY-MM-DDTHH:mm) into Date in local timezone
+const parseLocalDateTimeString = (value: string): Date | undefined => {
+  if (!value) return undefined;
+  const parts = value.split("T");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    const fallback = new Date(value);
+    return isNaN(fallback.getTime()) ? undefined : fallback;
+  }
+  const dateSubparts = parts[0].split("-");
+  const timeSubparts = parts[1].split(":");
+  if (dateSubparts.length < 3 || timeSubparts.length < 2) {
+    return undefined;
+  }
+  const year = Number(dateSubparts[0]);
+  const month = Number(dateSubparts[1]);
+  const day = Number(dateSubparts[2]);
+  const hours = Number(timeSubparts[0]);
+  const minutes = Number(timeSubparts[1]);
+  if (
+    isNaN(year) ||
+    isNaN(month) ||
+    isNaN(day) ||
+    isNaN(hours) ||
+    isNaN(minutes)
+  ) {
+    return undefined;
+  }
+  const date = new Date(year, month - 1, day, hours, minutes);
+  return isNaN(date.getTime()) ? undefined : date;
+};
+
 // Create hooks
 const useGetServiceProviders = createQueryHookFromTemplate(getServiceProvidersRequest);
 const useGetTechnologies = createQueryHookFromTemplate(getTechnologiesRequest);
 const useCreateSpeedtest = createMutationHookFromTemplate(createSpeedtestRequest);
 
 // Validation schema
-const createSpeedtestFormSchema = z.object({
-  serviceProviderId: z.string().min(1, "Please select a provider"),
-  generationId: z.string().min(1, "Please select a generation"),
-  technologyId: z.string().min(1, "Please select a technology"),
-  dateTime: z.date({ required_error: "Date and time is required" }),
-  latitude: z.coerce
-    .number()
-    .min(-90, "Latitude must be between -90 and 90")
-    .max(90, "Latitude must be between -90 and 90"),
-  longitude: z.coerce
-    .number()
-    .min(-180, "Longitude must be between -180 and 180")
-    .max(180, "Longitude must be between -180 and 180"),
-  downloadSpeed: z.coerce.number().min(0, "Download speed must be positive"),
-  uploadSpeed: z.coerce.number().min(0, "Upload speed must be positive"),
-  ping: z.coerce.number().min(0, "Ping must be positive").optional(),
-  jitter: z.coerce.number().min(0, "Jitter must be positive").optional(),
-  rssi: z.coerce.number().optional(),
-  signalQuality: z.enum(["Unknown", "VeryWeak", "Weak", "Average", "Good", "Excellent"]).optional(),
-  phoneModel: z.string().optional(),
-  address: z.string().optional(),
-  mcc: z.string().optional(),
-  mnc: z.string().optional(),
-  tac: z.string().optional(),
-  cellIdentifier: z.string().optional(),
-  isFixedBroadband: z.boolean().optional(),
-  isNoBroadbandCoverage: z.boolean().optional(),
-});
+const createSpeedtestFormSchema = z
+  .object({
+    serviceProviderId: z.string().min(1, "Please select a provider"),
+    generationId: z.string().optional(),
+    technologyId: z.string().min(1, "Please select a technology"),
+    dateTime: z.date({
+      required_error: "Date and time is required",
+      invalid_type_error: "Date and time is required",
+    }),
+    latitude: z.coerce
+      .number({ invalid_type_error: "Latitude is required" })
+      .min(-90, "Latitude must be between -90 and 90")
+      .max(90, "Latitude must be between -90 and 90"),
+    longitude: z.coerce
+      .number({ invalid_type_error: "Longitude is required" })
+      .min(-180, "Longitude must be between -180 and 180")
+      .max(180, "Longitude must be between -180 and 180"),
+    downloadSpeed: z.coerce
+      .number({ invalid_type_error: "Download speed is required" })
+      .min(0, "Download speed must be positive")
+      .optional(),
+    uploadSpeed: z.coerce
+      .number({ invalid_type_error: "Upload speed is required" })
+      .min(0, "Upload speed must be positive")
+      .optional(),
+    ping: z.coerce.number().min(0, "Ping must be positive").optional(),
+    jitter: z.coerce.number().min(0, "Jitter must be positive").optional(),
+    rssi: z.coerce.number().optional(),
+    signalQuality: z.enum(["Unknown", "VeryWeak", "Weak", "Average", "Good", "Excellent"]).optional(),
+    phoneModel: z.string().optional(),
+    address: z.string().optional(),
+    mcc: z.string().optional(),
+    mnc: z.string().optional(),
+    tac: z.string().optional(),
+    cellIdentifier: z.string().optional(),
+    isFixedBroadband: z.boolean().optional(),
+    isNoBroadbandCoverage: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Coordinate validation (cannot both be 0)
+    if (Math.abs(data.latitude) < 0.000001 && Math.abs(data.longitude) < 0.000001) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Latitude and Longitude cannot both be 0 (invalid location). Please provide coordinates or use current location.",
+        path: ["latitude"],
+      });
+    }
+
+    if (!data.isNoBroadbandCoverage) {
+      if (data.downloadSpeed === undefined || isNaN(data.downloadSpeed)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Download speed is required",
+          path: ["downloadSpeed"],
+        });
+      }
+      if (data.uploadSpeed === undefined || isNaN(data.uploadSpeed)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Upload speed is required",
+          path: ["uploadSpeed"],
+        });
+      }
+      if (
+        data.downloadSpeed !== undefined &&
+        data.uploadSpeed !== undefined &&
+        data.downloadSpeed <= 0 &&
+        data.uploadSpeed <= 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one of Upload or Download speed must be greater than 0",
+          path: ["downloadSpeed"],
+        });
+      }
+    }
+  });
 
 type CreateSpeedtestFormValues = z.infer<typeof createSpeedtestFormSchema>;
 
@@ -194,24 +289,33 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
 
   const onSubmit = async (data: CreateSpeedtestFormValues) => {
     try {
+      const selectedTechnology = technologiesData?.data?.find(
+        (tech: Technology) => tech.id === data.technologyId
+      );
+      const generationId =
+        data.generationId ||
+        selectedTechnology?.generation?.id ||
+        (selectedTechnology as any)?.generationId ||
+        "";
+
       await createSpeedtestMutation.mutateAsync({
         pathParams: {},
         payload: {
           // Required fields
           serviceProviderId: data.serviceProviderId,
-          generationId: data.generationId,
+          generationId,
           technologyId: data.technologyId,
           dateTime: data.dateTime.toISOString(),
           latitude: data.latitude,
           longitude: data.longitude,
           // NBC: always send 0 for speeds when NBC is enabled
-          downloadSpeed: data.isNoBroadbandCoverage ? 0 : data.downloadSpeed!,
-          uploadSpeed: data.isNoBroadbandCoverage ? 0 : data.uploadSpeed!,
+          downloadSpeed: data.isNoBroadbandCoverage ? 0 : (data.downloadSpeed ?? 0),
+          uploadSpeed: data.isNoBroadbandCoverage ? 0 : (data.uploadSpeed ?? 0),
           // Optional fields - only include if they have values
           ...(data.address && { address: data.address }),
-          ...(data.ping !== undefined && { ping: data.ping }),
-          ...(data.jitter !== undefined && { jitter: data.jitter }),
-          ...(data.rssi !== undefined && { rssi: data.rssi }),
+          ...(data.ping !== undefined && !isNaN(data.ping) && { ping: data.ping }),
+          ...(data.jitter !== undefined && !isNaN(data.jitter) && { jitter: data.jitter }),
+          ...(data.rssi !== undefined && !isNaN(data.rssi) && { rssi: data.rssi }),
           ...(data.signalQuality && { signalQuality: data.signalQuality }),
           ...(data.phoneModel && { phoneModel: data.phoneModel }),
           ...(data.mcc && { mcc: data.mcc }),
@@ -222,9 +326,38 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
           isNoBroadbandCoverage: data.isNoBroadbandCoverage ?? false,
         },
       });
+      toast.success("Speedtest created successfully!");
       onSuccess?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create speedtest:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to create speedtest. Please try again.";
+      toast.error(errorMessage);
+    }
+  };
+
+  const onInvalid = (errors: FieldErrors<CreateSpeedtestFormValues>) => {
+    console.warn("Speedtest creation validation errors:", errors);
+
+    const locationFields = ["dateTime", "serviceProviderId", "latitude", "longitude", "address"];
+    const speedFields = ["downloadSpeed", "uploadSpeed", "ping", "jitter", "signalQuality", "isNoBroadbandCoverage"];
+    const networkFields = ["technologyId", "generationId", "cellIdentifier", "mcc", "mnc", "tac", "phoneModel", "rssi"];
+
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const firstError = errorKeys[0];
+      if (firstError) {
+        if (locationFields.includes(firstError)) {
+          setActiveTab("location");
+        } else if (speedFields.includes(firstError)) {
+          setActiveTab("speed");
+        } else if (networkFields.includes(firstError)) {
+          setActiveTab("network");
+        }
+      }
+      toast.error("Please fill in all required fields.");
     }
   };
 
@@ -232,6 +365,22 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
   const watchedLng = form.watch("longitude");
   const watchedIsNBC = form.watch("isNoBroadbandCoverage");
   const hasValidCoordinates = watchedLat !== 0 && watchedLng !== 0 && !isNaN(watchedLat) && !isNaN(watchedLng);
+
+  const formErrors = form.formState.errors;
+  const hasLocationErrors = !!(
+    formErrors.dateTime ||
+    formErrors.serviceProviderId ||
+    formErrors.latitude ||
+    formErrors.longitude
+  );
+  const hasSpeedErrors = !!(
+    formErrors.downloadSpeed ||
+    formErrors.uploadSpeed
+  );
+  const hasNetworkErrors = !!(
+    formErrors.technologyId ||
+    formErrors.generationId
+  );
 
   return (
     <motion.div
@@ -256,44 +405,58 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3 bg-gray-100 dark:bg-gray-800">
-              <TabsTrigger value="location" className="gap-2">
+              <TabsTrigger value="location" className="gap-2 relative">
                 <MapPin className="h-4 w-4" />
                 Location
+                {hasLocationErrors && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                )}
               </TabsTrigger>
-              <TabsTrigger value="speed" className="gap-2">
+              <TabsTrigger value="speed" className="gap-2 relative">
                 <Download className="h-4 w-4" />
                 Speed
+                {hasSpeedErrors && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                )}
               </TabsTrigger>
-              <TabsTrigger value="network" className="gap-2">
+              <TabsTrigger value="network" className="gap-2 relative">
                 <Radio className="h-4 w-4" />
                 Network
+                {hasNetworkErrors && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                )}
               </TabsTrigger>
             </TabsList>
 
-            {/* Location Tab */}
-            <TabsContent value="location" className="space-y-4 mt-4">
-              {/* Date Time Field */}
-              <FormField
-                control={form.control}
-                name="dateTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date & Time <span className="text-red-500">*</span></FormLabel>
-                    <FormControl>
-                      <Input
-                        type="datetime-local"
-                        value={field.value instanceof Date ? field.value.toISOString().slice(0, 16) : ""}
-                        onChange={(e) => field.onChange(new Date(e.target.value))}
-                      />
-                    </FormControl>
-                    <FormDescription>When the speedtest was conducted</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            {/* Consistent height tab content area to prevent dialog dancing */}
+            <div className="h-[440px] overflow-y-auto px-1 py-1 mt-4">
+              {/* Location Tab */}
+              <TabsContent value="location" forceMount className={cn("space-y-4 mt-0", activeTab !== "location" && "hidden")}>
+                {/* Date Time Field */}
+                <FormField
+                  control={form.control}
+                  name="dateTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date & Time <span className="text-red-500">*</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          type="datetime-local"
+                          value={formatToLocalDateTimeString(field.value)}
+                          onChange={(e) => {
+                            const parsed = parseLocalDateTimeString(e.target.value);
+                            field.onChange(parsed);
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>When the speedtest was conducted</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
               {/* Provider selection */}
               <FormField
@@ -397,7 +560,7 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
             </TabsContent>
 
             {/* Speed Tab */}
-            <TabsContent value="speed" className="space-y-4 mt-4">
+            <TabsContent value="speed" forceMount className={cn("space-y-4 mt-0", activeTab !== "speed" && "hidden")}>
               {/* NBC Toggle */}
               <FormField
                 control={form.control}
@@ -562,14 +725,23 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
             </TabsContent>
 
             {/* Network Tab */}
-            <TabsContent value="network" className="space-y-4 mt-4">
+            <TabsContent value="network" forceMount className={cn("space-y-4 mt-0", activeTab !== "network" && "hidden")}>
               <FormField
                 control={form.control}
                 name="technologyId"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Technology <span className="text-red-500">*</span></FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={(val) => {
+                        field.onChange(val);
+                        const tech = technologiesData?.data?.find((t: Technology) => t.id === val);
+                        const genId = tech?.generation?.id || (tech as any)?.generationId;
+                        if (genId) {
+                          form.setValue("generationId", genId, { shouldValidate: true });
+                        }
+                      }}
+                      value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select technology" />
@@ -694,6 +866,7 @@ export default function CreateSpeedtestForm({ onCancel, onSuccess, defaultLocati
                 </div>
               )}
             </TabsContent>
+            </div>
           </Tabs>
 
           {/* Form actions */}

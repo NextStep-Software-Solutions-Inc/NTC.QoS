@@ -54,9 +54,9 @@ public class CreateSpeedtestRequestValidator : AbstractValidator<CreateSpeedtest
                 .GreaterThanOrEqualTo(0)
                 .WithMessage("Download speed cannot be negative.");
 
-            // At least one speed must be > 0
+            // At least one speed must be > 0 (unless No Broadband Coverage)
             RuleFor(x => x.Speedtest)
-                .Must(speedtest => speedtest.UploadSpeed > 0 || speedtest.DownloadSpeed > 0)
+                .Must(speedtest => speedtest.IsNoBroadbandCoverage || speedtest.UploadSpeed > 0 || speedtest.DownloadSpeed > 0)
                 .WithMessage("At least one of Upload or Download speed must be greater than 0.");
 
             // Ping and Jitter validations (optional)
