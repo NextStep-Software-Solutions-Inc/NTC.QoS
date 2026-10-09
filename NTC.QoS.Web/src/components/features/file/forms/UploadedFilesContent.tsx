@@ -9,9 +9,12 @@ interface UploadedFilesContentProps {
   files: File[];
   handleRemoveFile: (index: number) => void;
   handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
 }
 
-const UploadedFilesContent = ({ files, handleRemoveFile, handleFileChange }: UploadedFilesContentProps) => {
+const UploadedFilesContent = ({ files, handleRemoveFile, handleFileChange, type }: UploadedFilesContentProps) => {
+  const isCellularCoverage = type === "CellularCoverage";
+  const acceptedTypes = isCellularCoverage ? ".mbtiles,.geojson,.gpkg,.xlsx,.csv" : ".xlsx";
   return (
     <div className="grid gap-4 py-4">
       <div
@@ -41,8 +44,15 @@ const UploadedFilesContent = ({ files, handleRemoveFile, handleFileChange }: Upl
                 <span className="flex items-center gap-3 flex-1 min-w-0">
                   <FileCheck className="h-5 w-5 text-violet-600 dark:text-violet-400 flex-shrink-0" />
                   <span className="truncate font-medium">{file.name}</span>
+                  {file.name.toLowerCase().endsWith(".mbtiles") && (
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                      MBTILES
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground flex-shrink-0">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                    {file.size >= 1024 * 1024 * 1024
+                      ? `${(file.size / (1024 * 1024 * 1024)).toFixed(2)} GB`
+                      : `${(file.size / (1024 * 1024)).toFixed(2)} MB`}
                   </span>
                 </span>
                 <button
@@ -59,7 +69,7 @@ const UploadedFilesContent = ({ files, handleRemoveFile, handleFileChange }: Upl
       </div>
       <div className="mx-auto mt-2">
         <section className="grid justify-center space-y-3">
-          <input id="file-upload" type="file" accept=".xlsx" multiple className="hidden" onChange={handleFileChange} />
+          <input id="file-upload" type="file" accept={acceptedTypes} multiple className="hidden" onChange={handleFileChange} />
           <label htmlFor="file-upload" className="flex justify-center">
             <Button
               type="button"
@@ -73,7 +83,9 @@ const UploadedFilesContent = ({ files, handleRemoveFile, handleFileChange }: Upl
             </Button>
           </label>
           <span className="text-center text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-            📊 Excel files only (.xlsx) • Max 25 MB per file
+            {isCellularCoverage
+              ? "🗺️ MBTiles (.mbtiles), GeoJSON, or GeoPackage • Max 1 GB per file"
+              : "📊 Excel files only (.xlsx) • Max 25 MB per file"}
           </span>
         </section>
       </div>

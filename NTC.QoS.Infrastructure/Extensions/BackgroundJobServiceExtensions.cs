@@ -50,6 +50,9 @@ internal static class BackgroundJobServiceExtensions
         // Scheduled job wrapper with date validation
         services.AddTransient<IScheduledConnectivityAssessmentJob, ScheduledConnectivityAssessmentJob>();
 
+        // MapTiler Ingestion Polling Job
+        services.AddTransient<IPollMapTilerTilesetJob, PollMapTilerTilesetJob>();
+
         return services;
     }
 }

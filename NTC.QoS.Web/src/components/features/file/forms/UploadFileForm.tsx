@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Download, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,7 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   const { region } = useParams<{ region: string }>();
   const [files, setFiles] = useState<File[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingTool, setIsDownloadingTool] = useState(false);
   const [selectedProvinceId, setSelectedProvinceId] = useState<string>("");
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState<string>("");
 
@@ -130,15 +131,62 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     }
   });
 
+  const isCellularCoverage = type === "CellularCoverage";
+  const maxFileSizeBytes = isCellularCoverage ? 1024 * 1024 * 1024 : 25 * 1024 * 1024; // 1 GB vs 25 MB
+  const maxFileSizeDisplay = isCellularCoverage ? "1 GB" : "25 MB";
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newFiles = e.target.files ? Array.from(e.target.files) : [];
-    const validFiles = newFiles.filter((file) => file.size <= 25 * 1024 * 1024); // 25MB
-    const oversizedFiles = newFiles.filter((file) => file.size > 25 * 1024 * 1024);
+    const validFiles = newFiles.filter((file) => file.size <= maxFileSizeBytes);
+    const oversizedFiles = newFiles.filter((file) => file.size > maxFileSizeBytes);
 
     if (oversizedFiles.length > 0) {
-      alert("Some files exceed 25MB and were not added.");
+      toast.error(`Some files exceed ${maxFileSizeDisplay} and were not added.`);
     }
     setFiles((prev) => [...prev, ...validFiles]);
+  };
+
+  const handleDownloadConversionTool = async () => {
+    setIsDownloadingTool(true);
+    try {
+      const backendUrl = getBackendUrl();
+      const endpoint = `${backendUrl}/files/download/converter-tool`;
+      const authHeaders = await getAuthHeadersAsync();
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          ...authHeaders,
+        },
+      });
+
+      if (!response.ok) {
+        toast.info("Conversion Tool executable will be downloadable here once finalized by the tools team.", {
+          description: "Supported formats right now: .mbtiles, .geojson, .gpkg",
+          duration: 5000,
+        });
+        return;
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = "ntc-rp3-converter.zip";
+      document.body.appendChild(link);
+      link.click();
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success("Converter tool downloaded successfully");
+    } catch {
+      toast.info("Conversion Tool will be available once the converter build is completed by the tools team.", {
+        description: "You can upload existing .mbtiles or .geojson files directly.",
+        duration: 5000,
+      });
+    } finally {
+      setIsDownloadingTool(false);
+    }
   };
 
   const handleRemoveFile = (index: number) => {
@@ -340,6 +388,55 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
         </div>
       )}
 
+      {/* RP3 CSV to MBTiles Conversion Tool Card (Cellular Coverage only) */}
+      {isCellularCoverage && (
+        <div className="mb-4 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/80 via-purple-50/80 to-pink-50/80 dark:from-violet-950/30 dark:via-purple-950/30 dark:to-pink-950/30 p-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-violet-600/10 dark:bg-violet-400/10 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5">
+                <Download className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    RP3 CSV to MBTiles Conversion Tool
+                  </h4>
+                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+                    Recommended
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Raw CSV files contain millions of signal points. Convert them locally into high-performance <span className="font-semibold text-violet-700 dark:text-violet-300">.mbtiles</span> vector tiles using the desktop tool before uploading.
+                </p>
+                <div className="text-[11px] text-muted-foreground/80 flex items-center gap-1.5 pt-0.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />
+                  <span>Workflow: 1. Convert CSV to MBTiles locally &rarr; 2. Upload .mbtiles here &rarr; 3. Visualized on MapTiler</span>
+                </div>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadConversionTool}
+              disabled={isDownloadingTool}
+              className="shrink-0 border-violet-300 dark:border-violet-700 hover:bg-violet-100/50 dark:hover:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+              {isDownloadingTool ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  Download Converter Tool
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Download Template Section */}
       <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800">
         {isDownloadEnabled ? (
@@ -377,7 +474,7 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
         )}
       </div>
       <form onSubmit={handleSubmit}>
-        <UploadedFilesContent files={files} handleRemoveFile={handleRemoveFile} handleFileChange={handleFileChange} />
+        <UploadedFilesContent type={type} files={files} handleRemoveFile={handleRemoveFile} handleFileChange={handleFileChange} />
         <DialogFooter className="flex items-center justify-between sm:justify-between">
           <DialogClose asChild>
             <Button variant="ghost" onClick={handleCancel}>

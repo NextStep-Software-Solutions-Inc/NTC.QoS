@@ -35,7 +35,15 @@ function UploadFileDialog({ onUpload, open, onOpenChange, type }: UpdateFileDial
       }
       description={
         <span className="text-muted-foreground">
-          Upload files in <span className="font-semibold">Excel</span> format (max 25 MB)
+          {type === "CellularCoverage" ? (
+            <>
+              Upload coverage tiles in <span className="font-semibold text-primary">.mbtiles</span> format (or GeoJSON/GeoPackage, max 1 GB)
+            </>
+          ) : (
+            <>
+              Upload files in <span className="font-semibold">Excel</span> format (max 25 MB)
+            </>
+          )}
         </span>
       }>
       <UploadFileForm type={type} onClose={() => onOpenChange(false)} onSuccess={onUpload} />

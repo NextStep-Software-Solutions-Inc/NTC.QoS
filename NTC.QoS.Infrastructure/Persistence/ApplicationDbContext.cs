@@ -48,6 +48,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Role> Roles { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
+    public DbSet<CellularCoverageTileset> CellularCoverageTilesets { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
     public DbSet<UserRegion> UserRegions { get; set; }
     public DbSet<WirelessValidation> WirelessValidations { get; set; }
@@ -447,6 +448,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasIndex(cc => cc.Location)
             .HasDatabaseName("IX_CellularCoverage_Location")
             .HasMethod("GIST");
+
+        modelBuilder.Entity<CellularCoverageTileset>(b =>
+        {
+            b.HasIndex(t => t.IngestId);
+            b.HasIndex(t => t.DocumentId);
+            b.HasIndex(t => t.Status);
+            b.HasIndex(t => t.IsActive);
+        });
 
         modelBuilder.Entity<SystemType>()
             .HasMany(st => st.Networks)

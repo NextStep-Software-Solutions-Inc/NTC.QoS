@@ -1135,6 +1135,98 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.ToTable("CellularCoverages");
                 });
 
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverageTileset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DocumentId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("IngestId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("RegionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ServiceProviderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("TechnologyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TileJsonUrl")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("IngestId");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("RegionId");
+
+                    b.HasIndex("ServiceProviderId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TechnologyId");
+
+                    b.ToTable("CellularCoverageTilesets");
+                });
+
             modelBuilder.Entity("NTC.QoS.Domain.Entities.ConnectivityAssessment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3384,6 +3476,33 @@ namespace NTC.QoS.Infrastructure.Migrations
                     b.Navigation("Municipality");
 
                     b.Navigation("Network");
+
+                    b.Navigation("ServiceProvider");
+
+                    b.Navigation("Technology");
+                });
+
+            modelBuilder.Entity("NTC.QoS.Domain.Entities.CellularCoverageTileset", b =>
+                {
+                    b.HasOne("NTC.QoS.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId");
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Region", "Region")
+                        .WithMany()
+                        .HasForeignKey("RegionId");
+
+                    b.HasOne("NTC.QoS.Domain.Aggregates.ServiceProvider", "ServiceProvider")
+                        .WithMany()
+                        .HasForeignKey("ServiceProviderId");
+
+                    b.HasOne("NTC.QoS.Domain.Entities.Technology", "Technology")
+                        .WithMany()
+                        .HasForeignKey("TechnologyId");
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Region");
 
                     b.Navigation("ServiceProvider");
 
