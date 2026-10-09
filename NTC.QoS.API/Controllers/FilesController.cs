@@ -134,7 +134,6 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("download/{type}")]
-    [RequirePermission(Permissions.DownloadFiles)]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {
