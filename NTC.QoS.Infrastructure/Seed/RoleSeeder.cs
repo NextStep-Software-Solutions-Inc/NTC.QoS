@@ -259,6 +259,18 @@ public static class RoleSeeder
                 }
             }
 
+            // Ensure all roles except the basic User role have the DownloadFiles permission
+            foreach (var role in existingRoles.Where(r => r.Key != Roles.User))
+            {
+                if (!role.Permissions.Contains(Permissions.DownloadFiles))
+                {
+                    role.Permissions.Add(Permissions.DownloadFiles);
+                    role.UpdatedAt = DateTime.UtcNow;
+                    role.UpdatedBy = "System";
+                    logger.LogInformation("Added DownloadFiles permission to role: {RoleKey}", role.Key);
+                }
+            }
+
             await context.SaveChangesAsync();
             logger.LogInformation("Role seeding completed successfully.");
         }
