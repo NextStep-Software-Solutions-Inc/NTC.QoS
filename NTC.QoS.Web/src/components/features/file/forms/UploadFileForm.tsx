@@ -516,19 +516,6 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
                 <span>Render on Map</span>
               </div>
             </div>
-
-            {/* Secondary template link for legacy CSV */}
-            <div className="flex items-center justify-between text-[11px] pt-1 text-muted-foreground border-t border-violet-100/60 dark:border-violet-900/20">
-              <span>Looking for raw data template?</span>
-              <button
-                type="button"
-                onClick={handleDownloadTemplate}
-                disabled={isDownloading}
-                className="text-violet-600 hover:text-violet-700 dark:text-violet-400 hover:underline font-medium inline-flex items-center gap-1">
-                {isDownloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                Download CSV Template
-              </button>
-            </div>
           </div>
         </div>
       )}
