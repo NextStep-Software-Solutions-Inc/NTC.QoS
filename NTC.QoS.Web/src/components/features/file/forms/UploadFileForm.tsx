@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ChevronDown, Download, Loader2 } from "lucide-react";
+import { ArrowRight, ChevronDown, Download, Layers, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
@@ -195,15 +195,21 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   const maxFileSizeBytes = isCellularCoverage ? 1024 * 1024 * 1024 : 25 * 1024 * 1024; // 1 GB vs 25 MB
   const maxFileSizeDisplay = isCellularCoverage ? "1 GB" : "25 MB";
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newFiles = e.target.files ? Array.from(e.target.files) : [];
-    const validFiles = newFiles.filter((file) => file.size <= maxFileSizeBytes);
-    const oversizedFiles = newFiles.filter((file) => file.size > maxFileSizeBytes);
+  const handleFilesAdded = (incomingFiles: File[]) => {
+    const validFiles = incomingFiles.filter((file) => file.size <= maxFileSizeBytes);
+    const oversizedFiles = incomingFiles.filter((file) => file.size > maxFileSizeBytes);
 
     if (oversizedFiles.length > 0) {
       toast.error(`Some files exceed ${maxFileSizeDisplay} and were not added.`);
     }
     setFiles((prev) => [...prev, ...validFiles]);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFilesAdded(Array.from(e.target.files));
+      e.target.value = "";
+    }
   };
 
   const handleDownloadConversionTool = async () => {
@@ -450,64 +456,108 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
 
       {/* RP3 CSV to MBTiles Conversion Tool Card (Cellular Coverage only) */}
       {isCellularCoverage && (
-        <div className="mb-4 rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-r from-violet-50/80 via-purple-50/80 to-pink-50/80 dark:from-violet-950/30 dark:via-purple-950/30 dark:to-pink-950/30 p-4 shadow-sm">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-violet-600/10 dark:bg-violet-400/10 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5">
-                <Download className="h-5 w-5" />
+        <div className="mb-4 rounded-xl border border-violet-200/80 dark:border-violet-800/60 bg-gradient-to-br from-violet-50/70 via-purple-50/40 to-indigo-50/30 dark:from-violet-950/30 dark:via-purple-950/20 dark:to-indigo-950/10 p-4 shadow-sm transition-all">
+          <div className="flex flex-col gap-3">
+            {/* Header row with icon, title, badge, and download action */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600/10 dark:bg-violet-400/15 text-violet-600 dark:text-violet-400 shrink-0">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      RP3 CSV to MBTiles Converter
+                    </h4>
+                    <span className="rounded-full bg-violet-100 dark:bg-violet-900/60 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Convert raw signal drive-tests locally into high-performance vector tiles
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                    RP3 CSV to MBTiles Conversion Tool
-                  </h4>
-                  <span className="rounded-full bg-violet-100 dark:bg-violet-900/50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
-                    Recommended
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Raw CSV files contain millions of signal points. Convert them locally into high-performance <span className="font-semibold text-violet-700 dark:text-violet-300">.mbtiles</span> vector tiles using the desktop tool before uploading.
-                </p>
-                <div className="text-[11px] text-muted-foreground/80 flex items-center gap-1.5 pt-0.5">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />
-                  <span>Workflow: 1. Convert CSV to MBTiles locally &rarr; 2. Upload .mbtiles here &rarr; 3. Visualized on MapTiler</span>
-                </div>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleDownloadConversionTool}
+                disabled={isDownloadingTool}
+                className="bg-violet-600 hover:bg-violet-700 text-white shadow-sm font-medium h-8 px-3 text-xs gap-1.5 transition-all">
+                {isDownloadingTool ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Downloading...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-3.5 w-3.5" />
+                    Download Converter Tool
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Stepper workflow visualization */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-violet-100 dark:border-violet-900/40 text-[11px]">
+              <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">1</span>
+                <span>Convert CSV locally</span>
+              </div>
+              <ArrowRight className="h-3 w-3 text-violet-400 shrink-0" />
+              <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">2</span>
+                <span>Upload .mbtiles here</span>
+              </div>
+              <ArrowRight className="h-3 w-3 text-violet-400 shrink-0" />
+              <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">3</span>
+                <span>Render on Map</span>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadConversionTool}
-              disabled={isDownloadingTool}
-              className="shrink-0 border-violet-300 dark:border-violet-700 hover:bg-violet-100/50 dark:hover:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
-              {isDownloadingTool ? (
-                <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Downloading...
-                </>
-              ) : (
-                <>
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
-                  Download Converter Tool
-                </>
-              )}
-            </Button>
+
+            {/* Secondary template link for legacy CSV */}
+            <div className="flex items-center justify-between text-[11px] pt-1 text-muted-foreground border-t border-violet-100/60 dark:border-violet-900/20">
+              <span>Looking for raw data template?</span>
+              <button
+                type="button"
+                onClick={handleDownloadTemplate}
+                disabled={isDownloading}
+                className="text-violet-600 hover:text-violet-700 dark:text-violet-400 hover:underline font-medium inline-flex items-center gap-1">
+                {isDownloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                Download CSV Template
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Download Template Section */}
-      <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800">
-        {isDownloadEnabled ? (
-          <button
-            type="button"
-            disabled={isDownloading}
-            onClick={handleDownloadTemplate}
-            className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-            {isDownloading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
-            ) : (
+      {/* Download Template Section for Non-CellularCoverage */}
+      {!isCellularCoverage && (
+        <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800">
+          {isDownloadEnabled ? (
+            <button
+              type="button"
+              disabled={isDownloading}
+              onClick={handleDownloadTemplate}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+              ) : (
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              )}
+              {isDownloading ? `Downloading ${displayType} template...` : `Download ${displayType} template file`}
+            </button>
+          ) : (
+            <div className="text-sm font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2 cursor-not-allowed">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -516,33 +566,31 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
                   d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-            )}
-            {isDownloading ? `Downloading ${displayType} template...` : `Download ${displayType} template file`}
-          </button>
-        ) : (
-          <div className="text-sm font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2 cursor-not-allowed">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            Download {displayType} template file (select municipality first)
-          </div>
-        )}
-      </div>
+              Download {displayType} template file (select municipality first)
+            </div>
+          )}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
-        <UploadedFilesContent type={type} files={files} handleRemoveFile={handleRemoveFile} handleFileChange={handleFileChange} />
-        <DialogFooter className="flex items-center justify-between sm:justify-between">
+        <UploadedFilesContent
+          type={type}
+          files={files}
+          handleRemoveFile={handleRemoveFile}
+          handleFileChange={handleFileChange}
+          onFilesAdded={handleFilesAdded}
+        />
+        <DialogFooter className="flex items-center justify-between sm:justify-between pt-2">
           <DialogClose asChild>
             <Button variant="ghost" onClick={handleCancel}>
               Cancel
             </Button>
           </DialogClose>
-          <SubmitButton loading={isPending} disabled={!form.formState.isValid} type="submit">
-            Upload
+          <SubmitButton
+            loading={isPending}
+            disabled={!form.formState.isValid || files.length === 0}
+            type="submit">
+            {files.length > 0 ? `Upload ${files.length} File${files.length > 1 ? "s" : ""}` : "Upload"}
           </SubmitButton>
         </DialogFooter>
       </form>

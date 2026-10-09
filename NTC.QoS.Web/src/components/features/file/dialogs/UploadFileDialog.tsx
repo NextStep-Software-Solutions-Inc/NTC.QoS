@@ -23,21 +23,28 @@ function UploadFileDialog({ onUpload, open, onOpenChange, type }: UpdateFileDial
     <ResponsiveDialog
       open={open}
       onOpenChange={onOpenChange}
+      size="wide"
       title={
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Upload className="h-5 w-5 text-primary" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/15 via-purple-500/15 to-indigo-500/15 text-violet-600 dark:text-violet-400 border border-violet-200/50 dark:border-violet-800/50 shadow-sm">
+            {type === "CellularCoverage" ? (
+              <Upload className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            ) : (
+              <Upload className="h-5 w-5 text-primary" />
+            )}
           </div>
-          <span className="text-xl font-semibold">
-            Upload {displayType} Files
-          </span>
+          <div>
+            <span className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+              Upload {displayType} Files
+            </span>
+          </div>
         </div>
       }
       description={
-        <span className="text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {type === "CellularCoverage" ? (
             <>
-              Upload coverage tiles in <span className="font-semibold text-primary">.mbtiles</span> format (or GeoJSON/GeoPackage, max 1 GB)
+              Upload coverage datasets in <span className="font-semibold text-violet-600 dark:text-violet-400">.mbtiles</span> format (or GeoJSON/GeoPackage, up to 1 GB)
             </>
           ) : (
             <>
