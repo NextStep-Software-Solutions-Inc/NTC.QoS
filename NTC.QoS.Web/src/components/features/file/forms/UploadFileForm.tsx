@@ -22,6 +22,7 @@ import { request } from "@/services/fetch";
 import { type APIResponse } from "@/types/reusable/api";
 import { uploadFileToAzure } from "../handlers/uploadFileToAzure";
 import { uploadFileRequest } from "../handlers/uploadFileRequest";
+import { type InitTilesetIngestResult } from "../../cellular-coverage/types/CellularCoverageTileset";
 import UploadedFilesContent from "./UploadedFilesContent";
 
 const useUploadFile = createMutationHookFromTemplate(uploadFileRequest);
@@ -91,6 +92,65 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
 
   const handleSubmit = form.handleSubmit(async (values) => {
     for (const file of files) {
+      const isMbtiles = file.name.toLowerCase().endsWith(".mbtiles");
+
+      if (isMbtiles) {
+        // Direct MapTiler Ingestion Flow for MBTiles
+        toast.promise(
+          (async () => {
+            // 1. Request MapTiler Ingest Session
+            const initRes = await request.post<APIResponse<InitTilesetIngestResult>>(
+              "/cellular-coverages/tilesets/init-upload",
+              {
+                fileName: file.name,
+                fileSize: file.size,
+                displayName: file.name.replace(/\.[^/.]+$/, ""),
+                regionId: values.regionId || undefined,
+              }
+            );
+
+            if (!initRes.succeeded || !initRes.data?.uploadUrl) {
+              throw new Error(initRes.message ?? "Failed to initialize MapTiler upload session");
+            }
+
+            const { tilesetId, uploadUrl } = initRes.data;
+
+            // 2. Direct binary upload to MapTiler storage
+            const uploadRes = await fetch(uploadUrl, {
+              method: "PUT",
+              body: file,
+              headers: {
+                "Content-Type": "application/octet-stream",
+              },
+            });
+
+            if (!uploadRes.ok) {
+              throw new Error(`Failed to upload to MapTiler storage (Status ${uploadRes.status})`);
+            }
+
+            // 3. Notify backend to trigger server-side processing & start polling
+            const processRes = await request.post<APIResponse<boolean>>(
+              `/cellular-coverages/tilesets/${tilesetId}/process`,
+              {}
+            );
+
+            if (!processRes.succeeded) {
+              throw new Error(processRes.message ?? "Failed to start tileset generation");
+            }
+
+            onSuccessHandler();
+            return "MBTiles uploaded to MapTiler. Tileset generation has been queued.";
+          })(),
+          {
+            loading: `Uploading ${file.name} directly to MapTiler Cloud...`,
+            success: (msg) => (typeof msg === "string" ? msg : "MBTiles uploaded successfully."),
+            error: (error) => extractErrorMessage(error) ?? "Failed to upload MBTiles file.",
+          }
+        );
+        continue;
+      }
+
+      // Legacy / Excel upload flow
       toast.promise(
         (async () => {
           // Step 1 & 2: Attempt direct Pre-Signed Upload SAS URL to Azure Storage

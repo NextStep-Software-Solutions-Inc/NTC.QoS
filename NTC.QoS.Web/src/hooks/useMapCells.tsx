@@ -21,11 +21,13 @@ import { toast } from "sonner";
 
 import { getPublicCellsInfiniteRequest } from "@/components/features/cell/handlers/getPublicCellsInfiniteRequest";
 import { type CellViewport } from "@/components/features/cell/types/Cell";
+import { type CellularCoverageTileset } from "@/components/features/cellular-coverage/types/CellularCoverageTileset";
 import { useCellGeoJSONWorker, type CellGeoJSONFeatureCollection } from "@/hooks/useCellGeoJSONWorker";
 import { useMap } from "@/hooks/useMap";
 import { useMapViewport } from "@/hooks/useMapViewport";
 import { PHILIPPINES_BOUNDS } from "@/lib/constants/map-bounds";
-import type { PaginationResponse } from "@/types/reusable/api";
+import { request } from "@/services/fetch";
+import type { APIResponse, PaginationResponse } from "@/types/reusable/api";
 import { createInfiniteQueryHookFromTemplate } from "./createInfiniteQueryHookFromTemplate";
 import {
   createSignalCoveragePopupHTML,
@@ -180,6 +182,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
   const [totalLoadedCount, setTotalLoadedCount] = useState(0);
   const [signalCoverageData, setSignalCoverageData] = useState<GeoJSON.FeatureCollection | null>(null);
   const [coverageSourceType, setCoverageSourceType] = useState<"maptiler" | "geojson" | null>(null);
+  const [dynamicCoverageUrl, setDynamicCoverageUrl] = useState<string | null>(null);
 
   const lastToastUpdateRef = useRef(0);
   const lastProgressPercentRef = useRef(0);
@@ -391,35 +394,55 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     }
   }, [isLoading, isFetchingNextPage, loadingProgress, isCellSitesActive]);
 
-  // Load signal coverage data (admin-only) - Priority: MapTiler source first, then static JSON assets fallback
+  // Load signal coverage data (admin-only) - Priority: Active MapTiler backend tileset -> env fallback -> JSON assets fallback
   useEffect(() => {
     if (!normalizedConfig.signalCoverage || !options?.isAdminMode) return;
     if (signalCoverageData || coverageSourceType) return;
 
-    const maptilerCoverageUrl = process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_URL;
+    const loadCoverage = async () => {
+      // 1. Try active MapTiler tileset from backend API first
+      let resolvedCoverageUrl: string | undefined = process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_URL;
 
-    // 1. Primary: Try MapTiler vector tiles source if configured
-    if (maptilerCoverageUrl) {
-      toast.loading("Loading radio network coverage from MapTiler...", {
+      try {
+        const regionParam = options?.regionIds?.[0] ? `?regionId=${encodeURIComponent(options.regionIds[0])}` : "";
+        const res = await request.get<APIResponse<CellularCoverageTileset[]>>(
+          `/cellular-coverages/tilesets/active${regionParam}`
+        );
+
+        if (res.succeeded && res.data && res.data.length > 0) {
+          const readyTileset = res.data.find((t) => t.tileJsonUrl);
+          if (readyTileset?.tileJsonUrl) {
+            resolvedCoverageUrl = readyTileset.tileJsonUrl;
+          }
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[useMapCells] Failed to fetch active tilesets from API:", err);
+        }
+      }
+
+      // If MapTiler vector tiles source is configured (from API or env)
+      if (resolvedCoverageUrl) {
+        toast.loading("Loading radio network coverage from MapTiler...", {
+          id: "loading-coverage",
+          description: "Connecting to MapTiler coverage source",
+        });
+
+        setDynamicCoverageUrl(resolvedCoverageUrl);
+        setCoverageSourceType("maptiler");
+        toast.success("Radio network coverage loaded successfully!", {
+          id: "loading-coverage",
+          description: "Loaded from MapTiler source",
+        });
+        return;
+      }
+
+      // 2. Fallback: Load from public JSON assets (all_telco_band_data_flat.json or cell-signal.json)
+      toast.loading("Loading radio network coverage...", {
         id: "loading-coverage",
-        description: "Connecting to MapTiler coverage source",
+        description: "Fetching coverage data points",
       });
 
-      setCoverageSourceType("maptiler");
-      toast.success("Radio network coverage loaded successfully!", {
-        id: "loading-coverage",
-        description: "Loaded from MapTiler source",
-      });
-      return;
-    }
-
-    // 2. Fallback: Load from public JSON assets (all_telco_band_data_flat.json or cell-signal.json)
-    toast.loading("Loading radio network coverage...", {
-      id: "loading-coverage",
-      description: "Fetching coverage data points",
-    });
-
-    const loadJsonFallback = async () => {
       const jsonPaths = ["/data/all_telco_band_data_flat.json", "/data/cell-signal.json"];
 
       for (const path of jsonPaths) {
@@ -455,8 +478,8 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       });
     };
 
-    void loadJsonFallback();
-  }, [normalizedConfig.signalCoverage, signalCoverageData, coverageSourceType, options?.isAdminMode]);
+    void loadCoverage();
+  }, [normalizedConfig.signalCoverage, signalCoverageData, coverageSourceType, options?.isAdminMode, options?.regionIds]);
 
   // Helper to set layer visibility
   const setLayerVisible = useCallback(
@@ -568,7 +591,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       if (!options?.isAdminMode) return;
 
       try {
-        const maptilerCoverageUrl = process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_URL;
+        const maptilerCoverageUrl = dynamicCoverageUrl || process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_URL;
         if (coverageSourceType === "maptiler" && maptilerCoverageUrl) {
           if (!map.getSource("signal-coverage-source")) {
             map.addSource("signal-coverage-source", {
