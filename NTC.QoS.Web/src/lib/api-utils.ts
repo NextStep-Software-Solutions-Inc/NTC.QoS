@@ -3,7 +3,7 @@
  * Reads process.env.NEXT_PUBLIC_API_URL and throws an explicit error if not configured.
  */
 export function getBackendUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_QOS_BACKEND_URL;
   
   if (envUrl) {
     return envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;

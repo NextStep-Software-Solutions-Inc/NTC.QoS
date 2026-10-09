@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Form } from "@/components/ui/form";
 import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { extractErrorMessage } from "@/lib/extract-error-message";
+import { getAuthHeaders, getBackendUrl } from "@/lib/api-utils";
 import { getMunicipalitiesRequest } from "../../municipality/handlers/getMunicipalitiesRequest";
 import { getProvincesRequest } from "../../province/handlers/getProvincesRequest";
 import { type PreSignedUrl } from "@/components/features/file/types/PreSignedUrl";
@@ -39,10 +40,10 @@ interface UploadFileFormProps {
   type: "Speedtest" | "NAP" | "Cell" | "Cellular" | "CellularCoverage" | "WirelessValidation";
 }
 
-const QOS_BACKEND_URL = process.env.NEXT_PUBLIC_QOS_BACKEND_URL ?? "";
 export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileFormProps) {
   const { region } = useParams<{ region: string }>();
   const [files, setFiles] = useState<File[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [selectedProvinceId, setSelectedProvinceId] = useState<string>("");
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState<string>("");
 
@@ -161,16 +162,83 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     });
   }
 
-  // Generate download URL based on type
-  const getDownloadUrl = () => {
-    if (type === "WirelessValidation" && selectedMunicipalityId) {
-      return `${QOS_BACKEND_URL}/files/download/wireless-validation/${selectedMunicipalityId}`;
-    }
-    return `${QOS_BACKEND_URL}/files/download/${type}`;
-  };
-
   // Check if download is enabled
   const isDownloadEnabled = type !== "WirelessValidation" || selectedMunicipalityId !== "";
+
+  const handleDownloadTemplate = async () => {
+    if (!isDownloadEnabled || isDownloading) return;
+
+    setIsDownloading(true);
+    try {
+      const backendUrl = getBackendUrl();
+      const endpoint =
+        type === "WirelessValidation" && selectedMunicipalityId
+          ? `${backendUrl}/files/download/wireless-validation/${selectedMunicipalityId}`
+          : `${backendUrl}/files/download/${type}`;
+
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          ...getAuthHeaders(),
+        },
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Download failed with status ${response.status}`;
+        try {
+          const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+          if (contentType.includes("json")) {
+            const jsonError = await response.json();
+            errorMessage = extractErrorMessage(jsonError, errorMessage);
+          } else {
+            const textError = await response.text();
+            if (textError && textError.length < 200) {
+              errorMessage = textError;
+            }
+          }
+        } catch {
+          // ignore error parsing failure
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Extract filename from Content-Disposition header if available
+      let filename = `${type}_template-file.xlsx`;
+      const disposition = response.headers.get("content-disposition");
+      if (disposition && disposition.includes("filename=")) {
+        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+        if (matches?.[1]) {
+          filename = matches[1].replace(/['"]/g, "").trim();
+        }
+      } else if (type === "WirelessValidation" && selectedMunicipalityId) {
+        const selectedMuni = municipalities.find((m) => m.id === selectedMunicipalityId);
+        const muniName = selectedMuni?.name ? selectedMuni.name.replace(/\s+/g, "_") : "unknown";
+        filename = `wireless_validation_template-${muniName}.xlsx`;
+      }
+
+      // Ensure .xlsx extension
+      if (!filename.toLowerCase().endsWith(".xlsx")) {
+        filename += ".xlsx";
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success(`${displayType} template downloaded successfully`);
+    } catch (err) {
+      toast.error(extractErrorMessage(err) ?? "Failed to download template file");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <Form {...form}>
@@ -268,20 +336,25 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
       {/* Download Template Section */}
       <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800">
         {isDownloadEnabled ? (
-          <a
-            className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-2"
-            href={getDownloadUrl()}
-            download={`${type}_template-file`}>
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            Download {displayType} template file
-          </a>
+          <button
+            type="button"
+            disabled={isDownloading}
+            onClick={handleDownloadTemplate}
+            className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            {isDownloading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+            ) : (
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            )}
+            {isDownloading ? `Downloading ${displayType} template...` : `Download ${displayType} template file`}
+          </button>
         ) : (
           <div className="text-sm font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2 cursor-not-allowed">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
