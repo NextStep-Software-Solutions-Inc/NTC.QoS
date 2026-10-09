@@ -134,7 +134,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("download/{type}")]
-    [AllowAnonymous]
+    [RequirePermission(Permissions.DownloadFiles)]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {
         var res = await _mediator.Send(new DownloadTemplateFileRequest(type));
@@ -146,7 +146,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("download/wireless-validation/{municipalityId}")]
-    [AllowAnonymous]
+    [RequirePermission(Permissions.DownloadFiles)]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadWirelessValidationTemplate(Guid municipalityId)
     {
         var res = await _mediator.Send(new DownloadWirelessValidationTemplateRequest(municipalityId));

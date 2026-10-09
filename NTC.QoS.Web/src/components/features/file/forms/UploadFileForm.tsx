@@ -227,10 +227,16 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
       const link = document.createElement("a");
       link.href = blobUrl;
       link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+
+      try {
+        document.body.appendChild(link);
+        link.click();
+      } finally {
+        if (link.parentNode) {
+          link.parentNode.removeChild(link);
+        }
+        window.URL.revokeObjectURL(blobUrl);
+      }
 
       toast.success(`${displayType} template downloaded successfully`);
     } catch (err) {
