@@ -14,7 +14,7 @@ import { Form } from "@/components/ui/form";
 import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { extractErrorMessage } from "@/lib/extract-error-message";
-import { getAuthHeaders, getBackendUrl } from "@/lib/api-utils";
+import { getAuthHeadersAsync, getBackendUrl } from "@/lib/api-utils";
 import { getMunicipalitiesRequest } from "../../municipality/handlers/getMunicipalitiesRequest";
 import { getProvincesRequest } from "../../province/handlers/getProvincesRequest";
 import { type PreSignedUrl } from "@/components/features/file/types/PreSignedUrl";
@@ -176,11 +176,12 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
           ? `${backendUrl}/files/download/wireless-validation/${selectedMunicipalityId}`
           : `${backendUrl}/files/download/${type}`;
 
+      const authHeaders = await getAuthHeadersAsync();
       const response = await fetch(endpoint, {
         method: "GET",
         headers: {
           Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          ...getAuthHeaders(),
+          ...authHeaders,
         },
       });
 

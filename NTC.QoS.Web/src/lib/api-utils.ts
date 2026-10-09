@@ -34,10 +34,41 @@ export function getSessionToken(): string | null {
 }
 
 /**
- * Get authenticated headers for fetch requests
+ * Asynchronously retrieve the session token.
+ * First checks window.Clerk.session.getToken() for fresh client-side Clerk JWT,
+ * then falls back to document.cookie (__session).
+ */
+export async function getAuthToken(): Promise<string | null> {
+  if (typeof window !== "undefined") {
+    const clerk = (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string | null> } } }).Clerk;
+    if (clerk?.session) {
+      try {
+        const token = await clerk.session.getToken();
+        if (token) return token;
+      } catch {
+        // Fallback to cookie
+      }
+    }
+  }
+
+  return getSessionToken();
+}
+
+/**
+ * Get authenticated headers for fetch requests (synchronous cookie-based fallback)
  * Includes Authorization header with Bearer token if available
  */
 export function getAuthHeaders(): HeadersInit {
   const token = getSessionToken();
   return { ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+
+/**
+ * Asynchronously retrieve authenticated headers for fetch requests.
+ * Uses window.Clerk.session.getToken() to guarantee a fresh JWT Bearer token,
+ * falling back to document.cookie.
+ */
+export async function getAuthHeadersAsync(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
