@@ -40,16 +40,18 @@ export const UPLOAD_GUIDES: Record<string, UploadGuideInfo> = {
     rules: [
       "Specialized 3-row composite header; data rows begin strictly on Row 4.",
       "Active Technology Rule: At least 1 band must be TRUE (or valid CF/BW) for coverage analysis.",
+      "Multi-sector Azimuth/Tilt: Separate with semicolons (e.g. '0; 120; 240' and '2; 2; 2').",
+      "Azimuth and Beam Tilt count must strictly match 1:1, or sector creation is skipped.",
       "Provider must match registered wireless operators (DITO, GLOBE, SMART).",
-      "Antenna Height must be numeric in meters (no 'm' suffix). Azimuth is 0-360 degrees.",
     ],
   },
   CellularCoverage: {
     type: "CellularCoverage",
-    title: "Cellular Coverage Upload Guidelines",
+    title: "Cellular Coverage Upload Guidelines (WIP)",
     pdfFileName: "Cellular_Coverage_Uploader_Guidelines.pdf",
     pdfPath: "/guides/Cellular_Coverage_Uploader_Guidelines.pdf",
     rules: [
+      "⚠️ UNDER DEVELOPMENT: Cellular Coverage upload is currently a work-in-progress.",
       "5 mandatory columns: ServiceProvider, Network, Lat, Lng, Strength.",
       "Preserve negative sign for Strength in dBm (e.g. -85.5, no text units).",
       "Network must match an existing pre-configured network name under that provider.",
@@ -58,10 +60,11 @@ export const UPLOAD_GUIDES: Record<string, UploadGuideInfo> = {
   },
   Cellular: {
     type: "Cellular",
-    title: "Cellular Coverage Upload Guidelines",
+    title: "Cellular Coverage Upload Guidelines (WIP)",
     pdfFileName: "Cellular_Coverage_Uploader_Guidelines.pdf",
     pdfPath: "/guides/Cellular_Coverage_Uploader_Guidelines.pdf",
     rules: [
+      "⚠️ UNDER DEVELOPMENT: Cellular Coverage upload is currently a work-in-progress.",
       "5 mandatory columns: ServiceProvider, Network, Lat, Lng, Strength.",
       "Preserve negative sign for Strength in dBm (e.g. -85.5, no text units).",
       "Network must match an existing pre-configured network name under that provider.",

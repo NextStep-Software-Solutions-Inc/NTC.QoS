@@ -2,6 +2,10 @@
 
 This document provides a comprehensive operational guide for data uploaders to sanitize, format, and validate Cellular Coverage and Signal Strength Excel files before uploading them to the QoS portal. Following these guidelines ensures precise geospatial propagation heatmaps, accurate coverage boundary generation, and prevents batch processing failures.
 
+> [!WARNING]
+> **UNDER ACTIVE DEVELOPMENT / WORK-IN-PROGRESS**:
+> The **Cellular Coverage** import module and database pipeline are currently **under active development in an ongoing branch**. The schema specifications, column requirements, and validation rules detailed in this document reflect work-in-progress standards and are subject to change upon final release. Coordinate with the project engineering team before uploading production coverage datasets.
+
 > [!IMPORTANT]
 > **Strict Pre-Processing Rule**: All files **must** be sanitized and realigned based on the **latest official Excel template**. The system will only accept post-processed files. Any unformatted, misaligned, or missing required fields will cause rows to fail or the batch to abort.
 

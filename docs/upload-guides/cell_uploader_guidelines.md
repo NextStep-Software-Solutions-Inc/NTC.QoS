@@ -17,8 +17,8 @@ Before uploading any Cell Site file, verify that:
 - [ ] Coordinates (`Lat`, `Long`) contain clean decimal numbers in WGS84 format without degree symbols or text letters.
 - [ ] `Tower Type` and `AntennaType` use exact approved dropdown values.
 - [ ] `Antenna Height (m)` is a pure positive numeric value (meters, no `"m"` unit).
-- [ ] `Azimuth (°)` is a valid heading between `0` and `360` degrees.
-- [ ] `Beam Tilt (°)` contains numeric tilt angles only.
+- [ ] `Azimuth (°)` is a valid heading between `0` and `360` degrees (or semicolon-delimited for multi-sectors, e.g., `0; 120; 240`).
+- [ ] `Beam Tilt (°)` contains numeric tilt angles only (must match Azimuth sector count if semicolon-delimited, e.g., `2; 2; 2`).
 - [ ] Empty optional cells are left completely **BLANK** (no `"---"`, `"N/A"`, or `"null"` placeholders).
 
 ---
@@ -94,12 +94,47 @@ All numerical and RF engineering parameters must contain clean values without fo
 | `Lat` | `8.48222` | `8°28'56"N`, `8,48222`, `N 8.48` | Clean decimal latitude only |
 | `Long` | `124.64722` | `124°38'50"E`, `124,64722` | Clean decimal longitude only |
 | `Antenna Height (m)` | `35` or `42.5` | `35m`, `35 meters`, `~35` | Numeric height in meters only |
-| `Azimuth (°)` | `120` | `120 deg`, `120°`, `SE` | Directional angle between 0 and 360 |
-| `Beam Tilt (°)` | `2` or `4.5` | `2 degrees`, `2 deg` | Mechanical/electrical tilt angle |
+| `Azimuth (°)` | `120` (or `0; 120; 240`) | `120 deg`, `120°`, `SE`, `0, 120, 240` | Directional angle (0–360°); use semicolon `;` for multi-sectors |
+| `Beam Tilt (°)` | `2` (or `2; 2; 2`) | `2 degrees`, `2 deg`, `2, 2, 2` | Mechanical/electrical tilt angle; count must match Azimuth |
 
 ---
 
-## 7. Blank Values vs. Dummy Placeholders
+## 7. Multiple Azimuth and Beam Tilt Formatting (Multi-Sector / Tri-Sector Sites)
+
+In cellular network deployments, a single physical cell tower structure typically hosts multiple directional antenna sectors (e.g., standard 3-sector tri-pole antennas oriented at 120° intervals, or dual-sector configurations).
+
+The QoS portal ingestion engine supports defining multiple sectors directly within a single row by using a **semicolon (`;`) delimiter**.
+
+### Strict Semicolon Formatting Rules:
+1. **Delimiter Must Be Semicolon (`;`)**:
+   - Use semicolons `;` (with or without spaces) to separate sector values (e.g., `0; 120; 240` or `0;120;240`).
+   - ❌ **Do NOT use commas (`,`), slashes (`/`), colons (`:`), or spaces alone**. The ingestion parser specifically splits on `;`.
+2. **1-to-1 Count Matching is Strictly Required**:
+   - The number of semicolon-separated values in `Azimuth (°)` **must exactly equal** the number of values in `Beam Tilt (°)`.
+   - If a row provides 3 azimuth entries, it **must provide exactly 3 beam tilt entries**.
+   - If the count mismatches (e.g., 3 azimuths but only 2 beam tilts), `CellSector` creation is aborted for that row and an error is logged:
+     `"Azimuth/BeamTilt count mismatch at row X. Azimuth count: 3, BeamTilt count: 2... Skipping CellSector creation"`.
+3. **Pure Numeric Values Only**:
+   - Each individual entry must parse cleanly to a decimal number.
+   - Do NOT include degree symbols (`°`), unit indicators (`deg`), or cardinal directions (`N`, `SE`).
+   - Valid Azimuth values: `0` to `360`.
+   - Valid Beam Tilt values: decimal tilt angles (e.g., `0`, `2`, `2.5`, `4`).
+
+### Sector Format Examples & System Behavior:
+
+| Antenna Configuration | `Azimuth (°)` | `Beam Tilt (°)` | Sector Breakdown & Ingestion Behavior |
+| :--- | :--- | :--- | :--- |
+| **Standard Tri-Sector (3 Sectors)** | `0; 120; 240` | `2; 2; 2` | ✅ **Creates 3 CellSectors:**<br>• Sector 1: Azimuth 0°, Tilt 2°<br>• Sector 2: Azimuth 120°, Tilt 2°<br>• Sector 3: Azimuth 240°, Tilt 2° |
+| **Tri-Sector with Variable Downtilt** | `30; 150; 270` | `2.5; 4.0; 2.5` | ✅ **Creates 3 CellSectors:**<br>• Sector 1: Azimuth 30°, Tilt 2.5°<br>• Sector 2: Azimuth 150°, Tilt 4.0°<br>• Sector 3: Azimuth 270°, Tilt 2.5° |
+| **Dual Sector (2 Sectors)** | `60; 240` | `3; 3` | ✅ **Creates 2 CellSectors:**<br>• Sector 1: Azimuth 60°, Tilt 3°<br>• Sector 2: Azimuth 240°, Tilt 3° |
+| **Single Sector / Omni-directional** | `0` | `0` | ✅ **Creates 1 CellSector:**<br>• Single antenna facing 0° with 0° tilt |
+| ❌ **Count Mismatch (Invalid)** | `0; 120; 240` | `2; 2` | ❌ **SKIPPED:** 3 azimuths vs 2 beam tilts. Sector creation skipped. |
+| ❌ **Wrong Delimiter (Invalid)** | `0, 120, 240` | `2, 2, 2` | ❌ **FAILED:** Uses commas `,` instead of semicolons `;`. Decimal parsing fails. |
+| ❌ **Degree Symbols (Invalid)** | `0°; 120°; 240°` | `2°; 2°; 2°` | ❌ **FAILED:** Degree symbols (`°`) prevent numeric parsing. |
+
+---
+
+## 8. Blank Values vs. Dummy Placeholders
 
 For optional parameters (e.g., `Zone`, `Barangay` if unincorporated, or inactive band columns):
 - Leave the cell completely **BLANK (EMPTY)**.
@@ -107,7 +142,7 @@ For optional parameters (e.g., `Zone`, `Barangay` if unincorporated, or inactive
 
 ---
 
-## 8. Post-Upload Support
+## 9. Post-Upload Support
 
 If your file encounters processing errors:
 1. Review the progress logs in the **Cell** tab of the portal.
