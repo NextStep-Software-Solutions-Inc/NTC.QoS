@@ -133,4 +133,21 @@ public static class DateTimeHelper
 
         return endDate.Value.NormalizeToUtc();
     }
+
+    /// <summary>
+    /// Converts a DateTime assumed to be in Philippine Standard Time (UTC+8) into UTC.
+    /// Delegates to TimeZoneHelper.ConvertPhilippineTimeToUtc.
+    /// </summary>
+    public static DateTime ConvertPhilippineTimeToUtc(this DateTime dateTime)
+    {
+        return NTC.QoS.Domain.Helper.TimeZoneHelper.ConvertPhilippineTimeToUtc(dateTime);
+    }
+
+    /// <summary>
+    /// Converts a nullable DateTime assumed to be in Philippine Standard Time (UTC+8) into UTC.
+    /// </summary>
+    public static DateTime? ConvertPhilippineTimeToUtc(this DateTime? dateTime)
+    {
+        return dateTime.HasValue ? dateTime.Value.ConvertPhilippineTimeToUtc() : null;
+    }
 }
