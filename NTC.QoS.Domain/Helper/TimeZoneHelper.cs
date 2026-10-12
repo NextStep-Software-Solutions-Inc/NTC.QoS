@@ -43,6 +43,12 @@ public static class TimeZoneHelper
         return TimeZoneInfo.ConvertTimeFromUtc(utc, PhilippineTimeZone);
     }
 
+    /// <summary>
+    /// Indicates whether the custom fixed UTC+8 fallback was used because neither system timezone ID was found.
+    /// If true in production, it indicates the host OS or container image lacks timezone definitions (e.g., missing tzdata).
+    /// </summary>
+    public static bool UsedCustomFallback { get; private set; }
+
     private static TimeZoneInfo ResolvePhilippineTimeZone()
     {
         try
@@ -57,8 +63,21 @@ public static class TimeZoneHelper
                 // Windows identifier fallback
                 return TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time");
             }
-            catch (TimeZoneNotFoundException)
+            catch (TimeZoneNotFoundException ex)
             {
+                UsedCustomFallback = true;
+
+                // Log a warning if the custom timezone fallback is ever hit in production, as it might
+                // indicate an underlying operating system zonefile (tzdata) issue in the container image.
+                System.Diagnostics.Trace.TraceWarning(
+                    "Neither 'Asia/Manila' nor 'Singapore Standard Time' timezone was found on this system. " +
+                    "Falling back to custom fixed UTC+8 Philippine Standard Time. Ensure tzdata package is installed in the container environment. Detail: {0}",
+                    ex.Message);
+
+                Console.Error.WriteLine(
+                    "[WARN] [TimeZoneHelper] Neither 'Asia/Manila' nor 'Singapore Standard Time' timezone was found on this system. " +
+                    "Falling back to custom fixed UTC+8 Philippine Standard Time. Ensure tzdata package is installed in the container environment.");
+
                 // Fallback fixed +08:00 offset if neither system timezone ID is found
                 return TimeZoneInfo.CreateCustomTimeZone(
                     "PHT",
