@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -477,12 +477,15 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 }
                             }
 
+                            // Convert local Philippine Time timestamp from Excel to UTC
+                            var recordUtcDateTime = TimeZoneHelper.ConvertPhilippineTimeToUtc(record.Timestamp);
+
                             // Generate hash for duplicate check (OPTIMIZED)
                             var duplicateHash = GenerateSpeedtestHash(
                                 serviceProviderId,
                                 generationId ?? Guid.Empty,
                                 technologyId ?? Guid.Empty,
-                                record.Timestamp.ToUniversalTime(),
+                                recordUtcDateTime,
                                 record.Upload,
                                 record.Download,
                                 record.RSSI ?? 0,  // Handle nullable RSSI
@@ -501,7 +504,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                     ServiceProviderId = serviceProviderId,
                                     GenerationId = generationId,
                                     TechnologyId = technologyId,
-                                    DateTime = record.Timestamp.ToUniversalTime(),
+                                    DateTime = recordUtcDateTime,
                                     UploadSpeed = record.Upload,
                                     DownloadSpeed = record.Download,
                                     RSSI = record.RSSI,
@@ -529,8 +532,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 duplicatesSkipped++;
                                 if (_logger.IsEnabled(LogLevel.Debug))
                                 {
-                                    _logger.LogDebug("Duplicate speedtest record found and skipped: Provider={Provider}, NetworkType={NetworkType}, DateTime={DateTime}, Location=({Lat},{Lng}), Upload={Upload}, Download={Download}",
-                                        record.Provider, record.NetworkType, record.Timestamp, record.Latitude, record.Longitude, record.Upload, record.Download);
+                                    _logger.LogDebug("Duplicate speedtest record found and skipped: Provider={Provider}, NetworkType={NetworkType}, DateTime={DateTime} (UTC: {UtcDateTime}), Location=({Lat},{Lng}), Upload={Upload}, Download={Download}",
+                                        record.Provider, record.NetworkType, record.Timestamp, recordUtcDateTime, record.Latitude, record.Longitude, record.Upload, record.Download);
                                 }
                             }
                         }
