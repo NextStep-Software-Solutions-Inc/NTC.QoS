@@ -42,6 +42,7 @@ const tabConfigs = [
   {
     value: "CellularCoverage",
     label: "Cellular Coverage",
+    badge: "WIP",
     icon: Radiation,
     activeClasses:
       "data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:to-rose-500",
@@ -73,7 +74,14 @@ const ImportTabs = () => {
                   value={tab.value}
                   className={`flex h-auto min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium leading-tight transition-all whitespace-normal sm:px-4 sm:text-sm data-[state=active]:text-white data-[state=active]:shadow-md data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:bg-gray-100/50 data-[state=inactive]:hover:text-gray-900 ${tab.activeClasses}`}>
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span>{tab.label}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span>{tab.label}</span>
+                    {tab.badge && (
+                      <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                        {tab.badge}
+                      </span>
+                    )}
+                  </span>
                 </TabsTrigger>
               );
             })}

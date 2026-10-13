@@ -14,8 +14,39 @@ on:
   workflow_dispatch:
 
 jobs:
+  typecheck:
+    name: 🔍 Run Typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('NTC.QoS.Web/bun.lock', 'NTC.QoS.Web/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        working-directory: ./NTC.QoS.Web
+        run: bun install --frozen-lockfile
+
+      - name: Run Typecheck
+        working-directory: ./NTC.QoS.Web
+        run: bun run typecheck
+
   deploy-development:
     name: 🚀 Deploy Frontend to Vercel (Development)
+    needs: typecheck
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: Development
     env:
@@ -44,10 +75,6 @@ jobs:
         working-directory: ./NTC.QoS.Web
         run: bun install --frozen-lockfile
 
-      - name: Run Typecheck
-        working-directory: ./NTC.QoS.Web
-        run: bun run typecheck
-
       - name: Install Vercel CLI
         run: bun install -g vercel@latest
 
@@ -74,7 +101,6 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy Project Artifacts to Vercel
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: vercel deploy --prebuilt --token="$VERCEL_TOKEN"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
