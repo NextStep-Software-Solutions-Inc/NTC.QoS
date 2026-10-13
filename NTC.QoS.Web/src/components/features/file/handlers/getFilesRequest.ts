@@ -19,9 +19,10 @@ export const getFilesRequest: QueryBlueprintFromTemplate<typeof endpoint, Pagina
   defaultOptions: {
     refetchInterval: (query) => {
       const fileList = query.state.data?.data;
-      const hasActive = fileList?.some(
-        (f: File) => f.status === "Queued" || f.status === "Processing"
-      );
+      const hasActive = fileList?.some((f: File) => {
+        const s = (f.status || "").toLowerCase();
+        return s === "pending" || s === "processing" || s === "queued";
+      });
       return hasActive ? 3000 : false;
     },
   },
