@@ -10,6 +10,10 @@ export type File = {
   name: string;
   path: string;
   uploadedBy: string;
+  type?: string;
+  status?: string;
+  errorMessage?: string | null;
+  errorLogPath?: string | null;
 };
 
 export type FileDetails = File;

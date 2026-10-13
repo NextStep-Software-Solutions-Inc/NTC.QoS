@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Download, MoreHorizontal, Pencil, Play, Trash } from "lucide-react";
+import { Copy, Download, FileWarning, MoreHorizontal, Pencil, Play, Trash } from "lucide-react";
 import { toast } from "sonner";
 
 import { UpdateFileDialog } from "@/components/features/file/dialogs/UpdateFileDialog";
@@ -51,6 +51,21 @@ export default function Actions({ data, readonly }: ActionsProps) {
     }
   };
 
+  const handleDownloadErrorReport = async (fileId: string) => {
+    try {
+      toast.info("Generating error report download link...");
+      const res = await request.get<APIResponse<PreSignedUrl>>(`/files/${fileId}/presigned-error-log-url`);
+      if (res.succeeded && res.data?.url) {
+        window.open(res.data.url, "_blank");
+        toast.success("Error report download started");
+      } else {
+        toast.error(res.message || "No error report available for this file");
+      }
+    } catch {
+      toast.error("Error downloading error report");
+    }
+  };
+
   return (
     <>
       {!readonly && (
@@ -84,6 +99,15 @@ export default function Actions({ data, readonly }: ActionsProps) {
             <Download />
             Download File
           </DropdownMenuItem>
+          {(data.errorLogPath || data.status === "Failed" || data.status === "PartiallyProcessed") && (
+            <DropdownMenuItem
+              className="text-amber-600 dark:text-amber-400 focus:text-amber-700"
+              onClick={() => handleDownloadErrorReport(data.id)}
+            >
+              <FileWarning />
+              Download Error Report (.csv)
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => handleCopyName(data.id)}>
             <Copy />
             Copy File ID

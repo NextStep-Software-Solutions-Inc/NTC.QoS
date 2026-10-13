@@ -135,14 +135,31 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newFiles = e.target.files ? Array.from(e.target.files) : [];
-    const validFiles = newFiles.filter((file) => file.size <= 25 * 1024 * 1024); // 25MB
-    const oversizedFiles = newFiles.filter((file) => file.size > 25 * 1024 * 1024);
+    const rawFiles = e.target.files ? Array.from(e.target.files) : [];
+    const validExtensions = [".xlsx", ".xls", ".csv"];
 
-    if (oversizedFiles.length > 0) {
-      alert("Some files exceed 25MB and were not added.");
+    const validFiles: File[] = [];
+    for (const file of rawFiles) {
+      const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+      if (!validExtensions.includes(ext)) {
+        toast.error(`Invalid file type for "${file.name}". Only .xlsx, .xls, and .csv files are supported.`);
+        continue;
+      }
+      if (file.size === 0) {
+        toast.error(`File "${file.name}" is empty (0 bytes). Please upload a valid populated template.`);
+        continue;
+      }
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error(`File "${file.name}" exceeds the 25MB size limit.`);
+        continue;
+      }
+      validFiles.push(file);
     }
-    setFiles((prev) => [...prev, ...validFiles]);
+
+    if (validFiles.length > 0) {
+      setFiles((prev) => [...prev, ...validFiles]);
+    }
+    e.target.value = "";
   };
 
   const handleRemoveFile = (index: number) => {
