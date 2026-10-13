@@ -5,12 +5,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, FileText, HelpCircle, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { Form } from "@/components/ui/form";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { extractErrorMessage } from "@/lib/extract-error-message";
@@ -18,6 +19,7 @@ import { getAuthHeadersAsync, getBackendUrl } from "@/lib/api-utils";
 import { getMunicipalitiesRequest } from "../../municipality/handlers/getMunicipalitiesRequest";
 import { getProvincesRequest } from "../../province/handlers/getProvincesRequest";
 import { type PreSignedUrl } from "@/components/features/file/types/PreSignedUrl";
+import { UPLOAD_GUIDES } from "../constants/uploadGuides";
 import { request } from "@/services/fetch";
 import { type APIResponse } from "@/types/reusable/api";
 import { uploadFileToAzure } from "../handlers/uploadFileToAzure";
@@ -53,6 +55,8 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     : type === "WirelessValidation" 
     ? "Wireless Validation" 
     : type;
+
+  const guide = type ? UPLOAD_GUIDES[type] : null;
 
   const { mutateAsync, isPending } = useUploadFile();
   const queryClient = useQueryClient();
@@ -340,17 +344,49 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
         </div>
       )}
 
-      {/* Download Template Section */}
-      <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800">
-        {isDownloadEnabled ? (
-          <button
-            type="button"
-            disabled={isDownloading}
-            onClick={handleDownloadTemplate}
-            className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-            {isDownloading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
-            ) : (
+      {/* Cellular Coverage WIP Notice */}
+      {(type === "CellularCoverage" || type === "Cellular") && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-amber-900 dark:text-amber-100">Work in Progress</span>
+              <span className="px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800/60 text-amber-900 dark:text-amber-200 font-bold text-[10px] rounded uppercase tracking-wider">
+                Experimental
+              </span>
+            </div>
+            <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+              Cellular Coverage upload and automated scoring are under active development. Uploaded datasets may undergo format and processing revisions.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Download Template & Guidelines Section */}
+      <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          {isDownloadEnabled ? (
+            <button
+              type="button"
+              disabled={isDownloading}
+              onClick={handleDownloadTemplate}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+              ) : (
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              )}
+              {isDownloading ? `Downloading ${displayType} template...` : `Download ${displayType} template file`}
+            </button>
+          ) : (
+            <div className="text-sm font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2 cursor-not-allowed">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
@@ -359,20 +395,46 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
                   d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-            )}
-            {isDownloading ? `Downloading ${displayType} template...` : `Download ${displayType} template file`}
-          </button>
-        ) : (
-          <div className="text-sm font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2 cursor-not-allowed">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            Download {displayType} template file (select municipality first)
+              Download {displayType} template file (select municipality first)
+            </div>
+          )}
+        </div>
+
+        {guide && (
+          <div className="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-200/60 dark:border-blue-800/60 w-full sm:w-auto justify-between sm:justify-end">
+            <a
+              href={guide.pdfPath}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={guide.pdfFileName}
+              className="text-xs font-medium text-slate-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 hover:underline flex items-center gap-1.5 bg-white/70 dark:bg-slate-900/60 px-2.5 py-1.5 rounded border border-blue-200 dark:border-blue-800/80 shadow-xs">
+              <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Guidelines (PDF)</span>
+            </a>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="p-1 rounded-full text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 focus:outline-none"
+                    aria-label="Upload rules info">
+                    <HelpCircle className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs p-3 bg-slate-900 text-white shadow-xl">
+                  <p className="font-semibold text-blue-300 mb-1.5">{guide.title} - Key Rules:</p>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-200 text-[11px]">
+                    {guide.rules.map((rule, idx) => (
+                      <li key={idx}>{rule}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-[10px] text-slate-400 border-t border-slate-700 pt-1">
+                    Click "Guidelines (PDF)" for the complete SOP manual.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         )}
       </div>

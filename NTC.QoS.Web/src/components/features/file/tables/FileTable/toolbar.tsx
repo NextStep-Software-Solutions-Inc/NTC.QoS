@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { type Table } from "@tanstack/react-table";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, FileText } from "lucide-react";
 
 import { type File } from "@/components/features/file/types/File";
 import PermissionCheck from "@/components/PermissionCheck";
@@ -16,7 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInvalidateQuery } from "@/hooks/invalidate-query";
+import { UPLOAD_GUIDES } from "../../constants/uploadGuides";
 import UploadFileDialog from "../../dialogs/UploadFileDialog";
 
 type FileType = "Speedtest" | "NAP" | "Cell" | "Cellular" | "WirelessValidation" | "CellularCoverage";
@@ -54,6 +56,8 @@ export default function Toolbar({ table, type: propType }: ToolbarProps) {
     }
   };
 
+  const guide = type ? UPLOAD_GUIDES[type] : null;
+
   return (
     <div className="flex flex-col sm:flex-row gap-3 w-full">
       <Input
@@ -62,7 +66,7 @@ export default function Toolbar({ table, type: propType }: ToolbarProps) {
         onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
         className="max-w-sm"
       />
-      <div className="flex gap-2 sm:ml-auto">
+      <div className="flex gap-2 sm:ml-auto items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline">
@@ -87,6 +91,36 @@ export default function Toolbar({ table, type: propType }: ToolbarProps) {
               })}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {guide && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href={guide.pdfPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={guide.pdfFileName}
+                  className="inline-flex items-center gap-1.5 h-10 px-3 py-2 text-xs sm:text-sm font-medium border border-input rounded-md bg-background hover:bg-accent hover:text-accent-foreground transition-colors shadow-xs">
+                  <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="hidden sm:inline">
+                    Upload Guide{type === "CellularCoverage" || type === "Cellular" ? " (WIP)" : ""}
+                  </span>
+                </a>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs p-3 bg-slate-900 text-white shadow-xl">
+                <p className="font-semibold text-blue-300 mb-1.5">{guide.title} - Key Rules:</p>
+                <ul className="list-disc pl-4 space-y-1 text-slate-200 text-[11px]">
+                  {guide.rules.map((rule, idx) => (
+                    <li key={idx}>{rule}</li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[10px] text-blue-300 underline font-medium">Click to download SOP manual (PDF)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
         {!readonly && (
           <PermissionCheck action="write" actions={actions}>
             <Button

@@ -28,8 +28,13 @@ function UploadFileDialog({ onUpload, open, onOpenChange, type }: UpdateFileDial
           <div className="p-2 bg-primary/10 rounded-lg">
             <Upload className="h-5 w-5 text-primary" />
           </div>
-          <span className="text-xl font-semibold">
+          <span className="text-xl font-semibold flex items-center gap-2">
             Upload {displayType} Files
+            {(type === "CellularCoverage" || type === "Cellular") && (
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                WIP
+              </span>
+            )}
           </span>
         </div>
       }
