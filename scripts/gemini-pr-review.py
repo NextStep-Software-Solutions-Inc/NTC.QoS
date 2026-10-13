@@ -7,13 +7,13 @@ from google import genai
 
 def main():
     gemini_api_key = os.getenv("GEMINI_API_KEY")
-    github_token = os.getenv("GH_TOKEN")
+    github_token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
     pr_number = os.getenv("PR_NUMBER")
     pr_title = os.getenv("PR_TITLE", "N/A")
     pr_body = os.getenv("PR_BODY", "N/A")
     repo = os.getenv("REPO")
     base_ref = os.getenv("BASE_REF", "main")
-    gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+    gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
     if not gemini_api_key:
         print("::error::GEMINI_API_KEY secret is missing. Please add GEMINI_API_KEY to repository secrets.")
@@ -81,7 +81,7 @@ def main():
   ```
   """
 
-    print("Sending PR diff for review...")
+    print(f"Sending PR diff for review with model '{gemini_model}'...")
     try:
         response = client.models.generate_content(
             model=gemini_model,
@@ -89,8 +89,16 @@ def main():
         )
         review_markdown = response.text
     except Exception as e:
-        print(f"::error::API call failed: {e}")
-        sys.exit(1)
+        print(f"::warning::Failed with model '{gemini_model}': {e}. Attempting fallback to 'gemini-2.0-flash'...")
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt,
+            )
+            review_markdown = response.text
+        except Exception as fallback_e:
+            print(f"::error::API call failed with both '{gemini_model}' and fallback: {fallback_e}")
+            sys.exit(1)
 
     if not review_markdown:
         print("::error::Received empty response payload from API.")
