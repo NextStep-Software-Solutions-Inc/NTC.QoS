@@ -1,4 +1,4 @@
-﻿namespace NTC.QoS.Domain.Models.DTOs.File;
+namespace NTC.QoS.Domain.Models.DTOs.File;
 
 public class FileDto
 {
@@ -11,5 +11,6 @@ public class FileDto
     public string Status { get; set; } = string.Empty;
     public Guid? RegionId { get; set; }
     public string? AssessmentJobId { get; set; } // Connectivity assessment job ID for status tracking
-
+    public string? ErrorMessage { get; set; } // Human-readable error message or summary for user self-service
+    public string? ErrorLogPath { get; set; } // Blob path or URL to detailed downloadable error log report
 }

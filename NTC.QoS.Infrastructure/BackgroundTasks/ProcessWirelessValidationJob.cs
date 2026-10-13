@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Domain.Attributes;
@@ -91,7 +91,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             if (wirelessValidationRecords.Count == 0)
             {
                 _logger.LogInformation("The Excel file is empty or contains no valid data.");
-                await CompleteProcessing(file, processingResults, startTime, token);
+                await CompleteProcessing(file, processingResults, null, startTime, token);
                 return;
             }
 
@@ -112,11 +112,12 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
             // --- Step 5: Process Records in Batches (OPTIMIZED) ---
             stopwatch.Restart();
-            await ProcessRecordsInBatches(wirelessValidationRecords, referenceData, processingResults, token);
+            var errorLogger = new ImportErrorLogger();
+            await ProcessRecordsInBatches(wirelessValidationRecords, referenceData, processingResults, errorLogger, token);
             stopwatch.Stop();
             _logger.LogInformation("Record processing completed in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
-            await CompleteProcessing(file, processingResults, startTime, token);
+            await CompleteProcessing(file, processingResults, errorLogger, startTime, token);
         }
         catch (Exception ex)
         {
@@ -460,7 +461,7 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
     // OPTIMIZED: Batch processing like ProcessCellJob (periodic saves instead of single bulk insert)
     private async Task ProcessRecordsInBatches(List<WirelessValidationRecord> records, ReferenceData referenceData,
-        ProcessingResults results, CancellationToken token)
+        ProcessingResults results, ImportErrorLogger errorLogger, CancellationToken token)
     {
         // Get user context once for all batches
         var userId = _userContextService.GetCurrentUserId() ?? "System";
@@ -495,14 +496,24 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
             var validationsToAdd = new List<WirelessValidation>();
 
-            foreach (var record in batch)
+            for (int i = 0; i < batch.Count; i++)
             {
+                var record = batch[i];
+                var actualRowNumber = batchIndex * BATCH_SIZE + i + 5; // Rows start at 5 in Wireless Validation template
+
                 try
                 {
                     results.ProcessedRecords++;
 
                     if (!record.MunicipalityId.HasValue || string.IsNullOrWhiteSpace(record.Provider))
                     {
+                        var prov = string.IsNullOrWhiteSpace(record.Provider) ? "<blank>" : record.Provider;
+                        errorLogger.AddError(
+                            actualRowNumber,
+                            "Provider / Municipality",
+                            prov,
+                            "Provider is missing or Municipality could not be matched.",
+                            "Select a valid Provider from dropdown and verify Municipality matches NTC reference data.");
                         results.SkippedRecords++;
                         continue;
                     }
@@ -510,7 +521,13 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                     var serviceProviderKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                     if (!referenceData.ServiceProviderCache.TryGetValue(serviceProviderKey, out var serviceProviderId))
                     {
-                        _logger.LogWarning("Service Provider not found: {Provider}. Skipping record.", record.Provider);
+                        _logger.LogWarning("Service Provider not found: {Provider}. Skipping record at Row {Row}.", record.Provider, actualRowNumber);
+                        errorLogger.AddError(
+                            actualRowNumber,
+                            "Provider",
+                            record.Provider,
+                            $"Wireless Service Provider '{record.Provider}' was not found in the database.",
+                            "Select a valid provider from the template dropdown (e.g., SMART, GLOBE, DITO).");
                         results.SkippedRecords++;
                         continue;
                     }
@@ -534,8 +551,15 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
                     if (!barangayId.HasValue)
                     {
-                        _logger.LogWarning("Skipping record without resolved barangay: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}",
-                record.Provider, record.Barangay, record.Municipality);
+                        _logger.LogWarning("Skipping record without resolved barangay at Row {Row}: Provider={Provider}, Barangay='{Barangay}', Municipality={Municipality}",
+                            actualRowNumber, record.Provider, record.Barangay, record.Municipality);
+                        var brgy = string.IsNullOrWhiteSpace(record.Barangay) ? "<blank>" : record.Barangay;
+                        errorLogger.AddError(
+                            actualRowNumber,
+                            "Barangay",
+                            brgy,
+                            $"Barangay '{brgy}' could not be resolved for municipality '{record.Municipality}'.",
+                            "Select a valid Barangay from the template dropdown.");
                         results.SkippedRecords++;
                         continue;
                     }
@@ -567,8 +591,14 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Error processing record - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
-                     record.Provider, record.Barangay, record.Municipality);
+                    _logger.LogWarning(ex, "Error processing record at Row {Row} - Provider: {Provider}, Barangay: {Barangay}, Municipality: {Municipality}",
+                        actualRowNumber, record.Provider, record.Barangay, record.Municipality);
+                    errorLogger.AddError(
+                        actualRowNumber,
+                        "Record",
+                        record.Provider,
+                        $"Unexpected error: {ex.Message}",
+                        "Verify that all columns follow the Wireless Validation template formatting.");
                     results.ErrorRecords++;
                 }
             }
@@ -680,7 +710,12 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         return (validations, skippedDuplicates);
     }
 
-    private async Task CompleteProcessing(Domain.Entities.File file, ProcessingResults results, DateTime startTime, CancellationToken token)
+    private async Task CompleteProcessing(
+        Domain.Entities.File file,
+        ProcessingResults results,
+        ImportErrorLogger? errorLogger,
+        DateTime startTime,
+        CancellationToken token)
     {
         var processingTime = DateTime.UtcNow - startTime;
         var successRate = results.TotalRecords > 0 ? (double)results.SuccessfulRecords / results.TotalRecords * 100 : 0;
@@ -732,7 +767,27 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         _logger.LogInformation("- Duplicate Detection: ServiceProvider + Barangay + Band + Technology + Address combination");
         _logger.LogInformation("=======================================");
 
-        file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        string? errorLogPath = null;
+        if (errorLogger != null && errorLogger.HasErrors)
+        {
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            errorLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
+            file.ErrorMessage = errorLogger.GenerateSummary();
+            file.ErrorLogPath = errorLogPath;
+        }
+
+        if (results.TotalRecords > 0 && results.SuccessfulRecords == 0)
+        {
+            file.Status = FileStatusEnum.Failed;
+            if (string.IsNullOrEmpty(file.ErrorMessage))
+            {
+                file.ErrorMessage = "All records in the file failed validation or were skipped. Please verify that the file follows the Wireless Validation template specifications.";
+            }
+        }
+        else
+        {
+            file.Status = results.ErrorRecords == 0 && results.SkippedRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        }
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 

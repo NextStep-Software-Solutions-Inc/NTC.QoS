@@ -40,10 +40,22 @@ public class GetPreSignedDownloadUrlHandler(
                 };
             }
 
-            string containerName = GetContainerName();
-            string blobPath = GetBlobNameFromPath(file.Path);
+            var targetPath = request.IsErrorLog ? file.ErrorLogPath : file.Path;
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                return new ApiResponse<PreSignedUrlDto>
+                {
+                    Message = request.IsErrorLog
+                        ? $"No error report exists for file '{file.Name}'."
+                        : $"File path is empty for file with ID '{request.FileId}'.",
+                    Succeeded = false
+                };
+            }
 
-            TimeSpan expiry = TimeSpan.FromMinutes(1);
+            string containerName = GetContainerName();
+            string blobPath = GetBlobNameFromPath(targetPath);
+
+            TimeSpan expiry = TimeSpan.FromMinutes(request.IsErrorLog ? 15 : 1);
             string sasUrl = _blobStorageService.GeneratePreSignedDownloadUrl(containerName, blobPath, expiry);
 
             return new ApiResponse<PreSignedUrlDto>
@@ -54,7 +66,9 @@ public class GetPreSignedDownloadUrlHandler(
                     BlobPath = blobPath,
                     ExpiresAtUtc = DateTime.UtcNow.Add(expiry)
                 },
-                Message = "Successfully generated 1-minute pre-signed download URL.",
+                Message = request.IsErrorLog
+                    ? "Successfully generated error report download URL."
+                    : "Successfully generated 1-minute pre-signed download URL.",
                 Succeeded = true
             };
         }

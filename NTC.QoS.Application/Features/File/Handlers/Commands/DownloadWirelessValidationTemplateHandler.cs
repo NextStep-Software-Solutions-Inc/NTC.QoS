@@ -141,6 +141,19 @@ internal sealed class DownloadWirelessValidationTemplateHandler
             AddDropdownValidation(ws, "B5:B1048576", barangayRange);
         }
 
+        // Add hidden sheet and validation for all band columns (Cols 3 to lastCol) with 1, 0, TRUE, FALSE (blank allowed)
+        List<string> bandValues = ["1", "0", "TRUE", "FALSE"];
+        var bandSheet = package.Workbook.Worksheets.Add("BandValues");
+        bandSheet.Cells.LoadFromCollection(bandValues.Select(v => new { Value = v }));
+        bandSheet.Hidden = eWorkSheetHidden.VeryHidden;
+        var bandRange = bandSheet.Cells[1, 1, bandValues.Count, 1];
+
+        for (int col = 3; col <= lastCol; col++)
+        {
+            var colName = GetExcelColumnName(col);
+            AddDropdownValidation(ws, $"{colName}5:{colName}1048576", bandRange, allowBlank: true);
+        }
+
         // Draw light grid borders on all data cells
         int dataStartRow = 5;
         int dataEndRow = currentRow - 1;
@@ -369,5 +382,17 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         cf.Style.Fill.PatternType = ExcelFillStyle.Solid;
         cf.Style.Fill.BackgroundColor.Color = Color.FromArgb(255, 199, 206);
         cf.Style.Font.Color.Color = Color.FromArgb(156, 0, 6);
+    }
+
+    private static string GetExcelColumnName(int columnNumber)
+    {
+        var columnName = new System.Text.StringBuilder();
+        while (columnNumber > 0)
+        {
+            int modulo = (columnNumber - 1) % 26;
+            columnName.Insert(0, Convert.ToChar('A' + modulo));
+            columnNumber = (columnNumber - modulo) / 26;
+        }
+        return columnName.ToString();
     }
 }

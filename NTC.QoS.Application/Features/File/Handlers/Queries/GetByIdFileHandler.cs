@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.File.Requests;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
@@ -43,7 +43,9 @@ public class GetByIdFileHandler(IFileRepository repository) : IRequestHandler<Ge
                 Type = file.Type.ToString() ?? string.Empty,
                 Status = file.Status.ToString() ?? string.Empty,
                 RegionId = file.RegionId,
-                AssessmentJobId = file.AssessmentJobId
+                AssessmentJobId = file.AssessmentJobId,
+                ErrorMessage = file.ErrorMessage,
+                ErrorLogPath = file.ErrorLogPath
             }
         };
     }

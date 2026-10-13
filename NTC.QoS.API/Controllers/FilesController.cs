@@ -114,6 +114,14 @@ public class FilesController(IMediator mediator) : ControllerBase
         return response.Succeeded ? Ok(response) : BadRequest(response);
     }
 
+    [HttpGet("{id}/presigned-error-log-url")]
+    [RequirePermission(Permissions.ViewFiles)]
+    public async Task<ActionResult<ApiResponse<PreSignedUrlDto>>> GetPreSignedErrorLogUrl(Guid id)
+    {
+        var response = await _mediator.Send(new GetPreSignedDownloadUrlRequest(id) { IsErrorLog = true });
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
     [HttpPut("{id}")]
     [RequirePermission(Permissions.UpdateFiles)]
     public async Task<ActionResult<ApiResponse<FileDto>>> UpdateFileById(Guid id, UpdateFileDto updateFile)
