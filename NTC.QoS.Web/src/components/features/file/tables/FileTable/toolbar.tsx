@@ -103,7 +103,9 @@ export default function Toolbar({ table, type: propType }: ToolbarProps) {
                   download={guide.pdfFileName}
                   className="inline-flex items-center gap-1.5 h-10 px-3 py-2 text-xs sm:text-sm font-medium border border-input rounded-md bg-background hover:bg-accent hover:text-accent-foreground transition-colors shadow-xs">
                   <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span className="hidden sm:inline">Upload Guide</span>
+                  <span className="hidden sm:inline">
+                    Upload Guide{type === "CellularCoverage" || type === "Cellular" ? " (WIP)" : ""}
+                  </span>
                 </a>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs text-xs p-3 bg-slate-900 text-white shadow-xl">

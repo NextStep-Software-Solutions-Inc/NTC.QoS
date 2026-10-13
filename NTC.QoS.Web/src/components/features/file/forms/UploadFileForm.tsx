@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ChevronDown, FileText, HelpCircle, Loader2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, FileText, HelpCircle, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
@@ -341,6 +341,24 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Cellular Coverage WIP Notice */}
+      {(type === "CellularCoverage" || type === "Cellular") && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-amber-900 dark:text-amber-100">Work in Progress</span>
+              <span className="px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800/60 text-amber-900 dark:text-amber-200 font-bold text-[10px] rounded uppercase tracking-wider">
+                Experimental
+              </span>
+            </div>
+            <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+              Cellular Coverage upload and automated scoring are under active development. Uploaded datasets may undergo format and processing revisions.
+            </p>
+          </div>
         </div>
       )}
 
