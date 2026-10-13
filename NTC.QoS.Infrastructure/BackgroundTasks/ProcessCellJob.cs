@@ -105,6 +105,8 @@ public class ProcessCellJob : IProcessCellJob
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
             file, _fileRepository, _logger, FileTypeEnum.Cell, token);
 
+        var errorLogger = new ImportErrorLogger();
+
         try
         {
             _logger.LogInformation("Starting cell processing for file: {FileName}", file.Name);
@@ -413,7 +415,6 @@ public class ProcessCellJob : IProcessCellJob
                 // Track expected Cellular records and processed cells for deletion logic
                 var expectedCellularHashes = new HashSet<int>();
                 var processedCellIds = new HashSet<Guid>();
-                var errorLogger = new ImportErrorLogger();
 
                 _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
                     totalRecords, totalBatches, BATCH_SIZE);
@@ -724,9 +725,12 @@ public class ProcessCellJob : IProcessCellJob
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during cell processing after {ElapsedTime}: {ErrorMessage}",
                 stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
+            errorLogger.AddError(0, "General", null, "Processing Error: " + ex.Message, "Check that the uploaded file follows the Cell Site template specifications.");
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var errLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.Cell,
-                $"Error occurred during processing: {ex.Message}", token);
+                $"Error occurred during processing: {ex.Message}", token, errLogPath);
             throw;
         }
     }

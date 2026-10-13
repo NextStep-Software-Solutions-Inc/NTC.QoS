@@ -59,6 +59,8 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
         var file = await ProcessingJobHelper.ValidateAndGetFileAsync(parameters.Id, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
         await ProcessingJobHelper.SetFileProcessingStatusAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation, token);
 
+        var errorLogger = new ImportErrorLogger();
+
         try
         {
             _logger.LogInformation("Starting wireless validation processing for file: {FileName}", file.Name);
@@ -112,7 +114,6 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
 
             // --- Step 5: Process Records in Batches (OPTIMIZED) ---
             stopwatch.Restart();
-            var errorLogger = new ImportErrorLogger();
             await ProcessRecordsInBatches(wirelessValidationRecords, referenceData, processingResults, errorLogger, token);
             stopwatch.Stop();
             _logger.LogInformation("Record processing completed in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
@@ -124,8 +125,11 @@ public class ProcessWirelessValidationJob(IFileRepository fileRepository,
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during wireless validation processing after {ElapsedTime}: {ErrorMessage}",
                 stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
+            errorLogger.AddError(0, "General", null, "Processing Error: " + ex.Message, "Check that the uploaded file follows the Wireless Validation template specifications.");
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var errLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
             await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.WirelessValidation,
-                $"Error occurred during processing: {ex.Message}", token);
+                $"Error occurred during processing: {ex.Message}", token, errLogPath);
             throw;
         }
     }

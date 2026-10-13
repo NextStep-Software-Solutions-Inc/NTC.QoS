@@ -83,6 +83,9 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   });
 
   const onSuccessHandler = () => {
+    void queryClient.invalidateQueries({
+      predicate: (query) => typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("/files"),
+    });
     onSuccess?.();
     onClose?.();
   };

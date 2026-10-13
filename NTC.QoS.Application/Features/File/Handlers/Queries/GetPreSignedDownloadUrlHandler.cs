@@ -53,7 +53,7 @@ public class GetPreSignedDownloadUrlHandler(
             }
 
             string containerName = GetContainerName();
-            string blobPath = GetBlobNameFromPath(targetPath);
+            string blobPath = GetBlobNameFromPath(targetPath, containerName);
 
             TimeSpan expiry = TimeSpan.FromMinutes(request.IsErrorLog ? 15 : 1);
             string sasUrl = _blobStorageService.GeneratePreSignedDownloadUrl(containerName, blobPath, expiry);
@@ -94,12 +94,23 @@ public class GetPreSignedDownloadUrlHandler(
         };
     }
 
-    private static string GetBlobNameFromPath(string path)
+    private static string GetBlobNameFromPath(string path, string containerName)
     {
         if (Uri.TryCreate(path, UriKind.Absolute, out var uri))
         {
-            var segments = uri.LocalPath.TrimStart('/').Split('/', 2);
-            return segments.Length > 1 ? segments[1] : uri.LocalPath.TrimStart('/');
+            var segments = uri.LocalPath.TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var containerIdx = Array.FindIndex(segments, s => string.Equals(s, containerName, StringComparison.OrdinalIgnoreCase));
+            if (containerIdx >= 0 && containerIdx + 1 < segments.Length)
+            {
+                return string.Join("/", segments.Skip(containerIdx + 1));
+            }
+
+            if (segments.Length > 1)
+            {
+                return string.Join("/", segments.Skip(1));
+            }
+
+            return uri.LocalPath.TrimStart('/');
         }
 
         return path;

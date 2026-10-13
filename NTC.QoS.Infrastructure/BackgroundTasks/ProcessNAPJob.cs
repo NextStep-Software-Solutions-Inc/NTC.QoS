@@ -67,6 +67,8 @@ public class ProcessNAPJob : IProcessNAPJob
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
      file, _fileRepository, _logger, FileTypeEnum.NAP, token);
 
+        var errorLogger = new ImportErrorLogger();
+
         try
         {
             _logger.LogInformation("Starting NAP processing for file: {FileName}", file.Name);
@@ -174,7 +176,11 @@ public class ProcessNAPJob : IProcessNAPJob
                         sampleMissing,
                         missingProviders.Count);
 
-                    await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.NAP, msg, token);
+                    errorLogger.AddError(1, "Provider", "<none>", msg, "Ensure Provider matches an existing wired provider in the system.");
+                    var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                    var earlyErrorLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
+
+                    await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.NAP, msg, token, earlyErrorLogPath);
                     return;
                 }
 
@@ -233,7 +239,6 @@ public class ProcessNAPJob : IProcessNAPJob
                 // --- Process Records in Batches (OPTIMIZED) ---
                 var totalRecords = napRecords.Count;
                 var totalBatches = (int)Math.Ceiling((double)totalRecords / BATCH_SIZE);
-                var errorLogger = new ImportErrorLogger();
 
                 _logger.LogInformation("Processing {TotalRecords:N0} records in {TotalBatches} batches of {BatchSize}",
         totalRecords, totalBatches, BATCH_SIZE);
@@ -385,9 +390,12 @@ public class ProcessNAPJob : IProcessNAPJob
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during NAP processing after {ElapsedTime}: {ErrorMessage}",
       stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
+            errorLogger.AddError(0, "General", null, "Processing Error: " + ex.Message, "Check that the uploaded file follows the NAP template specifications.");
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var errLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.NAP,
-               $"Error occurred during processing: {ex.Message}", token);
+               $"Error occurred during processing: {ex.Message}", token, errLogPath);
             throw;
         }
     }
