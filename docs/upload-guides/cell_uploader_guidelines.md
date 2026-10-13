@@ -72,6 +72,37 @@ Every cellular tower sector represents RF transceivers transmitting on specific 
 
 ---
 
+### 4.1 Band Input Options: Presets vs. Custom CF/BW Values
+
+You can indicate active transceiver bands using either **Boolean Presets** or **Custom RF Parameters (CF/BW)**:
+
+#### Option A: Presets (`1`, `0`, `TRUE`, `FALSE`, or Blank) — Recommended
+- **Active Band**: Enter `1` or `TRUE`. The system automatically applies the standardized national regulatory Center Frequency and Channel Bandwidth defaults for that band.
+- **Inactive / Unequipped Band**: Enter `0`, `FALSE`, or leave the cell completely **BLANK**.
+- *Note*: Matches the exact preset options used in the Wireless Validation module.
+
+#### Option B: Custom Center Frequency & Bandwidth (`CF: <val>, BW: <val>`)
+When an operator utilizes specific carrier frequency assignments or custom channel bandwidths, you can enter the exact values directly in the band cell:
+- **`CF` (Center Frequency)**: Downlink Center Carrier Frequency in **Megahertz (MHz)**.
+- **`BW` (Bandwidth)**: Allocated RF Channel Bandwidth in **Megahertz (MHz)**.
+- **Syntax Rule**: `CF: <frequency>, BW: <bandwidth>` *(Case-insensitive, spaces after colon and comma are optional)*.
+
+#### Valid Input Examples for Band Columns:
+
+| Technology & Band Code | Example Input | Interpreted State | Resulting RF Parameters |
+| :--- | :--- | :--- | :--- |
+| **4G LTE B28 (700 MHz)** | `1` or `TRUE` | Active | Default DL Center Freq: `780.0 MHz`, Bandwidth: `20.0 MHz` |
+| **4G LTE B28 (700 MHz)** | `CF: 780.5, BW: 20` | Active | DL Center Freq: `780.5 MHz`, Bandwidth: `20.0 MHz` |
+| **4G LTE B3 (1800 MHz)** | `CF: 1805, BW: 20` | Active | DL Center Freq: `1805.0 MHz`, Bandwidth: `20.0 MHz` |
+| **4G LTE B1 (2100 MHz)** | `CF: 2140, BW: 15` | Active | DL Center Freq: `2140.0 MHz`, Bandwidth: `15.0 MHz` |
+| **4G LTE B40 (2300 MHz TDD)** | `CF: 2350, BW: 20` | Active | DL Center Freq: `2350.0 MHz`, Bandwidth: `20.0 MHz` |
+| **4G LTE B41 (2500 MHz TDD)** | `CF: 2595, BW: 20` | Active | DL Center Freq: `2595.0 MHz`, Bandwidth: `20.0 MHz` |
+| **5G NR n78 (3500 MHz C-Band)** | `CF: 3500, BW: 100` | Active | DL Center Freq: `3500.0 MHz`, Bandwidth: `100.0 MHz` |
+| **2G GSM B8 (900 MHz)** | `CF: 935.2, BW: 0.2` | Active | DL Center Freq: `935.2 MHz`, Bandwidth: `0.2 MHz` (200 kHz) |
+| **Inactive / Not Deployed** | `0`, `FALSE`, or *(blank)* | Inactive | Band is skipped; no transceiver record created |
+
+---
+
 ## 5. Dropdown Columns Validation
 
 Dropdown fields must strictly conform to system-recognized values:
@@ -81,7 +112,7 @@ Dropdown fields must strictly conform to system-recognized values:
 | `Provider` | `DITO TELECOMMUNITY CORP.`, `GLOBE COMMUNICATIONS INC.`, `SMART COMMUNICATIONS INC.` | Select strictly from the dropdown list. |
 | `Tower Type` | `GuyedTower`, `Monopole`, `Rooftop`, `SelfSupporting`, `Others`, `Unknown` | Select physical structural tower type. |
 | `AntennaType` | `OmniDirectional`, `Directional`, `Others`, `Unknown` | Select antenna radiation pattern type. |
-| **Band Columns** (Cols 9 to 30) | `1`, `0`, `TRUE`, `FALSE`, or blank | • Set to `1` or `TRUE` if transmitter operates on that band.<br>• Set to `0`, `FALSE`, or leave blank if not equipped. Same preset options as Wireless Validation. |
+| **Band Columns** (Cols 9 to 30) | `1`, `0`, `TRUE`, `FALSE`, blank, or `CF: <val>, BW: <val>` | • Use `1` or `TRUE` for standard active deployment.<br>• Use `CF: <val>, BW: <val>` for custom carrier frequency.<br>• Use `0`, `FALSE`, or leave blank if not equipped. |
 
 ---
 
