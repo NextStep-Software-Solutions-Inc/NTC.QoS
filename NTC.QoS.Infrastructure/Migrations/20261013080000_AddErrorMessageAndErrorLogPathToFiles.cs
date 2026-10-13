@@ -1,11 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using NTC.QoS.Infrastructure.Persistence;
 
 #nullable disable
 
 namespace NTC.QoS.Infrastructure.Migrations
 {
-    /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20261013080000_AddErrorMessageAndErrorLogPathToFiles")]
     public partial class AddErrorMessageAndErrorLogPathToFiles : Migration
     {
         /// <inheritdoc />
