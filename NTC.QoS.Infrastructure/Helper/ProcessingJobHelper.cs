@@ -142,12 +142,15 @@ public static class ProcessingJobHelper
 
     /// <summary>
     /// Marks a file as failed with the specified reason
+    /// <summary>
+    /// Marks a file as failed with the specified reason
     /// </summary>
     /// <param name="file">File entity to mark as failed</param>
     /// <param name="reason">Reason for failure</param>
     /// <param name="fileRepository">File repository instance</param>
     /// <param name="logger">Logger instance</param>
     /// <param name="fileType">Type of file being processed (for logging)</param>
+    /// <param name="errorLogPath">Path/URL to downloadable error log (optional)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     public static async Task MarkFileAsFailedAsync(
         Domain.Entities.File file,
@@ -155,9 +158,15 @@ public static class ProcessingJobHelper
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
         FileTypeEnum fileType,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? errorLogPath = null)
     {
         file.Status = FileStatusEnum.Failed;
+        file.ErrorMessage = reason.Length > 2000 ? reason[..1997] + "..." : reason;
+        if (!string.IsNullOrEmpty(errorLogPath))
+        {
+            file.ErrorLogPath = errorLogPath;
+        }
         fileRepository.Update(file);
         await fileRepository.SaveChangesAsync(cancellationToken);
         logger.LogWarning("{FileType} file marked as failed: {Reason}", fileType, reason);
@@ -172,15 +181,25 @@ public static class ProcessingJobHelper
     /// <param name="fileType">Type of file being processed (for logging)</param>
     /// <param name="errorMessage">Custom error message (optional)</param>
     /// <param name="cancellationToken">Cancellation token</param>
+    /// <param name="errorLogPath">Path/URL to downloadable error log (optional)</param>
     public static async Task TerminateProcessAsync(
         Domain.Entities.File file,
         IRepository<Domain.Entities.File> fileRepository,
         ILogger logger,
         FileTypeEnum fileType,
         string? errorMessage = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? errorLogPath = null)
     {
         file.Status = FileStatusEnum.Failed;
+        if (!string.IsNullOrEmpty(errorMessage))
+        {
+            file.ErrorMessage = errorMessage.Length > 2000 ? errorMessage[..1997] + "..." : errorMessage;
+        }
+        if (!string.IsNullOrEmpty(errorLogPath))
+        {
+            file.ErrorLogPath = errorLogPath;
+        }
         fileRepository.Update(file);
         await fileRepository.SaveChangesAsync(cancellationToken);
 
@@ -196,6 +215,32 @@ public static class ProcessingJobHelper
         }
 
         logger.LogError("======================================================");
+    }
+
+    /// <summary>
+    /// Updates file status to PartiallyProcessed and saves error summary and error log path
+    /// </summary>
+    public static async Task SetFilePartiallyProcessedStatusAsync(
+        Domain.Entities.File file,
+        IRepository<Domain.Entities.File> fileRepository,
+        ILogger logger,
+        FileTypeEnum fileType,
+        string? errorMessage = null,
+        CancellationToken cancellationToken = default,
+        string? errorLogPath = null)
+    {
+        file.Status = FileStatusEnum.PartiallyProcessed;
+        if (!string.IsNullOrEmpty(errorMessage))
+        {
+            file.ErrorMessage = errorMessage.Length > 2000 ? errorMessage[..1997] + "..." : errorMessage;
+        }
+        if (!string.IsNullOrEmpty(errorLogPath))
+        {
+            file.ErrorLogPath = errorLogPath;
+        }
+        fileRepository.Update(file);
+        await fileRepository.SaveChangesAsync(cancellationToken);
+        logger.LogWarning("{FileType} file marked as partially processed. Error: {ErrorMessage}", fileType, errorMessage);
     }
 
     /// <summary>

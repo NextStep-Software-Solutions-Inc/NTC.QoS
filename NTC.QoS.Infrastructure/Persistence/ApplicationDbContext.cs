@@ -379,6 +379,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMaxLength(450)
             .IsRequired(false);
 
+        modelBuilder.Entity<Domain.Entities.File>()
+            .Property(f => f.ErrorMessage)
+            .HasMaxLength(2000)
+            .IsRequired(false);
+
+        modelBuilder.Entity<Domain.Entities.File>()
+            .Property(f => f.ErrorLogPath)
+            .HasMaxLength(1000)
+            .IsRequired(false);
+
         modelBuilder.Entity<Municipality>()
             .HasMany(m => m.Barangays)
             .WithOne(b => b.Municipality)

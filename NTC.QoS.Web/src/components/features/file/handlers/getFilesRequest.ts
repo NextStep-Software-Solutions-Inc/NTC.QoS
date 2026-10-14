@@ -16,4 +16,14 @@ export const getFilesRequest: QueryBlueprintFromTemplate<typeof endpoint, Pagina
   fetcher: async ({ finalUrl, signal }: { finalUrl: string; signal?: AbortSignal }) => {
     return await request.get<PaginationResponse<File>>(finalUrl, { signal });
   },
+  defaultOptions: {
+    refetchInterval: (query) => {
+      const fileList = query.state.data?.data;
+      const hasActive = fileList?.some((f: File) => {
+        const s = (f.status || "").toLowerCase();
+        return s === "pending" || s === "processing" || s === "queued";
+      });
+      return hasActive ? 3000 : false;
+    },
+  },
 };
