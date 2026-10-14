@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { type Table } from "@tanstack/react-table";
-import { ChevronDown, FileText } from "lucide-react";
+import { ChevronDown, FileText, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 import { type File } from "@/components/features/file/types/File";
 import PermissionCheck from "@/components/PermissionCheck";
@@ -31,10 +32,18 @@ export default function Toolbar({ table, type: propType }: ToolbarProps) {
   const readonly = table.options.meta?.readonly;
   const actions = table.options.meta?.actions ?? [];
   const [openUpload, setOpenUpload] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const invalidateQuery = useInvalidateQuery();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const type = propType ?? (searchParams.get("type") as FileType | null);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    invalidateQuery("/files");
+    toast.info("Refreshing file list...");
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
 
   // Handle file upload success - invalidate all relevant queries
   const handleUploadSuccess = () => {
@@ -91,6 +100,25 @@ export default function Toolbar({ table, type: propType }: ToolbarProps) {
               })}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                aria-label="Refresh files"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin text-primary" : "text-muted-foreground"}`} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Refresh file imports</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         {guide && (
           <TooltipProvider>

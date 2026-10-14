@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Download, MoreHorizontal, Pencil, Play, Trash } from "lucide-react";
+import { Copy, Download, FileWarning, MoreHorizontal, Pencil, Trash } from "lucide-react";
 import { toast } from "sonner";
 
 import { UpdateFileDialog } from "@/components/features/file/dialogs/UpdateFileDialog";
@@ -16,11 +16,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { request } from "@/services/fetch";
 import { type APIResponse } from "@/types/reusable/api";
 import DeleteFileDialog from "../../dialogs/DeleteFileDialog";
-import ProcessDialog from "../../dialogs/ProcessingDialog";
 
 interface ActionsProps {
   data: File;
@@ -30,7 +28,6 @@ interface ActionsProps {
 export default function Actions({ data, readonly }: ActionsProps) {
   const [openUpdate, setOpenUpdate] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
-  const [openProcess, setOpenProcess] = useState(false);
   const handleCopyName = (name: string) => {
     void navigator.clipboard.writeText(name);
     toast.info("Copied to clipboard");
@@ -51,26 +48,36 @@ export default function Actions({ data, readonly }: ActionsProps) {
     }
   };
 
+  const handleDownloadErrorReport = async (fileId: string) => {
+    if (!data.errorLogPath) {
+      toast.info("No error report file is available for this import.");
+      return;
+    }
+
+    try {
+      toast.info("Generating error report download link...");
+      const res = await request.get<APIResponse<PreSignedUrl>>(`/files/${fileId}/presigned-error-log-url`);
+      if (res.succeeded && res.data?.url) {
+        window.open(res.data.url, "_blank");
+        toast.success("Error report download started");
+      } else {
+        toast.error(res.message || "No error report available for this file");
+      }
+    } catch (err: unknown) {
+      const errObj = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = errObj?.response?.data?.message || errObj?.message || "Error downloading error report";
+      toast.error(msg);
+    }
+  };
+
   return (
     <>
       {!readonly && (
         <>
           <UpdateFileDialog file={data} open={openUpdate} onOpenChange={setOpenUpdate} />
-
           <DeleteFileDialog id={data.id} open={openDelete} onOpenChange={setOpenDelete} />
-          <ProcessDialog id={data.id} open={openProcess} onOpenChange={setOpenProcess} />
         </>
       )}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" className="text-green-600" size="icon" onClick={() => setOpenProcess(true)}>
-            <Play />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Click to Play</p>
-        </TooltipContent>
-      </Tooltip>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0">
@@ -84,6 +91,24 @@ export default function Actions({ data, readonly }: ActionsProps) {
             <Download />
             Download File
           </DropdownMenuItem>
+          {data.errorLogPath ? (
+            <DropdownMenuItem
+              className="text-amber-600 dark:text-amber-400 focus:text-amber-700"
+              onClick={() => void handleDownloadErrorReport(data.id)}
+            >
+              <FileWarning />
+              Download Error Report (.csv)
+            </DropdownMenuItem>
+          ) : (data.status === "Failed" || data.status === "PartiallyProcessed") ? (
+            <DropdownMenuItem
+              disabled
+              className="opacity-50 cursor-not-allowed"
+              onClick={() => void handleDownloadErrorReport(data.id)}
+            >
+              <FileWarning />
+              No Error Report File
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onClick={() => handleCopyName(data.id)}>
             <Copy />
             Copy File ID

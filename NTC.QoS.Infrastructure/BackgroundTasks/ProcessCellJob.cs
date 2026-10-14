@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -104,6 +104,8 @@ public class ProcessCellJob : IProcessCellJob
 
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
             file, _fileRepository, _logger, FileTypeEnum.Cell, token);
+
+        var errorLogger = new ImportErrorLogger();
 
         try
         {
@@ -443,6 +445,7 @@ public class ProcessCellJob : IProcessCellJob
                         processingResults,
                         expectedCellularHashes,
                         processedCellIds,
+                        errorLogger,
                         token);
 
                     // Save batch results
@@ -714,7 +717,7 @@ public class ProcessCellJob : IProcessCellJob
                 }
 
                 // --- Step 8: Complete Processing with Summary ---
-                await CompleteProcessing(file, processingResults, startTime, token);
+                await CompleteProcessing(file, processingResults, errorLogger, startTime, token);
             }
         }
         catch (Exception ex)
@@ -722,9 +725,12 @@ public class ProcessCellJob : IProcessCellJob
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during cell processing after {ElapsedTime}: {ErrorMessage}",
                 stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
+            errorLogger.AddError(0, "General", null, "Processing Error: " + ex.Message, "Check that the uploaded file follows the Cell Site template specifications.");
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var errLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.Cell,
-                $"Error occurred during processing: {ex.Message}", token);
+                $"Error occurred during processing: {ex.Message}", token, errLogPath);
             throw;
         }
     }
@@ -735,6 +741,7 @@ public class ProcessCellJob : IProcessCellJob
     private async Task CompleteProcessing(
         Domain.Entities.File file,
         ProcessingResults results,
+        ImportErrorLogger errorLogger,
         DateTime startTime,
         CancellationToken token)
     {
@@ -820,7 +827,27 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("- 1:1 Sector to CellSector ratio");
         _logger.LogInformation("=======================================\n");
 
-        file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        string? errorLogPath = null;
+        if (errorLogger.HasErrors)
+        {
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            errorLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
+            file.ErrorMessage = errorLogger.GenerateSummary();
+            file.ErrorLogPath = errorLogPath;
+        }
+
+        if (results.TotalRecords > 0 && results.SuccessfulRecords == 0)
+        {
+            file.Status = FileStatusEnum.Failed;
+            if (string.IsNullOrEmpty(file.ErrorMessage))
+            {
+                file.ErrorMessage = "All records in the file failed validation or were skipped. Please verify that the file follows the Cell Site template specifications.";
+            }
+        }
+        else
+        {
+            file.Status = results.ErrorRecords == 0 && results.SkippedRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        }
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
 
@@ -858,6 +885,7 @@ public class ProcessCellJob : IProcessCellJob
         ProcessingResults processingResults,
         HashSet<int> expectedCellularHashes,
         HashSet<Guid> processedCellIds,
+        ImportErrorLogger errorLogger,
         CancellationToken token)
     {
         var result = new BatchProcessingResult();
@@ -878,8 +906,15 @@ public class ProcessCellJob : IProcessCellJob
 
                 if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
                 {
+                    var invalidProv = string.IsNullOrWhiteSpace(record.Provider) ? "<blank>" : record.Provider;
                     _logger.LogWarning("Wireless Service Provider not found: {Provider}. Skipping record at row {Row}.",
                         record.Provider, actualRowNumber);
+                    errorLogger.AddError(
+                        actualRowNumber,
+                        "Provider",
+                        invalidProv,
+                        $"Wireless Service Provider '{invalidProv}' was not found in the database.",
+                        "Select a valid provider from the dropdown (e.g., SMART, GLOBE, DITO). Ensure the name is not misspelled.");
                     processingResults.SkippedRecords++;
                     continue;
                 }
@@ -977,6 +1012,12 @@ public class ProcessCellJob : IProcessCellJob
                                     beamTilts.Length,
                                     record.Azimuth,
                                     record.BeamTilt);
+                                errorLogger.AddError(
+                                    actualRowNumber,
+                                    "Azimuth / BeamTilt",
+                                    $"Azimuth: '{record.Azimuth}', BeamTilt: '{record.BeamTilt}'",
+                                    $"Count mismatch: {azimuths.Length} azimuth values vs {beamTilts.Length} beam tilt values.",
+                                    "Ensure both columns contain the same number of semicolon-separated numeric values.");
                             }
                             else
                             {
@@ -1074,6 +1115,12 @@ public class ProcessCellJob : IProcessCellJob
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Error processing record at row {Row}. Skipping.", actualRowNumber);
+                errorLogger.AddError(
+                    actualRowNumber,
+                    "Record",
+                    record.Provider,
+                    $"Error processing record: {ex.Message}",
+                    "Verify the row data aligns with the Cell Site template formatting.");
                 processingResults.ErrorRecords++;
                 continue;
             }

@@ -127,7 +127,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var providerRange = providerSheet.Cells[1, 1, providers.Count, 1];
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
 
-        AddDropdownValidation(worksheet, "A2:A10", providerRange);
+        AddDropdownValidation(worksheet, "A2:A1048576", providerRange);
     }
 
     private async Task GenerateCellTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -146,40 +146,45 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var providers = await GetServiceProviders(ServiceTypeEnum.Wireless, cancellationToken);
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
-        string[] trueFalseValues = ["TRUE", "FALSE"];
+        List<string> bandValues = ["1", "0", "TRUE", "FALSE"];
 
         // Add hidden sheets for dropdowns
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "A4:A14", providerSheet.Cells[1, 1, providers.Count, 1]);
+        AddDropdownValidation(worksheet, "A4:A1048576", providerSheet.Cells[1, 1, providers.Count, 1]);
 
         ExcelWorksheet towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
         towerTypeSheet.Cells.LoadFromCollection(towerTypes.Select(t => new { Type = t }));
         towerTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "X4:X14", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
+        AddDropdownValidation(worksheet, "X4:X1048576", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
 
         ExcelWorksheet antennaTypeSheet = package.Workbook.Worksheets.Add("AntennaTypes");
         antennaTypeSheet.Cells.LoadFromCollection(antennaTypes.Select(a => new { Type = a }));
         antennaTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "Y4:Y14", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
+        AddDropdownValidation(worksheet, "Y4:Y1048576", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
 
-        // Add "True/False" dropdowns directly
-        AddDropdownValidation(worksheet, "I4:I14", [.. trueFalseValues]); // "2G GSM 900"
-        AddDropdownValidation(worksheet, "J4:J14", [.. trueFalseValues]); // "2G GSM 1800"
-        AddDropdownValidation(worksheet, "K4:K14", [.. trueFalseValues]); // "3G WCDMA 850"
-        AddDropdownValidation(worksheet, "L4:L14", [.. trueFalseValues]); // "3G WCDMA 900"
-        AddDropdownValidation(worksheet, "M4:M14", [.. trueFalseValues]); // "3G WCDMA 2100"
-        AddDropdownValidation(worksheet, "N4:N14", [.. trueFalseValues]); // "4G FDD-LTE 700"
-        AddDropdownValidation(worksheet, "O4:O14", [.. trueFalseValues]); // "4G FDD-LTE 850"
-        AddDropdownValidation(worksheet, "P4:P14", [.. trueFalseValues]); // "4G FDD-LTE 900"
-        AddDropdownValidation(worksheet, "Q4:Q14", [.. trueFalseValues]); // "4G FDD-LTE 1800"
-        AddDropdownValidation(worksheet, "R4:R14", [.. trueFalseValues]); // "4G FDD-LTE 2100"
-        AddDropdownValidation(worksheet, "S4:S14", [.. trueFalseValues]); // "4G TDD-LTE 2300"
-        AddDropdownValidation(worksheet, "T4:T14", [.. trueFalseValues]); // "4G TDD-LTE 2500"
-        AddDropdownValidation(worksheet, "U4:U14", [.. trueFalseValues]); // "4G TDD-LTE 2600"
-        AddDropdownValidation(worksheet, "V4:V14", [.. trueFalseValues]); // "5G 2600"
-        AddDropdownValidation(worksheet, "W4:W14", [.. trueFalseValues]); // "5G 3500"
+        // Add "1/0/TRUE/FALSE" dropdowns and conditional formatting for band columns
+        ExcelWorksheet bandSheet = package.Workbook.Worksheets.Add("BandValues");
+        bandSheet.Cells.LoadFromCollection(bandValues.Select(v => new { Value = v }));
+        bandSheet.Hidden = eWorkSheetHidden.VeryHidden;
+        var bandRange = bandSheet.Cells[1, 1, bandValues.Count, 1];
+
+        AddDropdownValidation(worksheet, "I4:I1048576", bandRange, allowBlank: true); // "2G GSM 900"
+        AddDropdownValidation(worksheet, "J4:J1048576", bandRange, allowBlank: true); // "2G GSM 1800"
+        AddDropdownValidation(worksheet, "K4:K1048576", bandRange, allowBlank: true); // "3G WCDMA 850"
+        AddDropdownValidation(worksheet, "L4:L1048576", bandRange, allowBlank: true); // "3G WCDMA 900"
+        AddDropdownValidation(worksheet, "M4:M1048576", bandRange, allowBlank: true); // "3G WCDMA 2100"
+        AddDropdownValidation(worksheet, "N4:N1048576", bandRange, allowBlank: true); // "4G FDD-LTE 700"
+        AddDropdownValidation(worksheet, "O4:O1048576", bandRange, allowBlank: true); // "4G FDD-LTE 850"
+        AddDropdownValidation(worksheet, "P4:P1048576", bandRange, allowBlank: true); // "4G FDD-LTE 900"
+        AddDropdownValidation(worksheet, "Q4:Q1048576", bandRange, allowBlank: true); // "4G FDD-LTE 1800"
+        AddDropdownValidation(worksheet, "R4:R1048576", bandRange, allowBlank: true); // "4G FDD-LTE 2100"
+        AddDropdownValidation(worksheet, "S4:S1048576", bandRange, allowBlank: true); // "4G TDD-LTE 2300"
+        AddDropdownValidation(worksheet, "T4:T1048576", bandRange, allowBlank: true); // "4G TDD-LTE 2500"
+        AddDropdownValidation(worksheet, "U4:U1048576", bandRange, allowBlank: true); // "4G TDD-LTE 2600"
+        AddDropdownValidation(worksheet, "V4:V1048576", bandRange, allowBlank: true); // "5G 2600"
+        AddDropdownValidation(worksheet, "W4:W1048576", bandRange, allowBlank: true); // "5G 3500"
     }
 
     private async Task GenerateCellTemplateVersion3(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -198,6 +203,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var providers = await GetServiceProviders(ServiceTypeEnum.Wireless, cancellationToken);
         var towerTypes = Enum.GetNames(typeof(TowerTypeEnum)).ToList();
         var antennaTypes = Enum.GetNames(typeof(AntennaTypeEnum)).ToList();
+        List<string> trueFalseValues = ["TRUE", "FALSE"];
 
         if (providers.Count == 0)
         {
@@ -208,17 +214,30 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "A4:A14", providerSheet.Cells[1, 1, providers.Count, 1]);
+        AddDropdownValidation(worksheet, "A4:A1048576", providerSheet.Cells[1, 1, providers.Count, 1]);
 
         ExcelWorksheet towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
         towerTypeSheet.Cells.LoadFromCollection(towerTypes.Select(t => new { Type = t }));
         towerTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "AE4:AE14", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
+        AddDropdownValidation(worksheet, "AE4:AE1048576", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
 
         ExcelWorksheet antennaTypeSheet = package.Workbook.Worksheets.Add("AntennaTypes");
         antennaTypeSheet.Cells.LoadFromCollection(antennaTypes.Select(a => new { Type = a }));
         antennaTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "AF4:AF14", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
+        AddDropdownValidation(worksheet, "AF4:AF1048576", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
+
+        // Preset 1, 0, TRUE, FALSE (with blank allowed) dropdowns and conditional formatting for all 22 band columns (Cols 9 to 30: I through AD)
+        List<string> bandValues = ["1", "0", "TRUE", "FALSE"];
+        ExcelWorksheet bandSheet = package.Workbook.Worksheets.Add("BandValues");
+        bandSheet.Cells.LoadFromCollection(bandValues.Select(v => new { Value = v }));
+        bandSheet.Hidden = eWorkSheetHidden.VeryHidden;
+        var bandRange = bandSheet.Cells[1, 1, bandValues.Count, 1];
+
+        for (int col = 9; col <= 30; col++)
+        {
+            var colName = GetExcelColumnName(col);
+            AddDropdownValidation(worksheet, $"{colName}4:{colName}1048576", bandRange, allowBlank: true);
+        }
     }
 
     private async Task GenerateSpeedtestTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -436,9 +455,21 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         validation.AllowBlank = allowBlank;
         validation.ShowErrorMessage = true;
         validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-        validation.ErrorTitle = "Invalid input";
-        validation.Error = "Choose only from the dropdown menu";
+        validation.ErrorTitle = "Invalid Selection";
+        validation.Error = "The value entered does not match any preset option. Please choose from the dropdown menu.";
         validation.Formula.ExcelFormula = sourceRange.FullAddressAbsolute;
+
+        validation.ShowInputMessage = true;
+        validation.PromptTitle = "Preset Selection";
+        validation.Prompt = "Please choose from the dropdown menu. If copy-pasting, ensure values match the allowed options exactly.";
+
+        // Highlight pasted mismatches (turns cell light red with dark red text)
+        var firstCell = range.Split(':')[0];
+        var cf = worksheet.ConditionalFormatting.AddExpression(new ExcelAddress(range));
+        cf.Formula = $"AND({firstCell}<>\"\", ISERROR(MATCH({firstCell}, {sourceRange.FullAddressAbsolute}, 0)))";
+        cf.Style.Fill.PatternType = ExcelFillStyle.Solid;
+        cf.Style.Fill.BackgroundColor.Color = System.Drawing.Color.FromArgb(255, 199, 206);
+        cf.Style.Font.Color.Color = System.Drawing.Color.FromArgb(156, 0, 6);
 
         if (!string.IsNullOrEmpty(defaultValue))
         {
@@ -451,25 +482,21 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
     private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, List<string> values, bool allowBlank = false, string? defaultValue = null)
     {
-        var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = allowBlank;
-        validation.ShowErrorMessage = true;
-        validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-        validation.ErrorTitle = "Invalid input";
-        validation.Error = "Choose only from the dropdown menu";
+        // Use a hidden sheet for the values to enable both Excel Data Validation and Conditional Formatting
+        var cleanRangeName = range.Replace(":", "_");
+        var sheetName = "Lkp_" + cleanRangeName;
+        if (sheetName.Length > 31) sheetName = sheetName[..31]; // Excel sheet names max 31 chars
 
-        foreach (var value in values)
+        var existingSheet = worksheet.Workbook.Worksheets[sheetName];
+        if (existingSheet == null)
         {
-            validation.Formula.Values.Add(value);
+            existingSheet = worksheet.Workbook.Worksheets.Add(sheetName);
+            existingSheet.Cells[1, 1].LoadFromCollection(values.Select(v => new { Value = v }));
+            existingSheet.Hidden = eWorkSheetHidden.VeryHidden;
         }
 
-        if (!string.IsNullOrEmpty(defaultValue))
-        {
-            string cellAddress = range.Split(':')[0];
-            ExcelRange targetCell = worksheet.Cells[cellAddress];
-            targetCell.Value = defaultValue;
-            targetCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-        }
+        var sourceRange = existingSheet.Cells[1, 1, values.Count, 1];
+        AddDropdownValidation(worksheet, range, sourceRange, allowBlank, defaultValue);
     }
 
     private static void AutoFitColumns(ExcelWorksheet worksheet)
