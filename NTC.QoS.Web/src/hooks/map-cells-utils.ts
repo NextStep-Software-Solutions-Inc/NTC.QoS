@@ -116,7 +116,7 @@ export function getSignalCoverageCirclePaint(opacity: number = 0.8): CircleLayer
     "circle-color": [
       "interpolate",
       ["linear"],
-      ["get", "strength"],
+      ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"], -120],
       -120,
       SIGNAL_STRENGTH_COLORS.veryPoor, // Very weak - red
       -90,
@@ -197,11 +197,22 @@ export async function loadProviderIcons(map: any, iconsLoadedRef: Set<string>): 
  * Matches the exact design from CellsiteMapView for consistency
  */
 export function createSignalCoveragePopupHTML(properties: {
-  strength: number;
+  strength?: number;
+  signal_strength_dbm?: number;
   barangay?: string;
-  azimuth?: string;
+  address?: string;
+  location?: string;
+  azimuth?: string | number;
+  network?: string;
+  technology?: string;
+  band?: string;
+  frequency?: string;
+  source_file?: string;
+  duplex_mode?: string;
+  areaStudy?: string;
 }): string {
-  const strength = properties.strength;
+  const rawStrength = properties.signal_strength_dbm ?? properties.strength;
+  const strength = typeof rawStrength === "number" ? rawStrength : -120;
   const signalLabel =
     strength >= -60
       ? "Excellent"
@@ -224,8 +235,10 @@ export function createSignalCoveragePopupHTML(properties: {
             ? SIGNAL_STRENGTH_COLORS.poor
             : SIGNAL_STRENGTH_COLORS.veryPoor;
 
-  const barangay = properties.barangay || "Unknown location";
-  const azimuth = properties.azimuth || "N/A";
+  const locationText = properties.address || properties.location || properties.barangay || "Unknown location";
+  const azimuthText = properties.azimuth !== undefined && properties.azimuth !== null ? `${properties.azimuth}°` : "N/A";
+  const networkText = properties.network || "";
+  const techBandText = [properties.technology, properties.band].filter(Boolean).join(" - ");
 
   // Enhanced styled popup with gradient background - matches CellsiteMapView
   return `
@@ -267,7 +280,7 @@ export function createSignalCoveragePopupHTML(properties: {
               ${signalLabel}
             </div>
             <div style="font-size: 20px; font-weight: 800; margin-top: 2px;">
-              ${strength.toFixed(0)} dBm
+              ${strength.toFixed(1)} dBm
             </div>
           </div>
         </div>
@@ -281,6 +294,30 @@ export function createSignalCoveragePopupHTML(properties: {
           gap: 10px; 
           font-size: 13px;
         ">
+          ${networkText || techBandText ? `
+          <div style="
+            display: flex; 
+            align-items: center; 
+            gap: 10px;
+            padding: 8px 10px;
+            background: #f1f5f9;
+            border-radius: 8px;
+          ">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2">
+              <path d="M2 20h20"/>
+              <path d="M5 20v-4"/>
+              <path d="M9 20v-8"/>
+              <path d="M13 20V8"/>
+              <path d="M17 20V4"/>
+            </svg>
+            <div style="flex: 1; min-width: 0;">
+              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Network</div>
+              <div style="color: #1e293b; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${networkText ? `<span style="color: #2563eb;">${networkText}</span>` : ""} ${techBandText ? `(${techBandText})` : ""}
+              </div>
+            </div>
+          </div>` : ""}
+
           <div style="
             display: flex; 
             align-items: center; 
@@ -295,7 +332,7 @@ export function createSignalCoveragePopupHTML(properties: {
             </svg>
             <div style="flex: 1; min-width: 0;">
               <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Location</div>
-              <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${barangay}</div>
+              <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${locationText}</div>
             </div>
           </div>
           
@@ -314,7 +351,7 @@ export function createSignalCoveragePopupHTML(properties: {
             </svg>
             <div style="flex: 1;">
               <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Azimuth</div>
-              <div style="color: #1e293b; font-weight: 500;">${azimuth}</div>
+              <div style="color: #1e293b; font-weight: 500;">${azimuthText}</div>
             </div>
           </div>
         </div>
@@ -328,7 +365,7 @@ export function createSignalCoveragePopupHTML(properties: {
           <div style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
             <div style="
               height: 100%; 
-              width: ${Math.max(0, Math.min(100, ((strength + 100) / 40) * 100))}%;
+              width: ${Math.max(0, Math.min(100, ((strength + 120) / 60) * 100))}%;
               background: linear-gradient(90deg, ${signalColor}, ${signalColor}aa);
               border-radius: 3px;
               transition: width 0.3s;

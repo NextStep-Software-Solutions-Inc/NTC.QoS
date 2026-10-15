@@ -803,14 +803,15 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       }
     };
 
-    // Click handler for signal coverage points (admin-only)
-    const handleSignalCoverageClick = (e: any) => {
+    // Hover & click handlers for signal coverage points (admin-only)
+    const handleSignalCoverageMouseMove = (e: any) => {
       if (!options?.isAdminMode) return;
       const features = map.queryRenderedFeatures(e.point, { layers: ["signal-coverage-circles"] });
       if (features && features.length > 0) {
         const feature = features[0];
         if (!feature) return;
-        const properties = feature.properties as { strength?: number; barangay?: string; azimuth?: string };
+        map.getCanvas().style.cursor = "pointer";
+        const properties = feature.properties as any;
 
         if (properties) {
           const coordinates = (feature.geometry as any).coordinates.slice();
@@ -820,21 +821,15 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
             coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
           }
 
-          popup.setLngLat(coordinates).setHTML(createSignalCoveragePopupHTML(properties as any)).addTo(map);
+          popup.setLngLat(coordinates).setHTML(createSignalCoveragePopupHTML(properties)).addTo(map);
         }
-      }
-    };
-
-    // Mouse enter/leave handlers for signal coverage (admin-only)
-    const handleSignalCoverageEnter = () => {
-      if (options?.isAdminMode) {
-        map.getCanvas().style.cursor = "pointer";
       }
     };
 
     const handleSignalCoverageLeave = () => {
       if (options?.isAdminMode) {
         map.getCanvas().style.cursor = "";
+        popup.remove();
       }
     };
 
@@ -936,8 +931,8 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
     // Attach signal coverage handlers (admin-only)
     if (options?.isAdminMode) {
-      map.on("click", "signal-coverage-circles", handleSignalCoverageClick);
-      map.on("mouseenter", "signal-coverage-circles", handleSignalCoverageEnter);
+      map.on("click", "signal-coverage-circles", handleSignalCoverageMouseMove);
+      map.on("mousemove", "signal-coverage-circles", handleSignalCoverageMouseMove);
       map.on("mouseleave", "signal-coverage-circles", handleSignalCoverageLeave);
     }
 
@@ -987,8 +982,8 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       map.off("click", "cells-symbols", handleCellClick);
 
       if (options?.isAdminMode) {
-        map.off("click", "signal-coverage-circles", handleSignalCoverageClick);
-        map.off("mouseenter", "signal-coverage-circles", handleSignalCoverageEnter);
+        map.off("click", "signal-coverage-circles", handleSignalCoverageMouseMove);
+        map.off("mousemove", "signal-coverage-circles", handleSignalCoverageMouseMove);
         map.off("mouseleave", "signal-coverage-circles", handleSignalCoverageLeave);
       }
 
@@ -1099,11 +1094,12 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     }
 
     // Apply inclusive range filter as a MapTiler expression
+    const strengthExpr: any = ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"]];
     map.setFilter("signal-coverage-circles", [
       "all",
-      [">=", ["get", "strength"], signalStrengthMin],
-      ["<=", ["get", "strength"], signalStrengthMax],
-    ]);
+      [">=", strengthExpr, signalStrengthMin],
+      ["<=", strengthExpr, signalStrengthMax],
+    ] as any);
   }, [map, isMapLoaded, options?.isAdminMode, signalStrengthMin, signalStrengthMax]);
 
   // Re-enforce cell layer ordering after any map style or source change.
