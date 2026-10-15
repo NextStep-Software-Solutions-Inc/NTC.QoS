@@ -116,32 +116,101 @@ export function getCellSiteHeatmapPaint(opacity: number = 0.7): HeatmapLayerSpec
 }
 
 /**
- * Get signal coverage circle layer paint configuration (color-coded by RSSI).
- * Uses circles instead of heatmap to show actual signal strength per point.
- *
- * Color scale thresholds (3GPP-style):
- *   >= -80 dBm   → Excellent (green)
- *   -90 to -80   → Good (light green)
- *   -100 to -90  → Fair (yellow)
- *   -110 to -100 → Weak (orange)
- *   < -110       → Poor (red)
+ * Get dynamic signal coverage circle color paint expression.
+ * If configured area study signal levels are provided, builds a MapLibre case expression
+ * matching each level's threshold range [min, max) to its configured hex color.
+ * Falls back to the default 3GPP color scale if no custom levels are configured.
  */
-export function getSignalCoverageCirclePaint(opacity: number = 0.8): CircleLayerSpecification["paint"] {
+export function getSignalCoverageCircleColorPaint(
+  configuredLevels?: Array<{
+    thresholdFrom?: number;
+    thresholdTo?: number;
+    color?: string;
+    isTop?: boolean;
+  }>,
+): any {
+  const strengthExpr: any = ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"], -120];
+
+  const default3GPP: any = [
+    "step",
+    strengthExpr,
+    SIGNAL_STRENGTH_COLORS.poor,
+    -110,
+    SIGNAL_STRENGTH_COLORS.weak,
+    -100,
+    SIGNAL_STRENGTH_COLORS.fair,
+    -90,
+    SIGNAL_STRENGTH_COLORS.good,
+    -80,
+    SIGNAL_STRENGTH_COLORS.excellent,
+  ];
+
+  if (!configuredLevels || configuredLevels.length === 0) {
+    return default3GPP;
+  }
+
+  const validLevels = configuredLevels.filter(
+    (lvl) => (lvl.thresholdFrom !== undefined || lvl.thresholdTo !== undefined) && Boolean(lvl.color),
+  );
+
+  if (validLevels.length === 0) {
+    return default3GPP;
+  }
+
+  const allTos = validLevels
+    .map((l) => (typeof l.thresholdTo === "number" ? l.thresholdTo : undefined))
+    .filter((v): v is number => v !== undefined);
+  const globalMax = allTos.length > 0 ? Math.max(...allTos) : undefined;
+
+  const caseExpr: any[] = ["case"];
+
+  for (const level of validLevels) {
+    const min = level.thresholdFrom;
+    const max = level.thresholdTo;
+    const isTop = level.isTop || (max !== undefined && max === globalMax) || (max !== undefined && max >= 0);
+
+    const conditions: any[] = ["all"];
+    if (min !== undefined) {
+      conditions.push([">=", strengthExpr, min]);
+    }
+    if (max !== undefined) {
+      if (isTop) {
+        conditions.push(["<=", strengthExpr, max]);
+      } else {
+        conditions.push(["<", strengthExpr, max]);
+      }
+    }
+
+    if (conditions.length > 1) {
+      caseExpr.push(conditions, level.color!);
+    }
+  }
+
+  if (caseExpr.length <= 1) {
+    return default3GPP;
+  }
+
+  // Fallback if none of the explicit level ranges match
+  caseExpr.push(default3GPP);
+
+  return caseExpr;
+}
+
+/**
+ * Get signal coverage circle layer paint configuration (color-coded by RSSI / configured signal level).
+ */
+export function getSignalCoverageCirclePaint(
+  opacity: number = 0.8,
+  configuredLevels?: Array<{
+    thresholdFrom?: number;
+    thresholdTo?: number;
+    color?: string;
+    isTop?: boolean;
+  }>,
+): CircleLayerSpecification["paint"] {
   return {
     "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 2, 10, 4, 15, 8],
-    "circle-color": [
-      "step",
-      ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"], -120],
-      SIGNAL_STRENGTH_COLORS.poor,
-      -110,
-      SIGNAL_STRENGTH_COLORS.weak,
-      -100,
-      SIGNAL_STRENGTH_COLORS.fair,
-      -90,
-      SIGNAL_STRENGTH_COLORS.good,
-      -80,
-      SIGNAL_STRENGTH_COLORS.excellent,
-    ],
+    "circle-color": getSignalCoverageCircleColorPaint(configuredLevels),
     "circle-opacity": opacity,
     "circle-stroke-width": 0,
   };
@@ -210,26 +279,63 @@ export async function loadProviderIcons(map: any, iconsLoadedRef: Set<string>): 
  * Create popup HTML for signal coverage point with enhanced styling
  * Matches the exact design from CellsiteMapView for consistency
  */
-export function createSignalCoveragePopupHTML(properties: {
-  strength?: number;
-  signal_strength_dbm?: number;
-  barangay?: string;
-  address?: string;
-  location?: string;
-  azimuth?: string | number;
-  network?: string;
-  technology?: string;
-  band?: string;
-  frequency?: string;
-  source_file?: string;
-  duplex_mode?: string;
-  areaStudy?: string;
-  interpolation_note?: string;
-}): string {
+export function createSignalCoveragePopupHTML(
+  properties: {
+    strength?: number;
+    signal_strength_dbm?: number;
+    barangay?: string;
+    address?: string;
+    location?: string;
+    azimuth?: string | number;
+    network?: string;
+    technology?: string;
+    band?: string;
+    frequency?: string;
+    source_file?: string;
+    duplex_mode?: string;
+    areaStudy?: string;
+    interpolation_note?: string;
+  },
+  configuredLevels?: Array<{
+    thresholdFrom?: number;
+    thresholdTo?: number;
+    color?: string;
+    description?: string;
+    isTop?: boolean;
+  }>,
+): string {
   const rawStrength = properties.signal_strength_dbm ?? properties.strength;
   const strength = typeof rawStrength === "number" ? rawStrength : -120;
-  const signalLabel = getSignalStrengthQualityLabel(strength);
-  const signalColor = getSignalStrengthColor(strength);
+  let signalLabel = getSignalStrengthQualityLabel(strength);
+  let signalColor = getSignalStrengthColor(strength);
+
+  if (configuredLevels && configuredLevels.length > 0) {
+    const allTos = configuredLevels
+      .map((l) => (typeof l.thresholdTo === "number" ? l.thresholdTo : undefined))
+      .filter((v): v is number => v !== undefined);
+    const globalMax = allTos.length > 0 ? Math.max(...allTos) : undefined;
+
+    const matched = configuredLevels.find((level) => {
+      const min = level.thresholdFrom;
+      const max = level.thresholdTo;
+      const isTop = level.isTop || (max !== undefined && max === globalMax) || (max !== undefined && max >= 0);
+
+      if (min !== undefined && strength < min) return false;
+      if (max !== undefined) {
+        if (isTop) {
+          if (strength > max) return false;
+        } else {
+          if (strength >= max) return false;
+        }
+      }
+      return true;
+    });
+
+    if (matched) {
+      if (matched.description) signalLabel = matched.description;
+      if (matched.color) signalColor = matched.color;
+    }
+  }
 
   const locationText = properties.address || properties.location || properties.barangay || "Unknown location";
   const azimuthText = properties.azimuth !== undefined && properties.azimuth !== null ? `${properties.azimuth}°` : "N/A";

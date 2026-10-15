@@ -39,10 +39,12 @@ import {
   getClusterLayerPaint,
   getPointViewCirclePaint,
   getProviderIconId,
+  getSignalCoverageCircleColorPaint,
   getSignalCoverageCirclePaint,
   getSignalStrengthColor,
   loadProviderIcons,
 } from "./map-cells-utils";
+import type { ConfiguredSignalLevel } from "@/components/admin-map/types";
 
 // Constants
 const PAGE_SIZE = 2000;
@@ -69,7 +71,9 @@ export interface CellOptions {
   /** Area study label used to scope signal coverage GeoJSON features. */
   signalCoverageAreaStudyName?: string;
   /** Explicit signal-level ranges to include (combined with OR). */
-  signalLevelRanges?: Array<{ min?: number; max?: number; isTop?: boolean }>;
+  signalLevelRanges?: Array<{ min?: number; max?: number; color?: string; description?: string; isTop?: boolean }>;
+  /** Full set of configured signal levels for the active area study */
+  configuredSignalLevels?: ConfiguredSignalLevel[];
   /** Signal strength range filter (dBm) applied to the Radio Network Coverage layer */
   signalStrengthFilter?: { min: number; max: number };
   /** Free-text search for signal coverage properties (e.g., location, technology, cell GUID). */
@@ -574,6 +578,12 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
   useLayoutEffect(() => {
     normalizedConfigRef.current = normalizedConfig;
   }, [normalizedConfig]);
+
+  // Keep a ref to configuredSignalLevels so popup event handlers can always format with active level definitions
+  const configuredSignalLevelsRef = useRef(options?.configuredSignalLevels);
+  useLayoutEffect(() => {
+    configuredSignalLevelsRef.current = options?.configuredSignalLevels;
+  }, [options?.configuredSignalLevels]);
 
   // Track viewport for spatial loading
   const { bounds: viewportBounds, isStable: isViewportStable } = useMapViewport({
@@ -1347,7 +1357,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
           id: "signal-coverage-circles",
           type: "circle",
           source: "signal-coverage-source",
-          paint: getSignalCoverageCirclePaint(0.8),
+          paint: getSignalCoverageCirclePaint(0.8, options?.configuredSignalLevels),
           layout: {
             visibility: initialSignalVis,
           },
@@ -1397,7 +1407,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
             coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
           }
 
-          popup.setLngLat(coordinates).setHTML(createSignalCoveragePopupHTML(properties)).addTo(map);
+          popup
+            .setLngLat(coordinates)
+            .setHTML(createSignalCoveragePopupHTML(properties, configuredSignalLevelsRef.current))
+            .addTo(map);
         }
       }
     };
@@ -1412,7 +1425,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         const properties = feature.properties as { strength?: number; barangay?: string; azimuth?: string };
         if (!properties) return;
 
-        popup.setLngLat(e.lngLat).setHTML(createSignalCoveragePopupHTML(properties as any)).addTo(map);
+        popup
+          .setLngLat(e.lngLat)
+          .setHTML(createSignalCoveragePopupHTML(properties as any, configuredSignalLevelsRef.current))
+          .addTo(map);
       }
     };
 
@@ -1448,7 +1464,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         interpolation_note: "interpolated",
       };
 
-      popup.setLngLat(e.lngLat).setHTML(createSignalCoveragePopupHTML(properties as any)).addTo(map);
+      popup
+        .setLngLat(e.lngLat)
+        .setHTML(createSignalCoveragePopupHTML(properties as any, configuredSignalLevelsRef.current))
+        .addTo(map);
     };
 
     // Mouse enter/leave handlers for signal coverage (admin-only)
@@ -1830,6 +1849,24 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     signalStrengthMax,
     signalSearchQuery,
   ]);
+
+  // Dynamically update signal coverage circle colors when configured signal levels change
+  useEffect(() => {
+    if (!map || !isMapLoaded || !options?.isAdminMode) return;
+    if (!map.getLayer("signal-coverage-circles")) return;
+
+    const levels = options?.configuredSignalLevels?.length
+      ? options.configuredSignalLevels
+      : options?.signalLevelRanges?.map((r) => ({
+          thresholdFrom: r.min,
+          thresholdTo: r.max,
+          color: r.color ?? "#6b7280",
+          isTop: r.isTop,
+        }));
+
+    const colorPaint = getSignalCoverageCircleColorPaint(levels);
+    map.setPaintProperty("signal-coverage-circles", "circle-color", colorPaint);
+  }, [map, isMapLoaded, options?.isAdminMode, options?.configuredSignalLevels, options?.signalLevelRanges]);
 
   // Re-enforce cell layer ordering after any map style or source change.
   // This ensures cell layers stay in the correct z-order across all map styles,

@@ -184,6 +184,24 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
 
   const selectedSignalLevelEntryIds = pendingFilters.signalCoverageSignalLevelEntryIds;
 
+  const allConfiguredSignalLevels = useMemo(() => {
+    if (!signalLevelEntries || signalLevelEntries.length === 0) return [];
+
+    const allThresholdTos = signalLevelEntries
+      .map((entry) => (typeof entry.thresholdTo === "number" ? entry.thresholdTo : undefined))
+      .filter((val): val is number => val !== undefined);
+    const globalMaxThreshold = allThresholdTos.length > 0 ? Math.max(...allThresholdTos) : undefined;
+
+    return signalLevelEntries.map((entry) => ({
+      id: entry.id,
+      thresholdFrom: typeof entry.thresholdFrom === "number" ? entry.thresholdFrom : undefined,
+      thresholdTo: typeof entry.thresholdTo === "number" ? entry.thresholdTo : undefined,
+      color: entry.color,
+      description: entry.description,
+      isTop: typeof entry.thresholdTo === "number" && entry.thresholdTo === globalMaxThreshold,
+    }));
+  }, [signalLevelEntries]);
+
   const deriveRangesFromSelectedEntries = useCallback(
     (selectedIds: string[]) => {
       const allThresholdTos = signalLevelEntries
@@ -196,6 +214,8 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
         .map((entry) => ({
           min: typeof entry.thresholdFrom === "number" ? entry.thresholdFrom : undefined,
           max: typeof entry.thresholdTo === "number" ? entry.thresholdTo : undefined,
+          color: entry.color,
+          description: entry.description,
           isTop: typeof entry.thresholdTo === "number" && entry.thresholdTo === globalMaxThreshold,
         }))
         .filter((range) => range.min !== undefined || range.max !== undefined);
@@ -218,6 +238,12 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
   }, []);
 
   useEffect(() => {
+    if (allConfiguredSignalLevels.length > 0) {
+      updatePending({ configuredSignalLevels: allConfiguredSignalLevels });
+    }
+  }, [allConfiguredSignalLevels, updatePending]);
+
+  useEffect(() => {
     if (!selectedAreaStudy || signalLevelEntries.length === 0) return;
 
     if (selectedSignalLevelEntryIds.length > 0) return;
@@ -231,15 +257,16 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
     updatePending({
       signalCoverageSignalLevelEntryIds: nextSelectedIds,
       signalCoverageSignalLevelRanges: ranges,
+      configuredSignalLevels: allConfiguredSignalLevels,
       signalStrength: deriveEnvelopeFromRanges(ranges),
     });
   }, [
+    allConfiguredSignalLevels,
     deriveEnvelopeFromRanges,
     deriveRangesFromSelectedEntries,
     selectedAreaStudy,
     selectedSignalLevelEntryIds,
     signalLevelEntries,
-    updatePending,
   ]);
 
   // Transform wireless service providers to options (for cellular & speedtest tabs)
@@ -325,6 +352,7 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
         signalCoverageAreaStudyName: areaStudy?.name,
         signalCoverageSignalLevelEntryIds: [],
         signalCoverageSignalLevelRanges: [],
+        configuredSignalLevels: [],
       });
 
       if (!signalLevel) {
@@ -344,10 +372,11 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
       updatePending({
         signalCoverageSignalLevelEntryIds: nextSelectedIds,
         signalCoverageSignalLevelRanges: ranges,
+        configuredSignalLevels: allConfiguredSignalLevels,
         signalStrength: deriveEnvelopeFromRanges(ranges),
       });
     },
-    [deriveEnvelopeFromRanges, deriveRangesFromSelectedEntries, selectedSignalLevelEntryIds, updatePending],
+    [allConfiguredSignalLevels, deriveEnvelopeFromRanges, deriveRangesFromSelectedEntries, selectedSignalLevelEntryIds, updatePending],
   );
 
   // Toggle wired service provider selection for NAP/fiber filtering

@@ -246,6 +246,7 @@ function AdminMapContent() {
       signalStrengthFilter: filters.signalStrength,
       signalLevelRanges: filters.signalCoverageSignalLevelRanges,
       signalCoverageAreaStudyName: filters.signalCoverageAreaStudyName,
+      configuredSignalLevels: filters.configuredSignalLevels,
       searchQuery: filters.searchQuery?.trim() ? filters.searchQuery : undefined,
     }),
     [
@@ -255,6 +256,7 @@ function AdminMapContent() {
       filters.signalStrength,
       filters.signalCoverageSignalLevelRanges,
       filters.signalCoverageAreaStudyName,
+      filters.configuredSignalLevels,
       filters.searchQuery,
     ],
   );
