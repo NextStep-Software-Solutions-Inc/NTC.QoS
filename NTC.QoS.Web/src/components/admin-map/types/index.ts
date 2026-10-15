@@ -139,7 +139,7 @@ export interface AdminMapFilters {
   signalCoverageAreaStudyId?: string; // Area study filter used to resolve signal level ranges
   signalCoverageAreaStudyName?: string; // Area study label used to match GeoJSON annotations
   signalCoverageSignalLevelEntryIds: string[]; // Selected signal-level entries inside the chosen area study
-  signalCoverageSignalLevelRanges: Array<{ min?: number; max?: number }>; // OR-ed ranges derived from selected entries
+  signalCoverageSignalLevelRanges: Array<{ min?: number; max?: number; isTop?: boolean }>; // OR-ed ranges derived from selected entries
   dateRange: DateRangeFilter;
   signalStrength: SignalStrengthFilter;
   speedTest: SpeedTestFilter;

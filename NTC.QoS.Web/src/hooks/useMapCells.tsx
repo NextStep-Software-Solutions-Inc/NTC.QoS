@@ -69,7 +69,7 @@ export interface CellOptions {
   /** Area study label used to scope signal coverage GeoJSON features. */
   signalCoverageAreaStudyName?: string;
   /** Explicit signal-level ranges to include (combined with OR). */
-  signalLevelRanges?: Array<{ min?: number; max?: number }>;
+  signalLevelRanges?: Array<{ min?: number; max?: number; isTop?: boolean }>;
   /** Signal strength range filter (dBm) applied to the Radio Network Coverage layer */
   signalStrengthFilter?: { min: number; max: number };
   /** Free-text search for signal coverage properties (e.g., location, technology, cell GUID). */
@@ -1752,7 +1752,13 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
           singleRange.push([">=", strengthExpr, min]);
         }
         if (max !== undefined) {
-          singleRange.push(["<=", strengthExpr, max]);
+          // Half-open interval [min, max): use '<' for intermediate ranges to prevent boundary overlap,
+          // and '<=' for the top level (or when max >= 0) to ensure the highest range is fully closed.
+          if (range.isTop || max >= 0) {
+            singleRange.push(["<=", strengthExpr, max]);
+          } else {
+            singleRange.push(["<", strengthExpr, max]);
+          }
         }
 
         rangeExpression.push(singleRange);

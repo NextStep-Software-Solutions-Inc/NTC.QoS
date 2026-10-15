@@ -186,11 +186,17 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
 
   const deriveRangesFromSelectedEntries = useCallback(
     (selectedIds: string[]) => {
+      const allThresholdTos = signalLevelEntries
+        .map((entry) => (typeof entry.thresholdTo === "number" ? entry.thresholdTo : undefined))
+        .filter((val): val is number => val !== undefined);
+      const globalMaxThreshold = allThresholdTos.length > 0 ? Math.max(...allThresholdTos) : undefined;
+
       return signalLevelEntries
         .filter((entry) => selectedIds.includes(entry.id))
         .map((entry) => ({
           min: typeof entry.thresholdFrom === "number" ? entry.thresholdFrom : undefined,
           max: typeof entry.thresholdTo === "number" ? entry.thresholdTo : undefined,
+          isTop: typeof entry.thresholdTo === "number" && entry.thresholdTo === globalMaxThreshold,
         }))
         .filter((range) => range.min !== undefined || range.max !== undefined);
     },
