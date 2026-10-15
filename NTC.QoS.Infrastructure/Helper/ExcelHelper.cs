@@ -1,4 +1,4 @@
-﻿using ClosedXML.Excel;
+using ClosedXML.Excel;
 using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Exceptions;
 using System.Globalization;
@@ -49,7 +49,8 @@ public static class ExcelHelper
 
                 for (int col = 1; col <= columnCount; col++)
                 {
-                    var cellValue = worksheet.Cell(row, col).GetString();
+                    var cell = worksheet.Cell(row, col);
+                    var cellValue = cell.GetString();
                     var header = headers[col - 1];
 
                     // STEP 3: Match header to property using ExcelHeaderAttribute
@@ -68,10 +69,25 @@ public static class ExcelHelper
                             // STEP 4: Convert string to property type
                             object? convertedValue;
                             
-                            // Special handling for DateTime to support multiple formats
+                            // Special handling for DateTime to support multiple formats and native Excel dates
                             if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
                             {
-                                convertedValue = ParseDateTime(cellValue);
+                                if (string.IsNullOrWhiteSpace(cellValue))
+                                {
+                                    convertedValue = property.PropertyType == typeof(DateTime?) ? (object?)null : throw new FormatException("DateTime value cannot be empty");
+                                }
+                                else if (cell.DataType == XLDataType.DateTime)
+                                {
+                                    convertedValue = cell.GetDateTime();
+                                }
+                                else if (cell.TryGetValue(out DateTime parsedCellDate))
+                                {
+                                    convertedValue = parsedCellDate;
+                                }
+                                else
+                                {
+                                    convertedValue = ParseDateTime(cellValue);
+                                }
                             }
                             // Special handling for bool / bool? to accept blank, "NBC", "0"/"1", "true"/"false"
                             else if (property.PropertyType == typeof(bool) || property.PropertyType == typeof(bool?))
@@ -153,45 +169,114 @@ public static class ExcelHelper
     }
 
     /// <summary>
-    /// Parses DateTime from string with support for multiple formats
+    /// Parses DateTime from string with support for multiple formats.
+    /// Prioritizes MM/dd/yyyy formats as mandated by the SOP, with full support for
+    /// 12-hour AM/PM times, 24-hour times, and 2-digit/4-digit years.
     /// </summary>
-    private static DateTime ParseDateTime(string value)
+    internal static DateTime ParseDateTime(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
             throw new FormatException("DateTime value cannot be empty");
         }
 
-        // Try parsing with multiple datetime formats
+        var trimmed = value.Trim();
+
+        // Formats supporting MM/dd/yyyy (SOP priority), 12h/24h times, 2-digit years, and fallbacks
         var formats = new[]
         {
-            "dd/MM/yyyy, HH:mm",      // 26/09/2025, 08:46
-            "dd/MM/yyyy HH:mm",        // 26/09/2025 08:46
-            "dd/MM/yyyy, HH:mm:ss",    // 26/09/2025, 08:46:30
-            "dd/MM/yyyy HH:mm:ss",     // 26/09/2025 08:46:30
-            "dd/MM/yyyy",              // 26/09/2025
-            "MM/dd/yyyy, HH:mm",       // 09/26/2025, 08:46
-            "MM/dd/yyyy HH:mm",        // 09/26/2025 08:46
-            "MM/dd/yyyy, HH:mm:ss",    // 09/26/2025, 08:46:30
-            "MM/dd/yyyy HH:mm:ss",     // 09/26/2025 08:46:30
-            "MM/dd/yyyy",              // 09/26/2025
-            "yyyy-MM-dd HH:mm:ss",     // 2025-09-26 08:46:30
-            "yyyy-MM-dd HH:mm",        // 2025-09-26 08:46
-            "yyyy-MM-dd",              // 2025-09-26
+            // MM/dd/yyyy formats (Mandated by SOP) - 24-hour and 12-hour AM/PM
+            "MM/dd/yyyy, HH:mm:ss",
+            "MM/dd/yyyy HH:mm:ss",
+            "MM/dd/yyyy, HH:mm",
+            "MM/dd/yyyy HH:mm",
+            "MM/dd/yyyy, hh:mm:ss tt",
+            "MM/dd/yyyy hh:mm:ss tt",
+            "MM/dd/yyyy, hh:mm tt",
+            "MM/dd/yyyy hh:mm tt",
+            "MM/dd/yyyy, h:mm:ss tt",
+            "MM/dd/yyyy h:mm:ss tt",
+            "MM/dd/yyyy, h:mm tt",
+            "MM/dd/yyyy h:mm tt",
+            "MM/dd/yyyy",
+
+            // MM/dd/yy (2-digit year) formats (e.g., 10/06/26 04:12 PM)
+            "MM/dd/yy, hh:mm:ss tt",
+            "MM/dd/yy hh:mm:ss tt",
+            "MM/dd/yy, hh:mm tt",
+            "MM/dd/yy hh:mm tt",
+            "MM/dd/yy, h:mm:ss tt",
+            "MM/dd/yy h:mm:ss tt",
+            "MM/dd/yy, h:mm tt",
+            "MM/dd/yy h:mm tt",
+            "MM/dd/yy, HH:mm:ss",
+            "MM/dd/yy HH:mm:ss",
+            "MM/dd/yy, HH:mm",
+            "MM/dd/yy HH:mm",
+            "MM/dd/yy",
+
+            // M/d/yyyy and M/d/yy single digit formats
+            "M/d/yyyy, hh:mm:ss tt",
+            "M/d/yyyy hh:mm:ss tt",
+            "M/d/yyyy, hh:mm tt",
+            "M/d/yyyy hh:mm tt",
+            "M/d/yyyy, h:mm:ss tt",
+            "M/d/yyyy h:mm:ss tt",
+            "M/d/yyyy, h:mm tt",
+            "M/d/yyyy h:mm tt",
+            "M/d/yyyy, HH:mm:ss",
+            "M/d/yyyy HH:mm:ss",
+            "M/d/yyyy, HH:mm",
+            "M/d/yyyy HH:mm",
+            "M/d/yyyy",
+
+            "M/d/yy, hh:mm:ss tt",
+            "M/d/yy hh:mm:ss tt",
+            "M/d/yy, hh:mm tt",
+            "M/d/yy hh:mm tt",
+            "M/d/yy, h:mm:ss tt",
+            "M/d/yy h:mm:ss tt",
+            "M/d/yy, h:mm tt",
+            "M/d/yy h:mm tt",
+            "M/d/yy, HH:mm:ss",
+            "M/d/yy HH:mm:ss",
+            "M/d/yy, HH:mm",
+            "M/d/yy HH:mm",
+            "M/d/yy",
+
+            // ISO formats
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd, HH:mm:ss",
+            "yyyy-MM-dd, HH:mm",
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-ddTHH:mm:ssZ",
+            "yyyy-MM-dd",
+
+            // dd/MM/yyyy fallback formats
+            "dd/MM/yyyy, HH:mm:ss",
+            "dd/MM/yyyy HH:mm:ss",
+            "dd/MM/yyyy, HH:mm",
+            "dd/MM/yyyy HH:mm",
+            "dd/MM/yyyy, hh:mm:ss tt",
+            "dd/MM/yyyy hh:mm:ss tt",
+            "dd/MM/yyyy, hh:mm tt",
+            "dd/MM/yyyy hh:mm tt",
+            "dd/MM/yyyy",
         };
 
-        // Try parsing with known formats
-        if (DateTime.TryParseExact(value, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime result))
+        // Try parsing with known formats using InvariantCulture and RoundtripKind to preserve exact values
+        if (DateTime.TryParseExact(trimmed, formats, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTime result))
         {
             return result;
         }
 
         // Fallback to standard DateTime parsing
-        if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+        if (DateTime.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out result))
         {
             return result;
         }
 
-        throw new FormatException($"Unable to parse '{value}' as DateTime. Supported formats include: dd/MM/yyyy, HH:mm");
+        throw new FormatException($"Unable to parse '{value}' as DateTime. Supported formats include: MM/DD/YYYY, time (e.g. MM/dd/yyyy HH:mm:ss or MM/dd/yy hh:mm tt)");
     }
 }

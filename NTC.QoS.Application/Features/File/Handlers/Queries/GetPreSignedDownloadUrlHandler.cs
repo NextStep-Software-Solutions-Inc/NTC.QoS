@@ -40,10 +40,22 @@ public class GetPreSignedDownloadUrlHandler(
                 };
             }
 
-            string containerName = GetContainerName();
-            string blobPath = GetBlobNameFromPath(file.Path);
+            var targetPath = request.IsErrorLog ? file.ErrorLogPath : file.Path;
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                return new ApiResponse<PreSignedUrlDto>
+                {
+                    Message = request.IsErrorLog
+                        ? $"No error report exists for file '{file.Name}'."
+                        : $"File path is empty for file with ID '{request.FileId}'.",
+                    Succeeded = false
+                };
+            }
 
-            TimeSpan expiry = TimeSpan.FromMinutes(1);
+            string containerName = GetContainerName();
+            string blobPath = GetBlobNameFromPath(targetPath, containerName);
+
+            TimeSpan expiry = TimeSpan.FromMinutes(request.IsErrorLog ? 15 : 1);
             string sasUrl = _blobStorageService.GeneratePreSignedDownloadUrl(containerName, blobPath, expiry);
 
             return new ApiResponse<PreSignedUrlDto>
@@ -54,7 +66,9 @@ public class GetPreSignedDownloadUrlHandler(
                     BlobPath = blobPath,
                     ExpiresAtUtc = DateTime.UtcNow.Add(expiry)
                 },
-                Message = "Successfully generated 1-minute pre-signed download URL.",
+                Message = request.IsErrorLog
+                    ? "Successfully generated error report download URL."
+                    : "Successfully generated 1-minute pre-signed download URL.",
                 Succeeded = true
             };
         }
@@ -80,12 +94,23 @@ public class GetPreSignedDownloadUrlHandler(
         };
     }
 
-    private static string GetBlobNameFromPath(string path)
+    private static string GetBlobNameFromPath(string path, string containerName)
     {
         if (Uri.TryCreate(path, UriKind.Absolute, out var uri))
         {
-            var segments = uri.LocalPath.TrimStart('/').Split('/', 2);
-            return segments.Length > 1 ? segments[1] : uri.LocalPath.TrimStart('/');
+            var segments = uri.LocalPath.TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var containerIdx = Array.FindIndex(segments, s => string.Equals(s, containerName, StringComparison.OrdinalIgnoreCase));
+            if (containerIdx >= 0 && containerIdx + 1 < segments.Length)
+            {
+                return string.Join("/", segments.Skip(containerIdx + 1));
+            }
+
+            if (segments.Length > 1)
+            {
+                return string.Join("/", segments.Skip(1));
+            }
+
+            return uri.LocalPath.TrimStart('/');
         }
 
         return path;

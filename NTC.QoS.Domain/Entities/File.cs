@@ -1,4 +1,4 @@
-﻿using NTC.QoS.Domain.Aggregates;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Enums;
 
 namespace NTC.QoS.Domain.Entities;
@@ -21,6 +21,8 @@ public class File : BaseEntity
     public DateTime? LastCheckpointTime { get; set; }
     public string? ProcessingJobId { get; set; } // Hangfire job ID to prevent duplicate runs
     public string? AssessmentJobId { get; set; } // Connectivity assessment job ID for status tracking
+    public string? ErrorMessage { get; set; } // Human-readable error message or summary for user self-service
+    public string? ErrorLogPath { get; set; } // Blob path or URL to detailed downloadable error log report
 
     public virtual List<Speedtest> Speedtests { get; set; } = [];
     public virtual List<Cellular> Cellulars { get; set; } = [];

@@ -413,5 +413,59 @@ public class DateTimeHelperTests
     }
 
     #endregion
+
+    #region ConvertPhilippineTimeToUtc Tests
+
+    [Fact]
+    public void ConvertPhilippineTimeToUtc_WhenUnspecifiedPhtAfternoon_SubtractsEightHours()
+    {
+        // 4:12 PM on Oct 6 in PHT (UTC+8) -> 8:12 AM on Oct 6 in UTC
+        var phtAfternoon = new DateTime(2026, 10, 6, 16, 12, 0, DateTimeKind.Unspecified);
+        var result = phtAfternoon.ConvertPhilippineTimeToUtc();
+
+        Assert.Equal(DateTimeKind.Utc, result.Kind);
+        Assert.Equal(2026, result.Year);
+        Assert.Equal(10, result.Month);
+        Assert.Equal(6, result.Day);
+        Assert.Equal(8, result.Hour);
+        Assert.Equal(12, result.Minute);
+    }
+
+    [Fact]
+    public void ConvertPhilippineTimeToUtc_WhenUnspecifiedPhtMorning_CrossesDayBoundaryBackwards()
+    {
+        // 4:00 AM on Oct 6 in PHT (UTC+8) -> 8:00 PM on Oct 5 in UTC
+        var phtMorning = new DateTime(2026, 10, 6, 4, 0, 0, DateTimeKind.Unspecified);
+        var result = phtMorning.ConvertPhilippineTimeToUtc();
+
+        Assert.Equal(DateTimeKind.Utc, result.Kind);
+        Assert.Equal(2026, result.Year);
+        Assert.Equal(10, result.Month);
+        Assert.Equal(5, result.Day);
+        Assert.Equal(20, result.Hour);
+        Assert.Equal(0, result.Minute);
+    }
+
+    [Fact]
+    public void ConvertPhilippineTimeToUtc_WhenAlreadyUtc_ReturnsUnchanged()
+    {
+        var utcDate = new DateTime(2026, 10, 6, 8, 12, 0, DateTimeKind.Utc);
+        var result = utcDate.ConvertPhilippineTimeToUtc();
+
+        Assert.Equal(DateTimeKind.Utc, result.Kind);
+        Assert.Equal(utcDate, result);
+    }
+
+    [Fact]
+    public void ConvertPhilippineTimeToUtc_Nullable_HandlesNullCorrectly()
+    {
+        DateTime? nullDate = null;
+        var result = nullDate.ConvertPhilippineTimeToUtc();
+
+        Assert.Null(result);
+    }
+
+    #endregion
 }
+
 

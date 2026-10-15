@@ -1,9 +1,10 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import { AlertCircle, ArrowUpDown } from "lucide-react";
 
 import { type File } from "@/components/features/file/types/File";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import Actions from "./actions";
 
 const columns: ColumnDef<File>[] = [
@@ -53,7 +54,61 @@ const columns: ColumnDef<File>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("status")}</div>,
+    cell: ({ row }) => {
+      const status = (row.original.status || (row.getValue("status") as string)) ?? "";
+      const errorMessage = row.original.errorMessage;
+      const isFailedOrPartial = status === "Failed" || status === "PartiallyProcessed";
+
+      if (isFailedOrPartial && errorMessage) {
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="inline-flex items-center gap-1.5 cursor-help">
+                <span
+                  className={
+                    status === "Failed"
+                      ? "px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                      : "px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                  }
+                >
+                  {status === "PartiallyProcessed" ? "Partial" : status}
+                </span>
+                <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs md:max-w-sm p-3 text-xs leading-relaxed bg-popover text-popover-foreground border shadow-md">
+              <p className="font-semibold mb-1 text-destructive">Import / Validation Details:</p>
+              <p className="whitespace-pre-wrap">{errorMessage}</p>
+              {row.original.errorLogPath && (
+                <p className="mt-2 text-muted-foreground text-[11px] italic">
+                  Tip: Open the Actions menu (...) to download the error report (.csv).
+                </p>
+              )}
+            </TooltipContent>
+          </Tooltip>
+        );
+      }
+
+      return (
+        <span
+          className={
+            status === "Success"
+              ? "px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+              : status === "Processing"
+              ? "px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 animate-pulse"
+              : status === "Pending"
+              ? "px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 animate-pulse"
+              : status === "Failed"
+              ? "px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+              : status === "PartiallyProcessed"
+              ? "px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+              : "capitalize"
+          }
+        >
+          {status === "PartiallyProcessed" ? "Partial" : status || "-"}
+        </span>
+      );
+    },
   },
 
   {

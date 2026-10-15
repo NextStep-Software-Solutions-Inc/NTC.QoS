@@ -180,6 +180,9 @@ public static class InfrastructureDependencyInjection
         // Apply migrations first
         await dbContext.Database.MigrateAsync(cancellationToken);
 
+        // Ensure Files table has newly added columns (ErrorMessage, ErrorLogPath) idempotently
+        await EnsureFilesSchemaAsync(dbContext, logger, cancellationToken);
+
         // Use the seeders array instead of calling them directly
         foreach (var (name, seedAction) in seeders)
         {
@@ -232,4 +235,38 @@ public static class InfrastructureDependencyInjection
         var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(identifier));
         return BitConverter.ToInt64(hash, 0);
     }
+
+    /// <summary>
+    /// Ensures that newly added columns on the Files table exist in PostgreSQL, avoiding undefined column runtime errors.
+    /// </summary>
+    private static async Task EnsureFilesSchemaAsync(ApplicationDbContext dbContext, ILogger logger, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Files' AND column_name = 'ErrorMessage'
+                    ) THEN
+                        ALTER TABLE ""Files"" ADD COLUMN ""ErrorMessage"" character varying(2000);
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Files' AND column_name = 'ErrorLogPath'
+                    ) THEN
+                        ALTER TABLE ""Files"" ADD COLUMN ""ErrorLogPath"" character varying(1000);
+                    END IF;
+                END $$;
+            ", cancellationToken);
+            logger.LogInformation("Successfully verified/updated schema for 'Files' table.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to verify or add ErrorMessage/ErrorLogPath columns to Files table: {Message}", ex.Message);
+        }
+    }
 }
+

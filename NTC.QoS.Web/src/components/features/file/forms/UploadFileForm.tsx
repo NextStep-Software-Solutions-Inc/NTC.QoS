@@ -5,12 +5,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ArrowRight, ChevronDown, Download, Layers, Loader2 } from "lucide-react";
+import { ArrowRight, ChevronDown, Download, FileText, HelpCircle, Layers, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { Form } from "@/components/ui/form";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { createMutationHookFromTemplate } from "@/hooks/createMutationHookFromTemplate";
 import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { extractErrorMessage } from "@/lib/extract-error-message";
@@ -18,6 +19,7 @@ import { getAuthHeadersAsync, getBackendUrl } from "@/lib/api-utils";
 import { getMunicipalitiesRequest } from "../../municipality/handlers/getMunicipalitiesRequest";
 import { getProvincesRequest } from "../../province/handlers/getProvincesRequest";
 import { type PreSignedUrl } from "@/components/features/file/types/PreSignedUrl";
+import { UPLOAD_GUIDES } from "../constants/uploadGuides";
 import { request } from "@/services/fetch";
 import { type APIResponse } from "@/types/reusable/api";
 import { uploadFileToAzure } from "../handlers/uploadFileToAzure";
@@ -56,6 +58,8 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     ? "Wireless Validation" 
     : type;
 
+  const guide = type ? UPLOAD_GUIDES[type] : null;
+
   const { mutateAsync, isPending } = useUploadFile();
   const queryClient = useQueryClient();
 
@@ -81,6 +85,9 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   });
 
   const onSuccessHandler = () => {
+    void queryClient.invalidateQueries({
+      predicate: (query) => typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("/files"),
+    });
     onSuccess?.();
     onClose?.();
   };
@@ -196,13 +203,37 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   const maxFileSizeDisplay = isCellularCoverage ? "1 GB" : "25 MB";
 
   const handleFilesAdded = (incomingFiles: File[]) => {
-    const validFiles = incomingFiles.filter((file) => file.size <= maxFileSizeBytes);
-    const oversizedFiles = incomingFiles.filter((file) => file.size > maxFileSizeBytes);
+    const validExtensions = isCellularCoverage
+      ? [".mbtiles", ".geojson", ".gpkg", ".xlsx", ".xls", ".csv"]
+      : [".xlsx", ".xls", ".csv"];
 
-    if (oversizedFiles.length > 0) {
-      toast.error(`Some files exceed ${maxFileSizeDisplay} and were not added.`);
+    const validFiles: File[] = [];
+    for (const file of incomingFiles) {
+      const ext = file.name.includes(".")
+        ? file.name.substring(file.name.lastIndexOf(".")).toLowerCase()
+        : "";
+      if (!validExtensions.includes(ext)) {
+        toast.error(
+          isCellularCoverage
+            ? `Invalid file type for "${file.name}". Supported formats: .mbtiles, .geojson, .gpkg, .xlsx, .csv.`
+            : `Invalid file type for "${file.name}". Only .xlsx, .xls, and .csv files are supported.`
+        );
+        continue;
+      }
+      if (file.size === 0) {
+        toast.error(`File "${file.name}" is empty (0 bytes). Please upload a valid file.`);
+        continue;
+      }
+      if (file.size > maxFileSizeBytes) {
+        toast.error(`File "${file.name}" exceeds the ${maxFileSizeDisplay} size limit.`);
+        continue;
+      }
+      validFiles.push(file);
     }
-    setFiles((prev) => [...prev, ...validFiles]);
+
+    if (validFiles.length > 0) {
+      setFiles((prev) => [...prev, ...validFiles]);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -516,13 +547,15 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
                 <span>Render on Map</span>
               </div>
             </div>
+
           </div>
         </div>
       )}
 
-      {/* Download Template Section for Non-CellularCoverage */}
+      {/* Download Template & Guidelines Section for Non-CellularCoverage */}
       {!isCellularCoverage && (
-        <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800">
+        <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
           {isDownloadEnabled ? (
             <button
               type="button"
@@ -557,8 +590,47 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
             </div>
           )}
         </div>
-      )}
 
+
+        {guide && (
+          <div className="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-200/60 dark:border-blue-800/60 w-full sm:w-auto justify-between sm:justify-end">
+            <a
+              href={guide.pdfPath}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={guide.pdfFileName}
+              className="text-xs font-medium text-slate-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 hover:underline flex items-center gap-1.5 bg-white/70 dark:bg-slate-900/60 px-2.5 py-1.5 rounded border border-blue-200 dark:border-blue-800/80 shadow-xs">
+              <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Guidelines (PDF)</span>
+            </a>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="p-1 rounded-full text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 focus:outline-none"
+                    aria-label="Upload rules info">
+                    <HelpCircle className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-xs p-3 bg-slate-900 text-white shadow-xl">
+                  <p className="font-semibold text-blue-300 mb-1.5">{guide.title} - Key Rules:</p>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-200 text-[11px]">
+                    {guide.rules.map((rule, idx) => (
+                      <li key={idx}>{rule}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-[10px] text-slate-400 border-t border-slate-700 pt-1">
+                    Click "Guidelines (PDF)" for the complete SOP manual.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
+      </div>
+      )}
       <form onSubmit={handleSubmit}>
         <UploadedFilesContent
           type={type}
