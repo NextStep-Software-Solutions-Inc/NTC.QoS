@@ -1254,8 +1254,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
       // Signal coverage layer - always add if in admin mode, control visibility separately
       // Insert BELOW all cellsite layers (before cells-clusters, the lowest cellsite layer)
-      // so that radio-coverage circles render underneath cell tower icons and heatmap.
-      if (!map.getLayer("signal-coverage-polygon-fill")) {
+      const initialSignalVis = normalizedConfigRef.current.signalCoverage ? "visible" : "none";
+
+      // Signal coverage layers - only add if their source exists in the style
+      if (map.getSource("signal-coverage-polygon-source") && !map.getLayer("signal-coverage-polygon-fill")) {
         const polygonBeforeId = map.getLayer("signal-coverage-circles")
           ? "signal-coverage-circles"
           : map.getLayer("cells-clusters")
@@ -1272,14 +1274,14 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
               "fill-opacity": 0,
             },
             layout: {
-              visibility: "none",
+              visibility: initialSignalVis,
             },
           },
           polygonBeforeId,
         );
       }
 
-      if (!map.getLayer("signal-coverage-polygon-border")) {
+      if (map.getSource("signal-coverage-polygon-source") && !map.getLayer("signal-coverage-polygon-border")) {
         const borderBeforeId = map.getLayer("signal-coverage-circles")
           ? "signal-coverage-circles"
           : map.getLayer("cells-clusters")
@@ -1298,14 +1300,14 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
               "line-dasharray": [4, 3],
             },
             layout: {
-              visibility: "none",
+              visibility: initialSignalVis,
             },
           },
           borderBeforeId,
         );
       }
 
-      if (!map.getLayer("signal-coverage-grid-fill")) {
+      if (map.getSource("signal-coverage-grid-source") && !map.getLayer("signal-coverage-grid-fill")) {
         const gridBeforeId = map.getLayer("signal-coverage-polygon-border")
           ? "signal-coverage-polygon-border"
           : map.getLayer("signal-coverage-circles")
@@ -1322,14 +1324,14 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
               "fill-opacity": 0.2,
             },
             layout: {
-              visibility: "none",
+              visibility: initialSignalVis,
             },
           },
           gridBeforeId,
         );
       }
 
-      if (!map.getLayer("signal-coverage-circles")) {
+      if (map.getSource("signal-coverage-source") && !map.getLayer("signal-coverage-circles")) {
         // addCellLayers() always runs synchronously before addAdminLayers() in the
         // same effect body, so cells-clusters should reliably be present here.
         // Fallback keeps the layer below any currently-available cell visual layer.
@@ -1340,18 +1342,23 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
             : map.getLayer("cells-symbols")
               ? "cells-symbols"
               : beforeId;
-        map.addLayer(
-          {
-            id: "signal-coverage-circles",
-            type: "circle",
-            source: "signal-coverage-source",
-            paint: getSignalCoverageCirclePaint(0.8),
-            layout: {
-              visibility: "none", // Start hidden, controlled by applyVisibility
-            },
+
+        const coverageLayerSpec: any = {
+          id: "signal-coverage-circles",
+          type: "circle",
+          source: "signal-coverage-source",
+          paint: getSignalCoverageCirclePaint(0.8),
+          layout: {
+            visibility: initialSignalVis,
           },
-          signalBeforeId,
-        );
+        };
+
+        if (coverageSourceType === "maptiler") {
+          coverageLayerSpec["source-layer"] =
+            process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_SOURCE_LAYER_ID ?? "coverage";
+        }
+
+        map.addLayer(coverageLayerSpec, signalBeforeId);
       }
     };
 
@@ -1651,6 +1658,8 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     map,
     isMapLoaded,
     signalCoverageData,
+    coverageSourceType,
+    dynamicCoverageUrl,
     signalCoveragePolygons,
     signalCoverageGrid,
     options?.isAdminMode,
