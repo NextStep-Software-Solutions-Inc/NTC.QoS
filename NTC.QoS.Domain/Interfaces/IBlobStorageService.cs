@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace NTC.QoS.Domain.Interfaces;
 
 /// <summary>
@@ -5,6 +11,13 @@ namespace NTC.QoS.Domain.Interfaces;
 /// </summary>
 public interface IBlobStorageService
 {
+    /// <summary>
+    /// Gets the configured storage account name when it is available.
+    /// This is used only to distinguish a path-style account prefix from a
+    /// logical container name when parsing previously stored blob URLs.
+    /// </summary>
+    string? StorageAccountName => null;
+
     /// <summary>
     /// Uploads a file to Azure Blob Storage
     /// </summary>
@@ -78,4 +91,22 @@ public interface IBlobStorageService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of blob names</returns>
     Task<IEnumerable<string>> ListBlobsByRegionAsync(string containerName, string region, string? fileType = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates a pre-signed SAS URL for uploading a blob (valid for specified duration, default 1 min)
+    /// </summary>
+    /// <param name="containerName">The blob container name</param>
+    /// <param name="fileName">The blob path/name</param>
+    /// <param name="expiryWindow">Optional expiry window (defaults to 1 minute)</param>
+    /// <returns>Pre-signed upload SAS URL</returns>
+    string GeneratePreSignedUploadUrl(string containerName, string fileName, TimeSpan? expiryWindow = null);
+
+    /// <summary>
+    /// Generates a pre-signed SAS URL for downloading a blob (valid for specified duration, default 1 min)
+    /// </summary>
+    /// <param name="containerName">The blob container name</param>
+    /// <param name="fileName">The blob path/name</param>
+    /// <param name="expiryWindow">Optional expiry window (defaults to 1 minute)</param>
+    /// <returns>Pre-signed download SAS URL</returns>
+    string GeneratePreSignedDownloadUrl(string containerName, string fileName, TimeSpan? expiryWindow = null);
 }

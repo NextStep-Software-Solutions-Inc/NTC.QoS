@@ -12,45 +12,11 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
 
     public async Task<ApiResponse<ServiceProviderDto>> Handle(CreateServiceProviderRequest request, CancellationToken cancellationToken)
     {
-        var serviceProviderQuery = _repository.QueryWithIgnoreQueryFilters(sp => sp.ServiceId == request.ServiceProvider.ServiceId
-                                                                    && sp.ProviderId == request.ServiceProvider.ProviderId
-                                                                    && sp.MNC == request.ServiceProvider.MNC
-                                                                    && sp.MCC == request.ServiceProvider.MCC);
+        var serviceProviderQuery = _repository.Query(sp => sp.ServiceId == request.ServiceProvider.ServiceId
+                                                        && sp.ProviderId == request.ServiceProvider.ProviderId
+                                                        && sp.MNC == request.ServiceProvider.MNC);
         var serviceProvider = await _repository.FirstOrDefaultAsync(serviceProviderQuery, cancellationToken);
-        if (serviceProvider is not null && serviceProvider.IsDeleted)
-        {
-            serviceProvider.IsDeleted = false;
-            _repository.Update(serviceProvider);
-            await _repository.SaveChangesAsync(cancellationToken);
-
-            return new ApiResponse<ServiceProviderDto>
-            {
-                Data = new ServiceProviderDto
-                {
-                    Id = serviceProvider.Id,
-                    Provider = new()
-                    {
-                        Id = serviceProvider.ProviderId,
-                        Name = serviceProvider.Provider?.Name ?? string.Empty,
-                        Color = serviceProvider.Provider?.Color ?? string.Empty,
-                        Description = serviceProvider.Provider?.Description ?? string.Empty,
-                        LicenseNumber = serviceProvider.Provider?.LicenseNumber ?? string.Empty
-                    },
-                    Service = new()
-                    {
-                        Id = serviceProvider.ServiceId,
-                        Name = serviceProvider.Service?.Name ?? string.Empty,
-                        Type = serviceProvider.Service?.Type.ToString() ?? string.Empty
-                    },
-                    MNC = serviceProvider.MNC,
-                    MCC = serviceProvider.MCC
-                },
-                Message = "Service reactivated successfully.",
-                Succeeded = true
-            };
-        }
-
-        if (serviceProvider is not null && !serviceProvider.IsDeleted)
+        if (serviceProvider is not null)
         {
             return new ApiResponse<ServiceProviderDto>
             {
@@ -60,6 +26,28 @@ public class CreateServiceProviderHandler(IServiceProviderRepository repository)
                 {
                     {
                         "Duplicate", ["Service provider already exists."]
+                    }
+                }
+            };
+        }
+
+        var deletedServiceProviderQuery = _repository.QueryWithIgnoreQueryFilters(
+            sp => sp.ServiceId == request.ServiceProvider.ServiceId
+               && sp.ProviderId == request.ServiceProvider.ProviderId
+               && sp.MNC == request.ServiceProvider.MNC
+               && sp.IsDeleted);
+        var deletedServiceProvider = await _repository.FirstOrDefaultAsync(deletedServiceProviderQuery, cancellationToken);
+
+        if (deletedServiceProvider is not null)
+        {
+            return new ApiResponse<ServiceProviderDto>
+            {
+                Message = $"A deleted service provider with this ServiceId/ProviderId/MNC combination already exists (Id: {deletedServiceProvider.Id}). Use POST /service-providers/{deletedServiceProvider.Id}/restore to reactivate it.",
+                Succeeded = false,
+                Errors = new Dictionary<string, string[]>
+                {
+                    {
+                        "DeletedServiceProviderExists", [$"A soft-deleted service provider with this ServiceId/ProviderId/MNC combination exists (Id: {deletedServiceProvider.Id})."]
                     }
                 }
             };

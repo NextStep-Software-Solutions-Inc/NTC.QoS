@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -8,6 +8,8 @@ using NTC.QoS.Infrastructure.Configuration;
 using NTC.QoS.Infrastructure.Extensions;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed;
+using NTC.QoS.Infrastructure.Seed.Interfaces;
+using NTC.QoS.Infrastructure.Seed.Services;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -37,7 +39,21 @@ public static class InfrastructureDependencyInjection
         services.AddRepositories();
         services.AddBackgroundJobServices();
         services.AddReportingServices();
+        services.AddSeedServices();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Registers seed services for data seeding
+    /// </summary>
+    private static IServiceCollection AddSeedServices(this IServiceCollection services)
+    {
+        services.AddScoped<IUserSeeder, UserSeeder>();
+        services.AddScoped<IConfigurationValidator, ConfigurationValidator>();
+        services.AddScoped<IPasswordGenerator, PasswordGenerator>();
+        services.AddScoped<IUserCreator, UserCreator>();
+        services.AddScoped<IUserUpdater, UserUpdater>();
         return services;
     }
 
@@ -137,6 +153,13 @@ public static class InfrastructureDependencyInjection
 
         var seeders = new (string Name, Func<Task> SeedAction)[]
         {
+            ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
+            ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger)),
+            ("User Data", async () =>
+            {
+                var userSeeder = serviceProvider.GetRequiredService<IUserSeeder>();
+                await userSeeder.SeedAsync();
+            }),
             ("Location Data", async () =>
             {
                 if (useOptimizedSeeder)
@@ -151,14 +174,14 @@ public static class InfrastructureDependencyInjection
                     logger.LogInformation("Using legacy LocationSeeder");
                     await LocationSeeder.SeedAllAsync(dbContext, blobStorageService, logger, databaseOptions.ForceReseed);
                 }
-            }),
-            ("Organization Data", () => OrganizationSeeder.SeedAsync(dbContext, logger)),
-            ("Role Data", () => RoleSeeder.SeedAsync(dbContext, logger)),
-            ("Authorization Data", () => AuthorizationSeeder.SeedAsync(dbContext, logger))
+            })
         };
 
         // Apply migrations first
         await dbContext.Database.MigrateAsync(cancellationToken);
+
+        // Ensure Files table has newly added columns (ErrorMessage, ErrorLogPath) idempotently
+        await EnsureFilesSchemaAsync(dbContext, logger, cancellationToken);
 
         // Use the seeders array instead of calling them directly
         foreach (var (name, seedAction) in seeders)
@@ -212,4 +235,38 @@ public static class InfrastructureDependencyInjection
         var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(identifier));
         return BitConverter.ToInt64(hash, 0);
     }
+
+    /// <summary>
+    /// Ensures that newly added columns on the Files table exist in PostgreSQL, avoiding undefined column runtime errors.
+    /// </summary>
+    private static async Task EnsureFilesSchemaAsync(ApplicationDbContext dbContext, ILogger logger, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Files' AND column_name = 'ErrorMessage'
+                    ) THEN
+                        ALTER TABLE ""Files"" ADD COLUMN ""ErrorMessage"" character varying(2000);
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'Files' AND column_name = 'ErrorLogPath'
+                    ) THEN
+                        ALTER TABLE ""Files"" ADD COLUMN ""ErrorLogPath"" character varying(1000);
+                    END IF;
+                END $$;
+            ", cancellationToken);
+            logger.LogInformation("Successfully verified/updated schema for 'Files' table.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to verify or add ErrorMessage/ErrorLogPath columns to Files table: {Message}", ex.Message);
+        }
+    }
 }
+

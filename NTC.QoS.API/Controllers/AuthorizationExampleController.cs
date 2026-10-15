@@ -62,72 +62,6 @@ public class AuthorizationExampleController : ControllerBase
     }
 
     /// <summary>
-    /// Example using organization-based authorization attribute
-    /// </summary>
-    [HttpGet("organization-data")]
-    [RequireOrganization]
-    public async Task<ActionResult<ApiResponse<string>>> GetOrganizationData()
-    {
-        // Simulate async operation to avoid CS1998 warning
-        await Task.CompletedTask;
-        return Ok(new ApiResponse<string>
-        {
-            Data = "Organization-specific data",
-            Succeeded = true,
-            Message = "Organization data retrieved successfully"
-        });
-    }
-
-    /// <summary>
-    /// Example using specific organization name authorization
-    /// </summary>
-    [HttpGet("national-data")]
-    [RequireOrganization("National")]
-    public async Task<ActionResult<ApiResponse<string>>> GetNationalData()
-    {
-        // Simulate async operation to avoid CS1998 warning
-        await Task.CompletedTask;
-        return Ok(new ApiResponse<string>
-        {
-            Data = "National organization data",
-            Succeeded = true,
-            Message = "National data retrieved successfully"
-        });
-    }
-
-    /// <summary>
-    /// Example using case-sensitive organization name authorization
-    /// </summary>
-    [HttpGet("regional-data")]
-    [RequireOrganization("Regional", caseSensitive: true)]
-    public async Task<ActionResult<ApiResponse<string>>> GetRegionalData()
-    {
-        // Simulate async operation to avoid CS1998 warning
-        await Task.CompletedTask;
-        return Ok(new ApiResponse<string>
-        {
-            Data = "Regional organization data (case-sensitive match)",
-            Succeeded = true,
-            Message = "Regional data retrieved successfully"
-        });
-    }
-
-    /// <summary>
-    /// Example using organization ID authorization
-    /// </summary>
-    [HttpGet("public-data")]
-    [RequireOrganizationId("33333333-3333-3333-3333-333333333333")] // Public organization ID
-    public async Task<ActionResult<ApiResponse<string>>> GetPublicData()
-    {
-        // Simulate async operation to avoid CS1998 warning
-        await Task.CompletedTask;
-        return Ok(new ApiResponse<string>
-        {
-            Data = "Public organization data",
-            Succeeded = true,
-            Message = "Public data retrieved successfully"
-        });
-    }
 
     /// <summary>
     /// Example using predefined policy
@@ -193,8 +127,7 @@ public class AuthorizationExampleController : ControllerBase
                 {
                     currentUser?.Id,
                     currentUser?.AuthUserId,
-                    Role = currentUser?.Role?.Key,
-                    Organization = currentUser?.Organization?.Name
+                    Role = currentUser?.Role?.Key
                 }
             },
             Succeeded = true,
@@ -243,27 +176,6 @@ public class AuthorizationExampleController : ControllerBase
             Data = $"Data for region {regionId}",
             Succeeded = true,
             Message = "Region data retrieved successfully"
-        });
-    }
-
-    /// <summary>
-    /// Example demonstrating organization-based authorization
-    /// </summary>
-    [HttpGet("organization/{organizationId}")]
-    public async Task<ActionResult<ApiResponse<string>>> GetOrganizationSpecificData(Guid organizationId)
-    {
-        var belongsToOrganization = await _authorizationService.BelongsToOrganizationAsync(organizationId);
-
-        if (!belongsToOrganization)
-        {
-            return Forbid($"You don't belong to organization {organizationId}");
-        }
-
-        return Ok(new ApiResponse<string>
-        {
-            Data = $"Data for organization {organizationId}",
-            Succeeded = true,
-            Message = "Organization data retrieved successfully"
         });
     }
 }

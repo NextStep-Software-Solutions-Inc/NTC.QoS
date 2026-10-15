@@ -85,6 +85,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
     public async Task AddAsync(TEntity entity, CancellationToken cancellationToken = default) => await _context.AddAsync(entity, cancellationToken);
     public void Update(TEntity entity) => _context.Update(entity);
     public void Delete(TEntity entity) => _context.Remove(entity);
+    public void Detach(TEntity entity) => _context.Entry(entity).State = EntityState.Detached;
     public void AddRange(IEnumerable<TEntity> entities) => _context.AddRange(entities);
     public async Task BulkInsertAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
@@ -384,15 +385,24 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
             query = query.Where(entity => entity.Location != null && entity.Location.Within(viewport.CreateEnvelopeFromViewport()));
         }
 
-        // OPTIMIZED: Use proper subquery approach with Intersects instead of correlated subqueries
+        // OPTIMIZED: Use proper subquery approach with Intersects instead of correlated subqueries.
+        //
+        // No-boundary-data fallback (consistent with GeoQueryHelper.ApplyBoundaryFilterAsync):
+        // When no boundary geometry is stored for the requested IDs the spatial filter is skipped,
+        // preventing incorrect 0-result responses.  This is implemented with
+        //   !boundariesQuery.Any() || boundariesQuery.Any(b => b.Intersects(entity.Location))
+        // which EF Core translates to a single SQL statement:
+        //   WHERE (NOT EXISTS (<boundary subquery>) OR EXISTS (<spatial subquery>))
+        // The NOT EXISTS part is a non-correlated subquery evaluated ONCE per query by the
+        // database engine — it is NOT executed per entity and does not cause N+1 queries.
         if (regionIds is not null && regionIds.Count > 0)
         {
             var regionBoundariesQuery = _context.Regions
                 .Where(r => regionIds.Contains(r.Id) && r.Boundaries != null)
                 .Select(r => r.Boundaries);
 
-            // Use Intersects for geography compatibility and proper spatial index usage
             query = query.Where(entity =>
+                !regionBoundariesQuery.Any() ||
                 regionBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
 
@@ -403,6 +413,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
                 .Select(p => p.Boundaries);
 
             query = query.Where(entity =>
+                !provinceBoundariesQuery.Any() ||
                 provinceBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
 
@@ -413,6 +424,7 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
                 .Select(m => m.Boundaries);
 
             query = query.Where(entity =>
+                !municipalityBoundariesQuery.Any() ||
                 municipalityBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
 
@@ -423,7 +435,8 @@ public class Repository<TEntity> : IRepository<TEntity> where TEntity : BaseEnti
                 .Select(b => b.Boundaries);
 
             query = query.Where(entity =>
-            barangayBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
+                !barangayBoundariesQuery.Any() ||
+                barangayBoundariesQuery.Any(boundary => boundary != null && boundary.Intersects(entity.Location)));
         }
 
         return query;

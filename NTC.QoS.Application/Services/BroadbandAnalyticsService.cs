@@ -48,10 +48,10 @@ public class BroadbandAnalyticsService
             }
 
             // For wireless/cellular, also check bandwidth data and use the higher value
-            if (serviceType == ServiceTypeEnum.Wireless && cellularBandwidthData?.Any() == true)
+            if ((serviceType == ServiceTypeEnum.Wireless || serviceType == ServiceTypeEnum.Cellular) && cellularBandwidthData?.Any() == true)
             {
                 var providerBandwidths = cellularBandwidthData
-                    .Where(c => c.ServiceProviderId == providerId && c.ServiceType == ServiceTypeEnum.Wireless)
+                    .Where(c => c.ServiceProviderId == providerId && (c.ServiceType == ServiceTypeEnum.Wireless || c.ServiceType == ServiceTypeEnum.Cellular))
                     .Select(c => c.Bandwidth)
                     .ToList();
 

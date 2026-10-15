@@ -1,4 +1,8 @@
-﻿using System.ComponentModel;
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.ComponentModel;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -91,6 +95,33 @@ public class FilesController(IMediator mediator) : ControllerBase
         return file.Succeeded ? Ok(file) : BadRequest(file);
     }
 
+    [HttpGet("presigned-upload-url")]
+    [RequirePermission(Permissions.UploadFiles)]
+    public async Task<ActionResult<ApiResponse<PreSignedUrlDto>>> GetPreSignedUploadUrl(
+        [FromQuery] string fileName,
+        [FromQuery] string fileType,
+        [FromQuery] Guid regionId)
+    {
+        var response = await _mediator.Send(new GetPreSignedUploadUrlRequest(fileName, fileType, regionId));
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    [HttpGet("{id}/presigned-download-url")]
+    [RequirePermission(Permissions.ViewFiles)]
+    public async Task<ActionResult<ApiResponse<PreSignedUrlDto>>> GetPreSignedDownloadUrl(Guid id)
+    {
+        var response = await _mediator.Send(new GetPreSignedDownloadUrlRequest(id));
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
+    [HttpGet("{id}/presigned-error-log-url")]
+    [RequirePermission(Permissions.ViewFiles)]
+    public async Task<ActionResult<ApiResponse<PreSignedUrlDto>>> GetPreSignedErrorLogUrl(Guid id)
+    {
+        var response = await _mediator.Send(new GetPreSignedDownloadUrlRequest(id) { IsErrorLog = true });
+        return response.Succeeded ? Ok(response) : BadRequest(response);
+    }
+
     [HttpPut("{id}")]
     [RequirePermission(Permissions.UpdateFiles)]
     public async Task<ActionResult<ApiResponse<FileDto>>> UpdateFileById(Guid id, UpdateFileDto updateFile)
@@ -112,7 +143,6 @@ public class FilesController(IMediator mediator) : ControllerBase
 
     [HttpGet("download/{type}")]
     [RequirePermission(Permissions.DownloadFiles)]
-    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadFile(string type)
     {
         var res = await _mediator.Send(new DownloadTemplateFileRequest(type));
@@ -124,7 +154,7 @@ public class FilesController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet("download/wireless-validation/{municipalityId}")]
-    [AllowAnonymous]
+    [RequirePermission(Permissions.DownloadFiles)]
     public async Task<ActionResult<ApiResponse<Stream>>> DownloadWirelessValidationTemplate(Guid municipalityId)
     {
         var res = await _mediator.Send(new DownloadWirelessValidationTemplateRequest(municipalityId));

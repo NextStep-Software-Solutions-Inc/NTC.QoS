@@ -1,5 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Azure.Storage;
+using System.Threading;
+using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Storage.Sas;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NTC.QoS.Domain.Interfaces;
@@ -13,11 +21,16 @@ namespace NTC.QoS.Infrastructure.Services;
 public class BlobStorageService(
     BlobServiceClient blobServiceClient,
     IOptions<BlobStorageOptions> blobStorageOptions,
-    ILogger<BlobStorageService> logger) : IBlobStorageService
+    ILogger<BlobStorageService> logger,
+    StorageSharedKeyCredential? sharedKeyCredential = null) : IBlobStorageService
 {
     private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
     private readonly BlobStorageOptions _blobStorageOptions = blobStorageOptions.Value;
     private readonly ILogger<BlobStorageService> _logger = logger;
+    private readonly StorageSharedKeyCredential? _sharedKeyCredential = sharedKeyCredential;
+
+    /// <inheritdoc />
+    public string? StorageAccountName => _blobServiceClient.AccountName;
 
     /// <inheritdoc />
     public async Task<string> UploadAsync(string containerName, string fileName, Stream fileStream, string contentType, CancellationToken cancellationToken = default)
@@ -28,7 +41,7 @@ public class BlobStorageService(
         ValidateContentType(contentType);
 
         var containerClient = await GetOrCreateContainerAsync(containerName, cancellationToken);
-        var blobClient = containerClient.GetBlobClient(fileName);
+        var blobClient = GetBlobClient(containerClient, containerName, fileName);
 
         var uploadOptions = CreateUploadOptions(fileName, contentType);
 
@@ -155,7 +168,7 @@ public class BlobStorageService(
             _logger.LogInformation("Starting download of file {FileName} from container {ContainerName}", fileName, containerName);
 
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-            var blobClient = containerClient.GetBlobClient(fileName);
+            var blobClient = GetBlobClient(containerClient, containerName, fileName);
 
             if (!await blobClient.ExistsAsync(cancellationToken))
             {
@@ -183,7 +196,7 @@ public class BlobStorageService(
             _logger.LogInformation("Starting download of file {FileName} as bytes from container {ContainerName}", fileName, containerName);
 
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-            var blobClient = containerClient.GetBlobClient(fileName);
+            var blobClient = GetBlobClient(containerClient, containerName, fileName);
 
             if (!await blobClient.ExistsAsync(cancellationToken))
             {
@@ -211,7 +224,7 @@ public class BlobStorageService(
             _logger.LogInformation("Starting deletion of file {FileName} from container {ContainerName}", fileName, containerName);
 
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-            var blobClient = containerClient.GetBlobClient(fileName);
+            var blobClient = GetBlobClient(containerClient, containerName, fileName);
 
             var response = await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
@@ -239,7 +252,7 @@ public class BlobStorageService(
         try
         {
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-            var blobClient = containerClient.GetBlobClient(fileName);
+            var blobClient = GetBlobClient(containerClient, containerName, fileName);
 
             var response = await blobClient.ExistsAsync(cancellationToken);
             return response.Value;
@@ -255,7 +268,7 @@ public class BlobStorageService(
     public string GetBlobUrl(string containerName, string fileName)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-        var blobClient = containerClient.GetBlobClient(fileName);
+        var blobClient = GetBlobClient(containerClient, containerName, fileName);
         return blobClient.Uri.ToString();
     }
 
@@ -314,4 +327,100 @@ public class BlobStorageService(
         }
     }
 
+    /// <inheritdoc />
+    public string GeneratePreSignedUploadUrl(string containerName, string fileName, TimeSpan? expiryWindow = null)
+    {
+        var expiry = expiryWindow ?? TimeSpan.FromMinutes(1);
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var blobClient = GetBlobClient(containerClient, containerName, fileName);
+
+        if (_sharedKeyCredential == null && !blobClient.CanGenerateSasUri)
+        {
+            _logger.LogError("BlobClient cannot generate SAS URI for container {ContainerName}, blob {FileName}", containerName, fileName);
+            throw new InvalidOperationException("BlobClient cannot generate SAS URI with the configured Azure credentials.");
+        }
+
+        var sasBuilder = new BlobSasBuilder
+        {
+            // Keep the SAS resource tied to the caller's logical storage model.
+            // GetBlobClient can adapt an endpoint whose path is parsed ambiguously
+            // by the SDK, but that URI adaptation must not change the container
+            // and blob values used to sign the SAS resource.
+            BlobContainerName = containerName,
+            BlobName = fileName,
+            Resource = "b",
+            StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
+            ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
+        };
+
+        sasBuilder.SetPermissions(BlobSasPermissions.Write | BlobSasPermissions.Create);
+
+        var sasUri = GenerateSasUri(blobClient, sasBuilder);
+        _logger.LogInformation("Generated pre-signed upload SAS URL for blob {FileName} in container {ContainerName} (expires in {Expiry})", fileName, containerName, expiry);
+        return sasUri.ToString();
+    }
+
+    /// <inheritdoc />
+    public string GeneratePreSignedDownloadUrl(string containerName, string fileName, TimeSpan? expiryWindow = null)
+    {
+        var expiry = expiryWindow ?? TimeSpan.FromMinutes(1);
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var blobClient = GetBlobClient(containerClient, containerName, fileName);
+
+        if (_sharedKeyCredential == null && !blobClient.CanGenerateSasUri)
+        {
+            _logger.LogError("BlobClient cannot generate SAS URI for container {ContainerName}, blob {FileName}", containerName, fileName);
+            throw new InvalidOperationException("BlobClient cannot generate SAS URI with the configured Azure credentials.");
+        }
+
+        var sasBuilder = new BlobSasBuilder
+        {
+            // See GeneratePreSignedUploadUrl: do not derive the signed resource
+            // from BlobClient properties after endpoint-specific URI adaptation.
+            BlobContainerName = containerName,
+            BlobName = fileName,
+            Resource = "b",
+            StartsOn = DateTimeOffset.UtcNow.AddMinutes(-1),
+            ExpiresOn = DateTimeOffset.UtcNow.Add(expiry)
+        };
+
+        sasBuilder.SetPermissions(BlobSasPermissions.Read);
+
+        var sasUri = GenerateSasUri(blobClient, sasBuilder);
+        _logger.LogInformation("Generated pre-signed download SAS URL for blob {FileName} in container {ContainerName} (expires in {Expiry})", fileName, containerName, expiry);
+        return sasUri.ToString();
+    }
+
+    private Uri GenerateSasUri(BlobClient blobClient, BlobSasBuilder sasBuilder)
+    {
+        if (_sharedKeyCredential == null)
+        {
+            return blobClient.GenerateSasUri(sasBuilder);
+        }
+
+        // Generate the signature directly from the logical resource. This avoids
+        // BlobClient.GenerateSasUri validating against an endpoint-specific URI
+        // parse that can misidentify the account path prefix as a container.
+        var uriBuilder = new UriBuilder(blobClient.Uri)
+        {
+            Query = sasBuilder.ToSasQueryParameters(_sharedKeyCredential).ToString()
+        };
+
+        return uriBuilder.Uri;
+    }
+
+    /// <summary>
+    /// Gets a BlobClient, correctly resolving paths for custom domain emulators (e.g. https://blob.qos.ntc.gov.ph/devstoreaccount1)
+    /// where Azure SDK's BlobUriBuilder treats the custom domain as cloud Azure and parses the first path segment
+    /// as the container name instead of the emulator account name.
+    /// </summary>
+    private static BlobClient GetBlobClient(BlobContainerClient containerClient, string containerName, string fileName)
+    {
+        if (!string.Equals(containerClient.Name, containerName, StringComparison.OrdinalIgnoreCase))
+        {
+            return containerClient.GetBlobClient($"{containerName}/{fileName}");
+        }
+
+        return containerClient.GetBlobClient(fileName);
+    }
 }

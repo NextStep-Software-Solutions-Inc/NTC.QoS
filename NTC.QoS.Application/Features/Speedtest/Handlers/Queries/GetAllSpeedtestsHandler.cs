@@ -1,5 +1,6 @@
-﻿using MediatR;
+using MediatR;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.Speedtest;
 
@@ -43,8 +44,9 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
         var maxDownloadSpeed = request.MaxDownloadSpeed;
         var minUploadSpeed = request.MinUploadSpeed;
         var maxUploadSpeed = request.MaxUploadSpeed;
-        var startDate = request.StartDate;
-        var endDate = request.EndDate;
+        var startDate = request.StartDate.NormalizeFilterStartDate();
+        var endDate = request.EndDate.NormalizeFilterEndDate();
+        var isNoBroadbandCoverage = request.IsNoBroadbandCoverage;
 
         // Combine all filters in a single Where clause for better query optimization
         speedtestQuery = speedtestQuery.Where(s =>
@@ -59,7 +61,8 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
             (!minUploadSpeed.HasValue || s.UploadSpeed >= minUploadSpeed.Value) &&
             (!maxUploadSpeed.HasValue || s.UploadSpeed <= maxUploadSpeed.Value) &&
             (!startDate.HasValue || s.DateTime >= startDate.Value) &&
-            (!endDate.HasValue || s.DateTime <= endDate.Value));
+            (!endDate.HasValue || s.DateTime <= endDate.Value) &&
+            (!isNoBroadbandCoverage.HasValue || s.IsNoBroadbandCoverage == isNoBroadbandCoverage.Value));
 
         // Project to DTO - ordered by DateTime descending (most recent first)
         var speedtestDtos = speedtestQuery
@@ -119,7 +122,8 @@ public class GetAllSpeedtestsHandler(ISpeedtestRepository speedtestRepository) :
                 },
                 Address = s.Address,
                 IsFileUploaded = s.IsFileUploaded,
-                IsFixedBroadband = s.IsFixedBroadband
+                IsFixedBroadband = s.IsFixedBroadband,
+                IsNoBroadbandCoverage = s.IsNoBroadbandCoverage
             });
 
         return await _speedtestRepository.PaginateAsync(speedtestDtos, request.PageNumber, request.PageSize, cancellationToken);

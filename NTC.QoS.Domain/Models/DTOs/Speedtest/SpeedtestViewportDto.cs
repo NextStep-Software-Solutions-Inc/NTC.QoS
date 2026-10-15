@@ -41,4 +41,9 @@ public class SpeedtestViewportDto
     /// Signal quality (e.g., "Good", "Fair", "Poor")
     /// </summary>
     public string? SignalQuality { get; set; }
+
+    /// <summary>
+    /// Indicates No Broadband Coverage (NBC) — site was visited/validated but no signal detected
+    /// </summary>
+    public bool IsNoBroadbandCoverage { get; set; }
 }

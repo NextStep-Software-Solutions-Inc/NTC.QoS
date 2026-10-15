@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using FluentValidation.AspNetCore;
 using MediatR;
 using Microsoft.Extensions.Configuration;
@@ -43,6 +43,9 @@ public static class ApplicationDependencyInjection
         services.AddScoped<IConnectivityCacheService, ConnectivityCacheService>();
         services.AddScoped<IConnectivityReportingService, ConnectivityReportingService>();
         services.AddScoped<BroadbandAnalyticsService>();
+        services.AddScoped<INetworkService, NetworkService>();
+        services.AddScoped<IUserProvisioningService, UserProvisioningService>();
+        services.AddScoped<IUserRegionService, UserRegionService>();
         
         // MCP (Model Context Protocol) Server service for AI database access
         services.AddScoped<IMCPServerService, MCPServerService>();

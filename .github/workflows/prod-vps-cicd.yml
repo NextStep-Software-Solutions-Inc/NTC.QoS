@@ -1,0 +1,117 @@
+name: Production VPS CI/CD (Backend API)
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'api-v*'
+      - 'v-api-*'
+      - 'v*'
+
+env:
+  CONTAINER_NAME: qos-api
+  IMAGE_NAME: qos-api:prod
+
+jobs:
+  build-and-package:
+    name: 🛠️ Build & Package Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }} -f ./NTC.QoS.API/Dockerfile .
+          docker save ${{ env.IMAGE_NAME }} -o qos-api.tar
+
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qos-api-image
+          path: qos-api.tar
+          retention-days: 1
+
+  deploy-vps:
+    name: 🚀 Deploy to Production VPS
+    needs: build-and-package
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qos-api-image
+
+      - name: Copy Files to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "qos-api.tar,docker-compose.prod.yml"
+          target: "/tmp/"
+
+      - name: Execute Remote Production Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+          DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+          REDIS_CONNECTION_STRING: ${{ secrets.REDIS_CONNECTION_STRING }}
+          BLOB_STORAGE_CONNECTION_STRING: ${{ secrets.BLOB_STORAGE_CONNECTION_STRING }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_WEBHOOK_SECRET: ${{ secrets.CLERK_WEBHOOK_SECRET }}
+          CLERK_FRONTEND_URL: ${{ vars.CLERK_FRONTEND_URL || 'https://app.qos.ntc.gov.ph' }}
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+          DEFAULT_ADMIN_PASSWORD: ${{ secrets.DEFAULT_ADMIN_PASSWORD }}
+        with:
+          host: ${{ vars.HOST }}
+          username: ${{ vars.USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          envs: IMAGE_NAME,CONTAINER_NAME,DB_CONNECTION_STRING,REDIS_CONNECTION_STRING,BLOB_STORAGE_CONNECTION_STRING,CLERK_SECRET_KEY,CLERK_WEBHOOK_SECRET,CLERK_FRONTEND_URL,GOOGLE_AI_API_KEY,DEFAULT_ADMIN_PASSWORD
+          script: |
+            DEPLOY_DIR="/opt/docker-stack/${CONTAINER_NAME}"
+            mkdir -p "$DEPLOY_DIR"
+            
+            # Load new image
+            docker load -i /tmp/qos-api.tar
+            rm -f /tmp/qos-api.tar
+
+            # Place compose file
+            mv /tmp/docker-compose.prod.yml "$DEPLOY_DIR/docker-compose.yml"
+            cd "$DEPLOY_DIR"
+
+            # Remove existing non-compose container if present
+            if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+              docker stop "${CONTAINER_NAME}" 2>/dev/null || true
+              docker rm "${CONTAINER_NAME}" 2>/dev/null || true
+            fi
+
+            # Deploy using Docker Compose
+            docker compose up -d --remove-orphans
+
+            # Clean up unused/dangling Docker images to free up disk space
+            docker image prune -f
+
+            # Verify production container status
+            sleep 3
+            if docker compose ps -q | grep -q .; then
+              echo "✅ Production container deployed successfully"
+              docker compose ps
+            else
+              echo "❌ Production container failed to start"
+              docker compose logs
+              exit 1
+            fi

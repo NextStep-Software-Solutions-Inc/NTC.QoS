@@ -26,6 +26,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Generation> Generations { get; set; }
     public DbSet<AntennaPattern> AntennaPatterns { get; set; }
     public DbSet<AreaStudy> AreaStudies { get; set; }
+    public DbSet<SignalLevel> SignalLevels { get; set; }
+    public DbSet<SignalLevelEntry> SignalLevelEntries { get; set; }
     public DbSet<Band> Bands { get; set; }
     public DbSet<Barangay> Barangays { get; set; }
     public DbSet<BarangayCoverage> BarangayCoverages { get; set; }
@@ -43,10 +45,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Technology> Technologies { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<UserType> UserTypes { get; set; }
-    public DbSet<Organization> Organizations { get; set; }
     public DbSet<Role> Roles { get; set; }
-    public DbSet<Permission> Permissions { get; set; }
-    public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<CellSector> CellSectors { get; set; }
     public DbSet<CellularCoverage> CellularCoverages { get; set; }
     public DbSet<SystemType> SystemTypes { get; set; }
@@ -189,6 +188,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(nt => nt.Networks)
             .HasForeignKey(n => n.NetworkTemplateId);
 
+        modelBuilder.Entity<Network>()
+            .HasIndex(n => new { n.ServiceProviderId, n.Name })
+            .HasDatabaseName("IX_Networks_ServiceProviderId_Name_Active")
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE");
+
         modelBuilder.Entity<AreaStudy>()
             .HasIndex(p => p.Name)
             .IsUnique()
@@ -198,6 +203,23 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMany(a => a.Studies)
             .WithOne(s => s.AreaStudy)
             .HasForeignKey(s => s.AreaStudyId);
+
+        modelBuilder.Entity<AreaStudy>()
+            .HasMany(a => a.SignalLevels)
+            .WithOne(sl => sl.AreaStudy)
+            .HasForeignKey(sl => sl.AreaStudyId);
+
+        modelBuilder.Entity<SignalLevel>()
+            .HasMany(sl => sl.SignalLevelEntries)
+            .WithOne(sle => sle.SignalLevel)
+            .HasForeignKey(sle => sle.SignalLevelId);
+
+        modelBuilder.Entity<SignalLevelEntry>()
+            .HasIndex(sle => new { sle.SignalLevelId, sle.ThresholdFrom, sle.ThresholdTo, sle.SortOrder })
+            .HasDatabaseName("IX_SignalLevelEntries_SignalLevelId_Range_SortOrder_Active")
+            .IsUnique()
+            .AreNullsDistinct(false)
+            .HasFilter("\"IsDeleted\" = FALSE");
 
         modelBuilder.Entity<Study>()
             .HasMany(s => s.StudyMunicipalities)
@@ -325,6 +347,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(b => b.Cellulars)
             .HasForeignKey(c => c.BandId);
 
+        modelBuilder.Entity<Cellular>()
+            .HasIndex(c => new { c.CellSectorId, c.ServiceProviderId, c.TechnologyId, c.BandId })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = FALSE")
+            .HasDatabaseName("IX_Cellulars_UQ_CellSector_ServiceProvider_Technology_Band");
+
         modelBuilder.Entity<Province>()
             .HasOne(p => p.Region)
             .WithMany(r => r.Provinces)
@@ -351,6 +379,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasMaxLength(450)
             .IsRequired(false);
 
+        modelBuilder.Entity<Domain.Entities.File>()
+            .Property(f => f.ErrorMessage)
+            .HasMaxLength(2000)
+            .IsRequired(false);
+
+        modelBuilder.Entity<Domain.Entities.File>()
+            .Property(f => f.ErrorLogPath)
+            .HasMaxLength(1000)
+            .IsRequired(false);
+
         modelBuilder.Entity<Municipality>()
             .HasMany(m => m.Barangays)
             .WithOne(b => b.Municipality)
@@ -367,60 +405,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(u => u.RoleId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<User>()
-            .HasOne(u => u.Organization)
-            .WithMany(o => o.Users)
-            .HasForeignKey(u => u.OrganizationId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<Organization>()
-            .HasMany(o => o.Users);
-
-        modelBuilder.Entity<Organization>()
-            .HasIndex(o => o.Name)
-            .IsUnique()
-            .HasFilter("\"IsDeleted\" = FALSE");
-
         modelBuilder.Entity<Role>()
             .HasMany(r => r.Users);
-
-        modelBuilder.Entity<Permission>()
-            .HasIndex(p => p.Key)
-            .IsUnique();
-
-        modelBuilder.Entity<Role>()
-            .HasMany(r => r.RolePermissions)
-            .WithOne(rp => rp.Role)
-            .HasForeignKey(rp => rp.RoleId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Role>()
             .HasIndex(r => r.Key)
             .IsUnique();
 
-        modelBuilder.Entity<Permission>()
-            .HasMany(p => p.RolePermissions)
-            .WithOne(rp => rp.Permission)
-            .HasForeignKey(rp => rp.PermissionId)
-            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Role>()
+            .Property(r => r.Permissions)
+            .HasColumnType("text[]");
 
-        modelBuilder.Entity<RolePermission>()
-            .HasOne(rp => rp.Role)
-            .WithMany(r => r.RolePermissions)
-            .HasForeignKey(rp => rp.RoleId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<RolePermission>()
-            .HasOne(rp => rp.Permission)
-            .WithMany(p => p.RolePermissions)
-            .HasForeignKey(rp => rp.PermissionId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<RolePermission>()
-            .HasIndex(rp => new { rp.PermissionId, rp.RoleId })
-            .IsUnique()
-            .HasFilter("\"IsDeleted\" = FALSE")
-            .HasDatabaseName("IX_RolePermissions_PermissionId_RoleId_Active");
+        modelBuilder.Entity<Role>()
+            .HasOne(r => r.Region)
+            .WithMany()
+            .HasForeignKey(r => r.RegionId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<MIMO>()
             .HasMany(m => m.Sectors);
@@ -591,6 +591,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasOne(ur => ur.Region)
             .WithMany(r => r.UserRegions)
             .HasForeignKey(ur => ur.RegionId);
+
+        modelBuilder.Entity<UserRegion>()
+            .HasOne(ur => ur.Role)
+            .WithMany()
+            .HasForeignKey(ur => ur.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<SystemType>()
             .HasOne(st => st.Generation)

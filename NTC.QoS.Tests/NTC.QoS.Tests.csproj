@@ -27,6 +27,7 @@
     <ProjectReference Include="..\NTC.QoS.Application\NTC.QoS.Application.csproj" />
     <ProjectReference Include="..\NTC.QoS.Infrastructure\NTC.QoS.Infrastructure.csproj" />
     <ProjectReference Include="..\NTC.QoS.Domain\NTC.QoS.Domain.csproj" />
+    <ProjectReference Include="..\NTC.QoS.API\NTC.QoS.API.csproj" />
   </ItemGroup>
 
 </Project>

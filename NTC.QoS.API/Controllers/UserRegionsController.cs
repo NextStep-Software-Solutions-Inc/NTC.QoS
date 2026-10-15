@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.UserRegion.Requests;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.UserRegion;
 
@@ -25,8 +26,9 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
     }
 
     [HttpGet]
-    [RequirePermission(Permissions.ViewUserRegions)]
     public async Task<ActionResult<PaginatedResponse<UserRegionDto>>> GetAllUserRegions(
+        [FromServices] IUserContextService userContextService,
+        [FromServices] IUserAuthorizationService userAuthorizationService,
         [FromQuery] int pageSize = 10,
         [FromQuery] int pageNumber = 1,
         [FromQuery] List<Guid>? userIds = null,
@@ -34,6 +36,19 @@ public class UserRegionsController(IMediator mediator) : ControllerBase
         [FromQuery] List<string>? authUserIds = null,
         [FromQuery] List<string>? statuses = null)
     {
+        var currentAuthUserId = userContextService.GetCurrentUserId();
+        var isQueryingSelfOnly = authUserIds != null && authUserIds.Count == 1 &&
+            string.Equals(authUserIds[0], currentAuthUserId, StringComparison.OrdinalIgnoreCase);
+
+        if (!isQueryingSelfOnly)
+        {
+            var hasPermission = await userAuthorizationService.HasPermissionAsync(Permissions.ViewUserRegions);
+            if (!hasPermission)
+            {
+                return Forbid();
+            }
+        }
+
         var userRegions = await _mediator.Send(new GetAllUserRegionsRequest
         {
             PageSize = pageSize,

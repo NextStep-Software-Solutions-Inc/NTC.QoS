@@ -48,12 +48,6 @@ public static class Permissions
     public const string CreateRolePermissions = "role_permissions.create";
     public const string DeleteRolePermissions = "role_permissions.delete";
 
-    // Organization management permissions
-    public const string ViewOrganizations = "organizations.view";
-    public const string CreateOrganizations = "organizations.create";
-    public const string UpdateOrganizations = "organizations.update";
-    public const string DeleteOrganizations = "organizations.delete";
-
     // Region management permissions
     public const string ViewRegions = "regions.view";
     public const string CreateRegions = "regions.create";
@@ -136,6 +130,16 @@ public static class Permissions
     public const string CreateAreaStudyTypes = "area_study_types.create";
     public const string UpdateAreaStudyTypes = "area_study_types.update";
     public const string DeleteAreaStudyTypes = "area_study_types.delete";
+
+    public const string ViewSignalLevels = "signal_levels.view";
+    public const string CreateSignalLevels = "signal_levels.create";
+    public const string UpdateSignalLevels = "signal_levels.update";
+    public const string DeleteSignalLevels = "signal_levels.delete";
+
+    public const string ViewSignalLevelEntries = "signal_level_entries.view";
+    public const string CreateSignalLevelEntries = "signal_level_entries.create";
+    public const string UpdateSignalLevelEntries = "signal_level_entries.update";
+    public const string DeleteSignalLevelEntries = "signal_level_entries.delete";
 
     // Links/Frequency Allocations permissions
     public const string ViewFrequencyAllocations = "links.view";

@@ -99,8 +99,9 @@ public class GetSpeedtestByIdHandler(ISpeedtestRepository speedtestRepository) :
                 SignalQuality = speedtest.SignalQuality,
                 CellIdentifier = speedtest.CellIdentifier,
                 Address = speedtest.Address ?? string.Empty,
-                Distance = Math.Round(speedtest.Location.Distance(speedtest.Location), 2),
+                Distance = 0,
                 IsFixedBroadband = speedtest.IsFixedBroadband,
+                IsNoBroadbandCoverage = speedtest.IsNoBroadbandCoverage,
             }
         };
     }

@@ -1,6 +1,7 @@
-﻿using MediatR;
+using MediatR;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -32,13 +33,16 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository) : 
             validatedSignalQuality = signalQualityEnum.ToString();
         }
 
+        // Normalize DateTime to UTC to prevent timezone skew and database driver errors
+        var normalizedDateTime = request.Speedtest.DateTime.NormalizeToUtc();
+
         // Check for duplicates (same ServiceProvider, Generation, Technology, DateTime, and Address)
         var duplicateCheck = _speedtestRepository.QueryAsNoTracking()
             .Where(s => s.Address == request.Speedtest.Address &&
                        s.ServiceProviderId == request.Speedtest.ServiceProviderId &&
                        s.GenerationId == request.Speedtest.GenerationId &&
                        s.TechnologyId == request.Speedtest.TechnologyId &&
-                       s.DateTime == request.Speedtest.DateTime)
+                       s.DateTime == normalizedDateTime)
             .Select(s => s.Id);
         var duplicateId = await _speedtestRepository.FirstOrDefaultAsync(duplicateCheck, cancellationToken);
 
@@ -62,7 +66,7 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository) : 
             ServiceProviderId = request.Speedtest.ServiceProviderId,
             GenerationId = request.Speedtest.GenerationId,
             TechnologyId = request.Speedtest.TechnologyId,
-            DateTime = request.Speedtest.DateTime,
+            DateTime = normalizedDateTime,
             Ping = request.Speedtest.Ping ?? 0,
             Jitter = request.Speedtest.Jitter ?? 0,
             RSSI = request.Speedtest.RSSI,
@@ -72,12 +76,21 @@ public class CreateSpeedtestHandler(ISpeedtestRepository speedtestRepository) : 
             MCC = request.Speedtest.MCC ?? string.Empty,
             MNC = request.Speedtest.MNC ?? string.Empty,
             TAC = request.Speedtest.TAC ?? string.Empty,
-            SignalQuality = validatedSignalQuality,
+            SignalQuality = request.Speedtest.IsNoBroadbandCoverage == true ? null : validatedSignalQuality,
             CellIdentifier = request.Speedtest.CellIdentifier ?? string.Empty,
             IsFixedBroadband = request.Speedtest.IsFixedBroadband,
+            IsNoBroadbandCoverage = request.Speedtest.IsNoBroadbandCoverage,
             IsFileUploaded = false, // Always false for manual CRUD operations
             Location = location
         };
+
+        if (newSpeedtest.IsNoBroadbandCoverage)
+        {
+            newSpeedtest.UploadSpeed = 0;
+            newSpeedtest.DownloadSpeed = 0;
+            newSpeedtest.Ping = 0;
+            newSpeedtest.Jitter = 0;
+        }
 
         _speedtestRepository.Add(newSpeedtest);
         await _speedtestRepository.SaveChangesAsync(cancellationToken);

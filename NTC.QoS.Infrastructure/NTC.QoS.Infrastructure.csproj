@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -11,6 +11,12 @@
     <Folder Include="Caching\" />
     <Folder Include="Enums\" />
     <Folder Include="Logging\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="seeds\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
@@ -49,6 +55,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NTC.QoS.Domain\NTC.QoS.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>NTC.QoS.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

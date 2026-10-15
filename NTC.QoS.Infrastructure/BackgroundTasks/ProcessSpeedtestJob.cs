@@ -1,5 +1,6 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Aggregates;
@@ -27,6 +28,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IMemoryCache _memoryCache;
+
+    private const string SpeedtestsCacheKeysSet = "speedtest_cache_keys";
 
     private const int BatchSize = 1000; // Process records in batches
     private const int DuplicateLoadBatchSize = 10000; // Load existing records in batches for memory efficiency
@@ -40,7 +44,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         IBlobStorageService blobStorageService,
         IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IMemoryCache memoryCache
         )
     {
         _logger = logger;
@@ -52,6 +57,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _memoryCache = memoryCache;
     }
 
     /// <summary>
@@ -120,20 +126,27 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
             file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
+        // Tracks how many records have been committed to the DB; used in the catch block to decide
+        // whether to invalidate the cache when an exception occurs after partial batch writes.
+        var totalAdded = 0;
+
         try
         {
             // Step 2: Pre-load Static/Reference Data for Performance
             _logger.LogInformation("Pre-loading reference data.");
 
-            // Pre-load all service providers with optimized query
-            var serviceProviderCache = await _serviceProviderRepository
+            // Group by (ProviderName, ServiceType) so multiple ServiceProvider rows with the same
+            // Provider.Name and the same Service.Type do not throw a duplicate-key exception.
+            // When duplicates exist the first matching ServiceProvider.Id is used; the Excel import
+            // identifies providers by name + wireless/wired type only, so any matching entry is
+            // equally valid for routing the record.
+            var serviceProviderCache = (await _serviceProviderRepository
                 .Query(sp => !sp.IsDeleted)
                 .Select(sp => new { sp.Id, sp.Provider.Name, sp.Service.Type })
-                .ToDictionaryAsync(
-                    sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type),
-                    sp => sp.Id,
-                    token
-                );
+                .OrderBy(sp => sp.Id)
+                .ToListAsync(token))
+                .GroupBy(sp => CacheKeyGenerator.GenerateServiceProviderCacheKey(sp.Name, sp.Type))
+                .ToDictionary(g => g.Key, g => g.First().Id);
             _logger.LogInformation("Pre-loaded {Count} service providers.", serviceProviderCache.Count);
 
             // Pre-load generations and technologies with optimized query
@@ -296,7 +309,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
 
                 // Step 5: Process Records in Batches (OPTIMIZED)
                 var totalRecords = speedtestRecords.Count;
-                var totalAdded = 0;
+                totalAdded = 0;
                 var totalDuplicatesSkipped = 0;
 
                 for (int i = 0; i < totalRecords; i += BatchSize)
@@ -331,8 +344,6 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             token))
                             return;
 
-                        // Validate numeric required fields (Upload, Download, Latitude, Longitude)
-                        // Allow 0 speeds (may indicate measurement issues but still valid data to save)
                         // Skip records with negative speeds as they are invalid
                         if (record.Upload < 0)
                         {
@@ -348,12 +359,19 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             continue; // Skip this record but continue processing others
                         }
 
-                        // Skip records where both upload and download are 0 or less (no meaningful speed data)
-                        if (record.Upload <= 0 && record.Download <= 0)
+                        // Detect No Broadband Coverage (NBC):
+                        // Either explicit nbc=true in the Excel file, or implicitly when both upload and download are 0.
+                        var isNoBroadbandCoverage = (record.IsNoBroadbandCoverage == true) || (record.Upload == 0m && record.Download == 0m);
+                        if (isNoBroadbandCoverage)
                         {
-                            _logger.LogWarning("Skipping record at Row {Row}: Both Upload and Download speeds are 0 or less. Upload: {Upload}, Download: {Download}",
-                                currentRow, record.Upload, record.Download);
-                            continue; // Skip this record but continue processing others
+                            _logger.LogDebug("Record at Row {Row} is marked as No Broadband Coverage (NBC). Upload: {Upload}, Download: {Download}, NBC flag: {NBC}",
+                                currentRow, record.Upload, record.Download, record.IsNoBroadbandCoverage);
+                            // Enforce consistency: NBC records must have zero speed/quality measurements.
+                            record.Upload = 0m;
+                            record.Download = 0m;
+                            record.Ping = "0";
+                            record.Jitter = "0";
+                            record.SignalQuality = string.Empty;
                         }
 
                         // Validate latitude and longitude (must be valid coordinates)
@@ -388,20 +406,28 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                             token))
                             return;
 
-                        // Lookup service provider - try Wireless first, then Wired if not found
-                        // This handles both wireless and wired providers since cache includes all types
+                        // Lookup service provider - try Wireless and Cellular first, then Wired/DSL if not found.
+                        // This allows providers whose Type is Cellular or DSL to be found even when
+                        // the import file doesn't specify a service type.
                         var providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wireless);
                         if (!serviceProviderCache.TryGetValue(providerKey, out var serviceProviderId))
                         {
-                            // Try Wired type as fallback
-                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                            providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Cellular);
                             if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
                             {
-                                _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
-                                await ProcessingJobHelper.TerminateProcessAsync(
-                                    file, _fileRepository, _logger, FileTypeEnum.Speedtest,
-                                    $"Service Provider '{record.Provider}' not found in database", token);
-                                return;
+                                providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.Wired);
+                                if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                                {
+                                    providerKey = CacheKeyGenerator.GenerateServiceProviderCacheKey(record.Provider, ServiceTypeEnum.DSL);
+                                    if (!serviceProviderCache.TryGetValue(providerKey, out serviceProviderId))
+                                    {
+                                        _logger.LogWarning("Service Provider not found: {Provider}. Terminating process.", record.Provider);
+                                        await ProcessingJobHelper.TerminateProcessAsync(
+                                            file, _fileRepository, _logger, FileTypeEnum.Speedtest,
+                                            $"Service Provider '{record.Provider}' not found in database", token);
+                                        return;
+                                    }
+                                }
                             }
                         }
 
@@ -451,12 +477,15 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 }
                             }
 
+                            // Convert local Philippine Time timestamp from Excel to UTC
+                            var recordUtcDateTime = TimeZoneHelper.ConvertPhilippineTimeToUtc(record.Timestamp);
+
                             // Generate hash for duplicate check (OPTIMIZED)
                             var duplicateHash = GenerateSpeedtestHash(
                                 serviceProviderId,
                                 generationId ?? Guid.Empty,
                                 technologyId ?? Guid.Empty,
-                                record.Timestamp.ToUniversalTime(),
+                                recordUtcDateTime,
                                 record.Upload,
                                 record.Download,
                                 record.RSSI ?? 0,  // Handle nullable RSSI
@@ -475,7 +504,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                     ServiceProviderId = serviceProviderId,
                                     GenerationId = generationId,
                                     TechnologyId = technologyId,
-                                    DateTime = record.Timestamp.ToUniversalTime(),
+                                    DateTime = recordUtcDateTime,
                                     UploadSpeed = record.Upload,
                                     DownloadSpeed = record.Download,
                                     RSSI = record.RSSI,
@@ -489,6 +518,7 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                     Ping = pingValue,
                                     Jitter = jitterValue,
                                     IsFileUploaded = true,
+                                    IsNoBroadbandCoverage = isNoBroadbandCoverage,
                                     CreatedAt = now,
                                     CreatedBy = userId,
                                     UpdatedAt = now,
@@ -502,8 +532,8 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                                 duplicatesSkipped++;
                                 if (_logger.IsEnabled(LogLevel.Debug))
                                 {
-                                    _logger.LogDebug("Duplicate speedtest record found and skipped: Provider={Provider}, NetworkType={NetworkType}, DateTime={DateTime}, Location=({Lat},{Lng}), Upload={Upload}, Download={Download}",
-                                        record.Provider, record.NetworkType, record.Timestamp, record.Latitude, record.Longitude, record.Upload, record.Download);
+                                    _logger.LogDebug("Duplicate speedtest record found and skipped: Provider={Provider}, NetworkType={NetworkType}, DateTime={DateTime} (UTC: {UtcDateTime}), Location=({Lat},{Lng}), Upload={Upload}, Download={Download}",
+                                        record.Provider, record.NetworkType, record.Timestamp, recordUtcDateTime, record.Latitude, record.Longitude, record.Upload, record.Download);
                                 }
                             }
                         }
@@ -536,6 +566,9 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
                 await ProcessingJobHelper.SetFileSuccessStatusAsync(
                     file, _fileRepository, _logger, FileTypeEnum.Speedtest, token);
 
+                // Invalidate the Speedtests memory cache so subsequent list/viewport requests reflect the newly imported data
+                ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, SpeedtestsCacheKeysSet, _logger);
+
                 // Trigger connectivity assessment generation upon successful processing
                 _logger.LogInformation("Speedtest processing completed successfully. Triggering connectivity assessment generation for file {FileId}", file.Id);
                 await _generateConnectivityAssessmentJob.ExecuteAsync(file.Id, token);
@@ -553,6 +586,13 @@ public class ProcessSpeedtestJob : IProcessSpeedtestJob
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.Speedtest,
                 $"Error occurred during processing: {ex.Message}", token);
+
+            // If any batches were already committed before the exception, the DB changed but the
+            // success-path cache invalidation never ran. Invalidate now so stale list/viewport
+            // results are not served for the remaining TTL.
+            if (totalAdded > 0)
+                ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, SpeedtestsCacheKeysSet, _logger);
+
             throw;
         }
     }

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NTC.QoS.Domain.Aggregates;
 using NTC.QoS.Domain.Entities;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Infrastructure.Persistence;
 using NTC.QoS.Infrastructure.Seed.Interfaces;
@@ -20,49 +22,136 @@ public class UserUpdater : IUserUpdater
 
     public async Task UpdateExistingUserAsync(User existingUser, ValidatedConfiguration config, string password)
     {
-        _logger.LogInformation("Updating existing admin user with Clerk integration...");
+        _logger.LogInformation("Updating existing admin user with Clerk integration for email: {Email}...", config.Email);
 
         var role = await _context.Roles
             .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Id == existingUser.RoleId);
-        var organization = await _context.Organizations
-            .AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Id == existingUser.OrganizationId);
+            .FirstOrDefaultAsync(r => r.Key == "super_admin");
 
-        var clerkUserPayload = new CreateClerkUserPayload
+        string authUserId;
+        var existingClerkUsers = await config.ClerkUserService.GetUsersByEmailAsync(config.Email);
+        if (existingClerkUsers.Count > 0)
         {
-            EmailAddress = existingUser.Email,
-            FirstName = "System",
-            LastName = "Administrator",
-            Password = password,
-            PublicMetadata = new Dictionary<string, object>
+            authUserId = existingClerkUsers[0].Id;
+            var metadataPayload = new UserMetadataPayload
             {
-                { "role", role?.Key ?? "super_admin" },
-                { "organization", organization?.Name ?? "National" },
-                { "isDefaultAdmin", true }
-            },
-            PrivateMetadata = new Dictionary<string, object>
+                PublicMetadata = new Dictionary<string, object>
+                {
+                    { "role", role?.Key ?? "super_admin" },
+                    { "isDefaultAdmin", true }
+                }
+            };
+            await config.ClerkUserService.UpdateUserMetadataAsync(authUserId, metadataPayload);
+        }
+        else
+        {
+            var clerkUserPayload = new CreateClerkUserPayload
             {
-                { "created_by_seeder", true },
-                { "updated_from_placeholder", true },
-                { "updated_at", DateTime.UtcNow.ToString("O") }
-            }
-        };
+                EmailAddress = config.Email,
+                FirstName = config.FirstName,
+                LastName = config.LastName,
+                Password = password,
+                PublicMetadata = new Dictionary<string, object>
+                {
+                    { "role", role?.Key ?? "super_admin" },
+                    { "isDefaultAdmin", true }
+                },
+                PrivateMetadata = new Dictionary<string, object>
+                {
+                    { "created_by_seeder", true },
+                    { "updated_from_placeholder", true },
+                    { "updated_at", DateTime.UtcNow.ToString("O") }
+                }
+            };
 
-        var clerkUser = await config.ClerkUserService.CreateUserAsync(clerkUserPayload);
+            var clerkUser = await config.ClerkUserService.CreateUserAsync(clerkUserPayload);
+            authUserId = clerkUser.Id;
+        }
 
         var userToUpdate = await _context.Users.FirstOrDefaultAsync(u => u.Id == existingUser.Id);
         if (userToUpdate != null)
         {
             var oldAuthUserId = userToUpdate.AuthUserId;
-            userToUpdate.AuthUserId = clerkUser.Id;
+            userToUpdate.AuthUserId = authUserId;
+            userToUpdate.Email = config.Email;
+            userToUpdate.FirstName = config.FirstName;
+            userToUpdate.LastName = config.LastName;
+            if (role != null) userToUpdate.RoleId = role.Id;
             userToUpdate.UpdatedAt = DateTime.UtcNow;
             userToUpdate.UpdatedBy = "System";
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Successfully updated admin user AuthUserId from {OldAuthUserId} to {NewAuthUserId}",
-                oldAuthUserId, clerkUser.Id);
+            _logger.LogInformation("Successfully updated admin user AuthUserId from {OldAuthUserId} to {NewAuthUserId} for email: {Email}",
+                oldAuthUserId, authUserId, config.Email);
+
+            // Auto-assign active regions to superadmin
+            await AssignAllRegionsToUserAsync(userToUpdate.Id, userToUpdate.RoleId);
+        }
+    }
+
+    private async Task AssignAllRegionsToUserAsync(Guid userId, Guid? roleId = null)
+    {
+        var allRegions = await _context.Regions
+            .AsNoTracking()
+            .Where(r => !r.IsDeleted)
+            .Select(r => r.Id)
+            .ToListAsync();
+
+        if (allRegions.Count == 0) return;
+
+        var existingUserRegions = await _context.Set<UserRegion>()
+            .Where(ur => ur.UserId == userId && !ur.IsDeleted)
+            .ToListAsync();
+
+        var hasUpdates = false;
+        foreach (var existing in existingUserRegions)
+        {
+            var updated = false;
+            if (existing.Status != UserRegionStatus.Active.ToString())
+            {
+                existing.Status = UserRegionStatus.Active.ToString();
+                updated = true;
+            }
+            if (roleId.HasValue && existing.RoleId != roleId.Value)
+            {
+                existing.RoleId = roleId.Value;
+                updated = true;
+            }
+            if (updated)
+            {
+                existing.UpdatedAt = DateTime.UtcNow;
+                existing.UpdatedBy = "System";
+                hasUpdates = true;
+            }
+        }
+
+        var existingUserRegionIds = existingUserRegions.Select(ur => ur.RegionId).ToHashSet();
+        var missingRegionIds = allRegions.Except(existingUserRegionIds).ToList();
+        if (missingRegionIds.Count > 0)
+        {
+            var newUserRegions = missingRegionIds.Select(regionId => new UserRegion
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                RegionId = regionId,
+                RoleId = roleId,
+                Status = UserRegionStatus.Active.ToString(),
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = "System",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "System",
+                IsDeleted = false
+            }).ToList();
+
+            await _context.Set<UserRegion>().AddRangeAsync(newUserRegions);
+            hasUpdates = true;
+            _logger.LogInformation("Assigned {Count} active regions to superadmin user.", newUserRegions.Count);
+        }
+
+        if (hasUpdates)
+        {
+            await _context.SaveChangesAsync();
         }
     }
 }

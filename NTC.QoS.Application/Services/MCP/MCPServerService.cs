@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.Analytics.Requests;
@@ -15,6 +16,14 @@ namespace NTC.QoS.Application.Services.MCP;
 /// </summary>
 public class MCPServerService : IMCPServerService
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     private readonly IMediator _mediator;
     private readonly ILogger<MCPServerService> _logger;
 
@@ -133,7 +142,7 @@ public class MCPServerService : IMCPServerService
                 _ => throw new ArgumentException($"Unknown tool: {toolName}")
             };
 
-            var resultJson = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            var resultJson = JsonSerializer.Serialize(result, _jsonOptions);
             _logger.LogInformation("MCP tool {ToolName} executed successfully", toolName);
             return resultJson;
         }
@@ -141,14 +150,13 @@ public class MCPServerService : IMCPServerService
         {
             _logger.LogError(ex, "Error executing MCP tool: {ToolName}", toolName);
             var error = new { error = ex.Message, toolName };
-            return JsonSerializer.Serialize(error);
+            return JsonSerializer.Serialize(error, _jsonOptions);
         }
     }
 
     private async Task<object?> ExecuteGetProvidersAsync(string parameters)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, options);
+        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, _jsonOptions);
 
         var pageSize = paramsDict?.TryGetValue("pageSize", out var ps) == true ? ps.GetInt32() : 10;
         var pageNumber = paramsDict?.TryGetValue("pageNumber", out var pn) == true ? pn.GetInt32() : 1;
@@ -177,8 +185,7 @@ public class MCPServerService : IMCPServerService
 
     private async Task<object?> ExecuteGetConnectivityAnalysisAsync(string parameters)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var requestDto = JsonSerializer.Deserialize<ConnectivityAnalysisRequestDto>(parameters, options);
+        var requestDto = JsonSerializer.Deserialize<ConnectivityAnalysisRequestDto>(parameters, _jsonOptions);
 
         if (requestDto == null)
             throw new ArgumentException("Invalid parameters for connectivity analysis");
@@ -198,8 +205,7 @@ public class MCPServerService : IMCPServerService
 
     private async Task<object?> ExecuteGetAreaBroadbandInfoAsync(string parameters)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, options);
+        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, _jsonOptions);
 
         if (paramsDict == null)
             throw new ArgumentException("Invalid parameters for area broadband info");
@@ -219,8 +225,7 @@ public class MCPServerService : IMCPServerService
 
     private async Task<object?> ExecuteGetPointBroadbandInfoAsync(string parameters)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, options);
+        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, _jsonOptions);
 
         if (paramsDict == null)
             throw new ArgumentException("Invalid parameters for point broadband info");
@@ -239,8 +244,7 @@ public class MCPServerService : IMCPServerService
 
     private async Task<object?> ExecuteGenerateConnectivityAssessmentAsync(string parameters)
     {
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, options);
+        var paramsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(parameters, _jsonOptions);
 
         if (paramsDict == null)
             throw new ArgumentException("Invalid parameters for connectivity assessment");

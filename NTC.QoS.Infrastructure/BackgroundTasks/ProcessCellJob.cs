@@ -1,7 +1,9 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
+using Npgsql;
 using NTC.QoS.Domain.Attributes;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
@@ -33,6 +35,9 @@ public class ProcessCellJob : IProcessCellJob
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IMemoryCache _memoryCache;
+
+    private const string CellsCacheKeysSet = "cells_cache_keys";
 
     // Batch processing configuration
     private const int BATCH_SIZE = 500; // Process 500 cell records per batch
@@ -59,7 +64,8 @@ public class ProcessCellJob : IProcessCellJob
         IBlobStorageService blobStorageService,
         IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IMemoryCache memoryCache
         )
     {
         _logger = logger;
@@ -78,6 +84,7 @@ public class ProcessCellJob : IProcessCellJob
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _memoryCache = memoryCache;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -97,6 +104,8 @@ public class ProcessCellJob : IProcessCellJob
 
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
             file, _fileRepository, _logger, FileTypeEnum.Cell, token);
+
+        var errorLogger = new ImportErrorLogger();
 
         try
         {
@@ -436,6 +445,7 @@ public class ProcessCellJob : IProcessCellJob
                         processingResults,
                         expectedCellularHashes,
                         processedCellIds,
+                        errorLogger,
                         token);
 
                     // Save batch results
@@ -489,10 +499,28 @@ public class ProcessCellJob : IProcessCellJob
                             network.UpdatedBy = userId;
                         }
 
-                        await _networkRepository.BulkInsertAsync(networksToAdd, token);
-                        processingResults.NetworksCreated += networksToAdd.Count;
-                        _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.",
-                            batchNumber, networksToAdd.Count);
+                        try
+                        {
+                            await _networkRepository.BulkInsertAsync(networksToAdd, token);
+                            processingResults.NetworksCreated += networksToAdd.Count;
+                            _logger.LogInformation("Batch {BatchNumber}: Saved {Count:N0} new networks to database.",
+                                batchNumber, networksToAdd.Count);
+                        }
+                        catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                                           postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+                        {
+                            var createdCount = await PersistNetworksIndividuallyAsync(
+                                networksToAdd,
+                                networkCache,
+                                batchResults.CellularToAdd,
+                                token);
+
+                            processingResults.NetworksCreated += createdCount;
+                            _logger.LogInformation(
+                                "Batch {BatchNumber}: Recovered from concurrent network insert conflict for {Count:N0} pending networks.",
+                                batchNumber,
+                                networksToAdd.Count);
+                        }
 
                         // Clear the list for the next batch
                         networksToAdd.Clear();
@@ -689,7 +717,7 @@ public class ProcessCellJob : IProcessCellJob
                 }
 
                 // --- Step 8: Complete Processing with Summary ---
-                await CompleteProcessing(file, processingResults, startTime, token);
+                await CompleteProcessing(file, processingResults, errorLogger, startTime, token);
             }
         }
         catch (Exception ex)
@@ -697,9 +725,12 @@ public class ProcessCellJob : IProcessCellJob
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during cell processing after {ElapsedTime}: {ErrorMessage}",
                 stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
+            errorLogger.AddError(0, "General", null, "Processing Error: " + ex.Message, "Check that the uploaded file follows the Cell Site template specifications.");
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var errLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.Cell,
-                $"Error occurred during processing: {ex.Message}", token);
+                $"Error occurred during processing: {ex.Message}", token, errLogPath);
             throw;
         }
     }
@@ -710,6 +741,7 @@ public class ProcessCellJob : IProcessCellJob
     private async Task CompleteProcessing(
         Domain.Entities.File file,
         ProcessingResults results,
+        ImportErrorLogger errorLogger,
         DateTime startTime,
         CancellationToken token)
     {
@@ -795,9 +827,32 @@ public class ProcessCellJob : IProcessCellJob
         _logger.LogInformation("- 1:1 Sector to CellSector ratio");
         _logger.LogInformation("=======================================\n");
 
-        file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        string? errorLogPath = null;
+        if (errorLogger.HasErrors)
+        {
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            errorLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
+            file.ErrorMessage = errorLogger.GenerateSummary();
+            file.ErrorLogPath = errorLogPath;
+        }
+
+        if (results.TotalRecords > 0 && results.SuccessfulRecords == 0)
+        {
+            file.Status = FileStatusEnum.Failed;
+            if (string.IsNullOrEmpty(file.ErrorMessage))
+            {
+                file.ErrorMessage = "All records in the file failed validation or were skipped. Please verify that the file follows the Cell Site template specifications.";
+            }
+        }
+        else
+        {
+            file.Status = results.ErrorRecords == 0 && results.SkippedRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        }
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Invalidate the Cells memory cache so subsequent list/viewport requests reflect the newly imported data
+        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, CellsCacheKeysSet, _logger);
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)
@@ -830,6 +885,7 @@ public class ProcessCellJob : IProcessCellJob
         ProcessingResults processingResults,
         HashSet<int> expectedCellularHashes,
         HashSet<Guid> processedCellIds,
+        ImportErrorLogger errorLogger,
         CancellationToken token)
     {
         var result = new BatchProcessingResult();
@@ -850,8 +906,15 @@ public class ProcessCellJob : IProcessCellJob
 
                 if (!serviceProviderCache.TryGetValue(spCacheKey, out var serviceProviderId))
                 {
+                    var invalidProv = string.IsNullOrWhiteSpace(record.Provider) ? "<blank>" : record.Provider;
                     _logger.LogWarning("Wireless Service Provider not found: {Provider}. Skipping record at row {Row}.",
                         record.Provider, actualRowNumber);
+                    errorLogger.AddError(
+                        actualRowNumber,
+                        "Provider",
+                        invalidProv,
+                        $"Wireless Service Provider '{invalidProv}' was not found in the database.",
+                        "Select a valid provider from the dropdown (e.g., SMART, GLOBE, DITO). Ensure the name is not misspelled.");
                     processingResults.SkippedRecords++;
                     continue;
                 }
@@ -949,6 +1012,12 @@ public class ProcessCellJob : IProcessCellJob
                                     beamTilts.Length,
                                     record.Azimuth,
                                     record.BeamTilt);
+                                errorLogger.AddError(
+                                    actualRowNumber,
+                                    "Azimuth / BeamTilt",
+                                    $"Azimuth: '{record.Azimuth}', BeamTilt: '{record.BeamTilt}'",
+                                    $"Count mismatch: {azimuths.Length} azimuth values vs {beamTilts.Length} beam tilt values.",
+                                    "Ensure both columns contain the same number of semicolon-separated numeric values.");
                             }
                             else
                             {
@@ -1046,6 +1115,12 @@ public class ProcessCellJob : IProcessCellJob
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Error processing record at row {Row}. Skipping.", actualRowNumber);
+                errorLogger.AddError(
+                    actualRowNumber,
+                    "Record",
+                    record.Provider,
+                    $"Error processing record: {ex.Message}",
+                    "Verify the row data aligns with the Cell Site template formatting.");
                 processingResults.ErrorRecords++;
                 continue;
             }
@@ -1509,9 +1584,9 @@ public class ProcessCellJob : IProcessCellJob
         var technologyName = technologyCache.FirstOrDefault(x => x.Value == technologyId).Key ?? "Unknown";
         var bandName = bandCache.FirstOrDefault(x => x.Value == bandId).Key ?? "Unknown";
 
-        var networkNamePattern = $"{technologyName}_{bandName}_{municipalityName}";
+        var networkNamePattern = NetworkNameHelper.Normalize(technologyName, bandName, municipalityName);
         var existingNetwork = await _networkRepository
-            .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && n.Name.StartsWith(networkNamePattern))
+            .QueryAsNoTracking(n => n.ServiceProviderId == serviceProviderId && n.Name == networkNamePattern)
             .FirstOrDefaultAsync(token);
 
         if (existingNetwork != null)
@@ -1530,7 +1605,7 @@ public class ProcessCellJob : IProcessCellJob
 
         var network = new Domain.Aggregates.Network
         {
-            Name = $"{technologyName}_{bandName}_{municipalityName}",
+            Name = networkNamePattern,
             ServiceProviderId = serviceProviderId,
             SystemTypeId = systemTypeId,
             BandId = bandId,
@@ -1543,6 +1618,94 @@ public class ProcessCellJob : IProcessCellJob
         networksToAdd.Add(network);
         networkCache[networkCacheKey] = network.Id;
         return network.Id;
+    }
+
+    private async Task<int> PersistNetworksIndividuallyAsync(
+        IEnumerable<Domain.Aggregates.Network> networksToAdd,
+        Dictionary<string, Guid> networkCache,
+        List<Domain.Entities.Cellular> pendingCellulars,
+        CancellationToken token)
+    {
+        var createdCount = 0;
+
+        foreach (var network in networksToAdd)
+        {
+            var originalNetworkId = network.Id;
+            var persistedNetworkId = await GetOrCreatePersistedNetworkIdAsync(network, token);
+
+            if (persistedNetworkId == originalNetworkId)
+                createdCount++;
+
+            RemapPendingNetworkReferences(originalNetworkId, persistedNetworkId, networkCache, pendingCellulars);
+        }
+
+        return createdCount;
+    }
+
+    private async Task<Guid> GetOrCreatePersistedNetworkIdAsync(
+        Domain.Aggregates.Network pendingNetwork,
+        CancellationToken token)
+    {
+        var existingNetworkId = await _networkRepository.FirstOrDefaultAsync(
+            _networkRepository
+                .Query(n => n.ServiceProviderId == pendingNetwork.ServiceProviderId &&
+                            n.Name == pendingNetwork.Name)
+                .Select(n => (Guid?)n.Id),
+            token);
+
+        if (existingNetworkId.HasValue)
+            return existingNetworkId.Value;
+
+        _networkRepository.Add(pendingNetwork);
+
+        try
+        {
+            await _networkRepository.SaveChangesAsync(token);
+            _networkRepository.Detach(pendingNetwork);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException postgresException &&
+                                           postgresException.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            _networkRepository.Delete(pendingNetwork);
+            _networkRepository.Detach(pendingNetwork);
+
+            var networkIdCreatedByConcurrentRequest = await _networkRepository.FirstOrDefaultAsync(
+                _networkRepository
+                    .Query(n => n.ServiceProviderId == pendingNetwork.ServiceProviderId &&
+                                n.Name == pendingNetwork.Name)
+                    .Select(n => (Guid?)n.Id),
+                token);
+
+            if (networkIdCreatedByConcurrentRequest.HasValue)
+                return networkIdCreatedByConcurrentRequest.Value;
+
+            throw;
+        }
+
+        return pendingNetwork.Id;
+    }
+
+    private static void RemapPendingNetworkReferences(
+        Guid originalNetworkId,
+        Guid persistedNetworkId,
+        Dictionary<string, Guid> networkCache,
+        List<Domain.Entities.Cellular> pendingCellulars)
+    {
+        if (originalNetworkId == persistedNetworkId)
+            return;
+
+        foreach (var cacheKey in networkCache
+                     .Where(entry => entry.Value == originalNetworkId)
+                     .Select(entry => entry.Key)
+                     .ToList())
+        {
+            networkCache[cacheKey] = persistedNetworkId;
+        }
+
+        foreach (var pendingCellular in pendingCellulars.Where(cellular => cellular.NetworkId == originalNetworkId))
+        {
+            pendingCellular.NetworkId = persistedNetworkId;
+        }
     }
 
     /// <summary>

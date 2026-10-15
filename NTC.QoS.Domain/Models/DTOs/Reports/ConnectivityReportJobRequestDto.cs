@@ -33,6 +33,12 @@ public class ConnectivityReportJobRequestDto
     public Guid? MunicipalityId { get; set; }
 
     /// <summary>
+    /// Optional filter by connectivity status. When null, all statuses are included.
+    /// Served = 3, Underserved = 2, Unserved = 1
+    /// </summary>
+    public ConnectivityStatusEnum? FilterByStatus { get; set; }
+
+    /// <summary>
     /// Report format (Excel or PDF)
     /// </summary>
     public ReportFormat Format { get; set; } = ReportFormat.Excel;

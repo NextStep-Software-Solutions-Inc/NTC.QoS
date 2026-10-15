@@ -71,7 +71,6 @@ internal static class RepositoryServiceExtensions
     {
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserRegionRepository, UserRegionRepository>();
-        services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
     }
 
     private static void RegisterTelecommunicationRepositories(IServiceCollection services)

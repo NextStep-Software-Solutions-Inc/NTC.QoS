@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Application.Features.Speedtest.Requests;
+using NTC.QoS.Application.Helper;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Helper;
 using NTC.QoS.Domain.Interfaces;
@@ -85,6 +86,9 @@ public class UpdateSpeedtestHandler(
             existingSpeedtest.ServiceProviderId = request.Speedtest.ServiceProviderId.Value;
         }
 
+        // Normalize DateTime to UTC if provided to prevent timezone skew
+        DateTime? normalizedDateTime = request.Speedtest.DateTime.NormalizeToUtc();
+
         // Check for duplicates using post-update values (exclude current record)
         var duplicateCheck = _speedtestRepository.Query()
             .Where(s => s.Id != request.Id &&
@@ -92,7 +96,7 @@ public class UpdateSpeedtestHandler(
                        s.ServiceProviderId == (request.Speedtest.ServiceProviderId ?? existingSpeedtest.ServiceProviderId) &&
                        s.GenerationId == (request.Speedtest.GenerationId ?? existingSpeedtest.GenerationId) &&
                        s.TechnologyId == (request.Speedtest.TechnologyId ?? existingSpeedtest.TechnologyId) &&
-                       s.DateTime == (request.Speedtest.DateTime ?? existingSpeedtest.DateTime))
+                       s.DateTime == (normalizedDateTime ?? existingSpeedtest.DateTime))
             .Select(s => s.Id);
         var duplicateId = await _speedtestRepository.FirstOrDefaultAsync(duplicateCheck, cancellationToken);
 
@@ -122,9 +126,9 @@ public class UpdateSpeedtestHandler(
         }
 
         // Update DateTime if provided
-        if (request.Speedtest.DateTime.HasValue)
+        if (normalizedDateTime.HasValue)
         {
-            existingSpeedtest.DateTime = request.Speedtest.DateTime.Value;
+            existingSpeedtest.DateTime = normalizedDateTime.Value;
         }
 
         // Update Ping if provided (leaves existing value unchanged if not provided)
@@ -211,6 +215,21 @@ public class UpdateSpeedtestHandler(
         if (request.Speedtest.IsFixedBroadband.HasValue)
         {
             existingSpeedtest.IsFixedBroadband = request.Speedtest.IsFixedBroadband.Value;
+        }
+
+        // Update IsNoBroadbandCoverage if provided
+        if (request.Speedtest.IsNoBroadbandCoverage.HasValue)
+        {
+            existingSpeedtest.IsNoBroadbandCoverage = request.Speedtest.IsNoBroadbandCoverage.Value;
+
+            if (existingSpeedtest.IsNoBroadbandCoverage)
+            {
+                existingSpeedtest.UploadSpeed = 0;
+                existingSpeedtest.DownloadSpeed = 0;
+                existingSpeedtest.Ping = 0;
+                existingSpeedtest.Jitter = 0;
+                existingSpeedtest.SignalQuality = null;
+            }
         }
 
         // IsFileUploaded remains false for manual CRUD operations
@@ -308,6 +327,7 @@ public class UpdateSpeedtestHandler(
                 Address = existingSpeedtest.Address,
                 IsFileUploaded = existingSpeedtest.IsFileUploaded,
                 IsFixedBroadband = existingSpeedtest.IsFixedBroadband,
+                IsNoBroadbandCoverage = existingSpeedtest.IsNoBroadbandCoverage,
                 Distance = 0
             },
             Message = "Speedtest updated successfully.",

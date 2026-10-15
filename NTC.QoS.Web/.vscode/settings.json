@@ -1,0 +1,17 @@
+{
+  "cSpell.words": [
+    "Aeroway",
+    "Barangay",
+    "coor",
+    "maptiler",
+    "maptilersdk",
+    "maxzoom",
+    "Mbps",
+    "minzoom",
+    "moveend",
+    "styledata"
+  ],
+  "codium.codeCompletion.enable": true,
+  "github.copilot.nextEditSuggestions.enabled": true,
+  "typescript.tsdk": "node_modules\\typescript\\lib"
+}

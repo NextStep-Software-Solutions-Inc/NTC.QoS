@@ -1,5 +1,6 @@
-﻿using Hangfire;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using NTC.QoS.Domain.Enums;
@@ -22,20 +23,24 @@ public class ProcessNAPJob : IProcessNAPJob
     private readonly IUserContextService _userContextService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly IGenerateConnectivityAssessmentJob _generateConnectivityAssessmentJob;
+    private readonly IMemoryCache _memoryCache;
+
+    private const string NAPsCacheKeysSet = "naps_cache_keys";
 
     // Batch processing configuration (following ProcessCellJobBatched pattern)
     private const int BATCH_SIZE = 5000; // Large batch size for simple entity
     private const int DUPLICATE_LOAD_BATCH_SIZE = 10000; // Load existing records in batches for memory efficiency
 
     public ProcessNAPJob(
- ILogger<ProcessNAPJob> logger,
+        ILogger<ProcessNAPJob> logger,
         IRepository<Domain.Entities.File> fileRepository,
         IRepository<Domain.Aggregates.NAP> NAPRepository,
-    IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
+        IRepository<Domain.Aggregates.ServiceProvider> serviceProviderRepository,
         IBlobStorageService blobStorageService,
-     IUserContextService userContextService,
+        IUserContextService userContextService,
         IBackgroundJobService backgroundJobService,
-        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob
+        IGenerateConnectivityAssessmentJob generateConnectivityAssessmentJob,
+        IMemoryCache memoryCache
         )
     {
         _logger = logger;
@@ -46,6 +51,7 @@ public class ProcessNAPJob : IProcessNAPJob
         _userContextService = userContextService;
         _backgroundJobService = backgroundJobService;
         _generateConnectivityAssessmentJob = generateConnectivityAssessmentJob;
+        _memoryCache = memoryCache;
     }
 
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
@@ -60,6 +66,8 @@ public class ProcessNAPJob : IProcessNAPJob
 
         await ProcessingJobHelper.SetFileProcessingStatusAsync(
      file, _fileRepository, _logger, FileTypeEnum.NAP, token);
+
+        var errorLogger = new ImportErrorLogger();
 
         try
         {
@@ -109,7 +117,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 _logger.LogInformation("Preloading {Count} unique service providers from NAP data...", providerNames.Count);
 
                 var serviceProvidersFromData = await _serviceProviderRepository
-                  .QueryAsNoTracking(sp => !sp.IsDeleted && sp.Provider != null)
+                                    .QueryAsNoTracking(sp => !sp.IsDeleted && sp.Provider != null && sp.Service != null && sp.Service.Type == ServiceTypeEnum.Wired)
                      .Include(sp => sp.Provider)
                 .Select(sp => new { sp.Id, sp.Provider.Name })
               .ToListAsync(token);
@@ -119,22 +127,61 @@ public class ProcessNAPJob : IProcessNAPJob
 
                 foreach (var sp in serviceProvidersFromData)
                 {
-                    if (sp.Name != null)
+                    if (!string.IsNullOrWhiteSpace(sp.Name))
                     {
-                        serviceProviderLookup[sp.Name] = sp.Id;
+                        serviceProviderLookup[sp.Name.Trim()] = sp.Id;
                     }
                 }
 
                 _logger.LogInformation("Preloaded {Count} service providers", serviceProviderLookup.Count);
 
-                var missingProviders = providerNames.Where(name => !serviceProviderLookup.ContainsKey(name)).ToList();
+                var validProviderNames = providerNames
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Select(name => name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var missingProviders = validProviderNames
+                    .Where(name => !serviceProviderLookup.ContainsKey(name))
+                    .ToList();
+
                 if (missingProviders.Any())
                 {
-                    _logger.LogWarning("Missing service providers from database:");
+                    _logger.LogWarning("Missing service providers from database ({MissingCount} unique):", missingProviders.Count);
                     foreach (var missing in missingProviders)
                     {
                         _logger.LogWarning("  - '{Provider}'", missing);
                     }
+                }
+
+                // If all parsed records have no valid provider (e.g. wrong template/file type uploaded)
+                if (validProviderNames.Count == 0 || missingProviders.Count == validProviderNames.Count)
+                {
+                    var sampleMissing = missingProviders.Take(5).ToList();
+                    var sampleMissingFormatted = sampleMissing.Count > 0
+                        ? string.Join(", ", sampleMissing)
+                        : "None specified";
+
+                    var extraCount = missingProviders.Count - sampleMissing.Count;
+                    var missingSummary = extraCount > 0
+                        ? $"{sampleMissingFormatted} (+{extraCount} more)"
+                        : sampleMissingFormatted;
+
+                    var msg = validProviderNames.Count == 0
+                        ? "Provider column is missing or empty in all records. Please ensure the file follows the NAP template."
+                        : $"None of the service providers found in the file ({missingSummary}) match existing wired service providers. Please ensure the file follows the NAP template.";
+
+                    _logger.LogError(
+                        "None of the service providers found in NAP file match existing wired service providers. Sample missing: {MissingProviders}, Total missing: {MissingCount}",
+                        sampleMissing,
+                        missingProviders.Count);
+
+                    errorLogger.AddError(1, "Provider", "<none>", msg, "Ensure Provider matches an existing wired provider in the system.");
+                    var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                    var earlyErrorLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
+
+                    await ProcessingJobHelper.TerminateProcessAsync(file, _fileRepository, _logger, FileTypeEnum.NAP, msg, token, earlyErrorLogPath);
+                    return;
                 }
 
                 var validProviderIds = serviceProviderLookup.Values.ToList();
@@ -213,15 +260,25 @@ public class ProcessNAPJob : IProcessNAPJob
                     _logger.LogInformation("Processing batch {BatchNumber}/{TotalBatches} ({RecordCount} records)",
                          batchNumber, totalBatches, batch.Count);
 
-                    foreach (var record in batch)
+                    for (int recordIndex = 0; recordIndex < batch.Count; recordIndex++)
                     {
+                        var record = batch[recordIndex];
+                        var actualRowNumber = batchIndex * BATCH_SIZE + recordIndex + 2; // Row 1 is header, data starts at row 2
                         processingResults.ProcessedRecords++;
 
                         try
                         {
-                            if (!serviceProviderLookup.TryGetValue(record.Provider, out var serviceProviderId))
+                            var providerName = record.Provider?.Trim();
+                            if (string.IsNullOrEmpty(providerName) || !serviceProviderLookup.TryGetValue(providerName, out var serviceProviderId))
                             {
-                                _logger.LogWarning("Service Provider not found in preloaded data: {Provider}. Skipping record.", record.Provider);
+                                var invalidVal = string.IsNullOrWhiteSpace(providerName) ? "<blank>" : providerName;
+                                _logger.LogWarning("Service Provider not found in preloaded data: {Provider}. Skipping record at Row {Row}.", record.Provider, actualRowNumber);
+                                errorLogger.AddError(
+                                    actualRowNumber,
+                                    "Provider",
+                                    invalidVal,
+                                    $"Service Provider '{invalidVal}' is not recognized as a registered Wired provider.",
+                                    "Ensure the Provider matches the template dropdown (e.g., PLDT, CONVERGE, GLOBE WIRED). Check for typo or copy-paste mismatch.");
                                 processingResults.SkippedRecords++;
                                 errorsInBatch++;
                                 continue;
@@ -231,8 +288,14 @@ public class ProcessNAPJob : IProcessNAPJob
                             if (record.Latitude < -90 || record.Latitude > 90 ||
                       record.Longitude < -180 || record.Longitude > 180)
                             {
-                                _logger.LogWarning("Invalid coordinates for record: {Provider}, {Municipality} {Province} ({Latitude},{Longitude})",
-                                  record.Provider, record.Municipality, record.Province, record.Latitude, record.Longitude);
+                                _logger.LogWarning("Invalid coordinates for record at Row {Row}: {Provider}, {Municipality} {Province} ({Latitude},{Longitude})",
+                                  actualRowNumber, record.Provider, record.Municipality, record.Province, record.Latitude, record.Longitude);
+                                errorLogger.AddError(
+                                    actualRowNumber,
+                                    "Latitude/Longitude",
+                                    $"{record.Latitude}, {record.Longitude}",
+                                    "Coordinates are out of valid range.",
+                                    "Latitude must be between -90 and 90, Longitude between -180 and 180. Make sure coordinates are in WGS84 decimal degrees.");
                                 processingResults.SkippedRecords++;
                                 errorsInBatch++;
                                 continue;
@@ -271,8 +334,14 @@ public class ProcessNAPJob : IProcessNAPJob
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning(ex, "Error processing record: {Provider}, {Municipality} {Province}. Error: {Message}",
-                            record.Provider, record.Municipality, record.Province, ex.Message);
+                            _logger.LogWarning(ex, "Error processing record at Row {Row}: {Provider}, {Municipality} {Province}. Error: {Message}",
+                                actualRowNumber, record.Provider, record.Municipality, record.Province, ex.Message);
+                            errorLogger.AddError(
+                                actualRowNumber,
+                                "Record",
+                                record.Provider,
+                                $"Unexpected error: {ex.Message}",
+                                "Verify row values conform to NAP template specifications.");
                             processingResults.ErrorRecords++;
                             errorsInBatch++;
                             continue;
@@ -313,7 +382,7 @@ public class ProcessNAPJob : IProcessNAPJob
                 _logger.LogInformation("Record processing completed in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
                 // --- Complete Processing with Comprehensive Summary ---
-                await CompleteProcessing(file, processingResults, startTime, token);
+                await CompleteProcessing(file, processingResults, errorLogger, startTime, token);
             }
         }
         catch (Exception ex)
@@ -321,9 +390,12 @@ public class ProcessNAPJob : IProcessNAPJob
             stopwatch.Stop();
             _logger.LogError(ex, "Error occurred during NAP processing after {ElapsedTime}: {ErrorMessage}",
       stopwatch.Elapsed.ToString(@"hh\:mm\:ss\.fff"), ex.Message);
+            errorLogger.AddError(0, "General", null, "Processing Error: " + ex.Message, "Check that the uploaded file follows the NAP template specifications.");
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var errLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
             await ProcessingJobHelper.TerminateProcessAsync(
                 file, _fileRepository, _logger, FileTypeEnum.NAP,
-               $"Error occurred during processing: {ex.Message}", token);
+               $"Error occurred during processing: {ex.Message}", token, errLogPath);
             throw;
         }
     }
@@ -349,6 +421,7 @@ public class ProcessNAPJob : IProcessNAPJob
     private async Task CompleteProcessing(
         Domain.Entities.File file,
         ProcessingResults results,
+        ImportErrorLogger errorLogger,
         DateTime startTime,
         CancellationToken token)
     {
@@ -396,9 +469,32 @@ public class ProcessNAPJob : IProcessNAPJob
         _logger.LogInformation("- Field projection to minimize network transfer");
         _logger.LogInformation("=======================================");
 
-        file.Status = results.ErrorRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        string? errorLogPath = null;
+        if (errorLogger.HasErrors)
+        {
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            errorLogPath = await errorLogger.UploadErrorLogAsync(file, _blobStorageService, env, _logger, token);
+            file.ErrorMessage = errorLogger.GenerateSummary();
+            file.ErrorLogPath = errorLogPath;
+        }
+
+        if (results.TotalRecords > 0 && results.SuccessfulRecords == 0)
+        {
+            file.Status = FileStatusEnum.Failed;
+            if (string.IsNullOrEmpty(file.ErrorMessage))
+            {
+                file.ErrorMessage = "All records in the file failed validation or were skipped. Please verify that the file follows the NAP template specifications.";
+            }
+        }
+        else
+        {
+            file.Status = results.ErrorRecords == 0 && results.SkippedRecords == 0 ? FileStatusEnum.Success : FileStatusEnum.PartiallyProcessed;
+        }
         _fileRepository.Update(file);
         await _fileRepository.SaveChangesAsync(token);
+
+        // Invalidate the NAPs memory cache so subsequent list/viewport requests reflect the newly imported data
+        ProcessingJobHelper.InvalidateCacheKeySet(_memoryCache, NAPsCacheKeysSet, _logger);
 
         // Trigger connectivity assessment generation upon successful processing
         if (file.Status == FileStatusEnum.Success || file.Status == FileStatusEnum.PartiallyProcessed)

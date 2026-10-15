@@ -29,4 +29,5 @@ public class Speedtest : BaseEntity, IGeoLocatedEntity
     public bool IsFileUploaded { get; set; }
     public string CellIdentifier { get; set; } = string.Empty;
     public bool IsFixedBroadband { get; set; }
+    public bool IsNoBroadbandCoverage { get; set; }
 }

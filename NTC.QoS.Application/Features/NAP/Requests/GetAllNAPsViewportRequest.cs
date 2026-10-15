@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using MediatR;
 using NTC.QoS.Domain.Models.DTOs.Common;
 using NTC.QoS.Domain.Models.DTOs.NAP;
@@ -8,7 +9,7 @@ namespace NTC.QoS.Application.Features.NAP.Requests;
 /// Request for retrieving NAPs within a map viewport bounding box.
 /// Optimized for v2 API - viewport-based spatial filtering to prevent OOM and improve UI performance.
 /// This request uses rectangular viewport bounds instead of radius-based distance filtering.
-/// Returns lightweight NAPViewportDto without Guid IDs for optimal payload size.
+/// Returns NAPViewportDto with all fields required for display, editing, and deletion.
 /// </summary>
 public class GetAllNAPsViewportRequest : IRequest<PaginatedResponse<NAPViewportDto>>
 {
@@ -58,6 +59,7 @@ public class GetAllNAPsViewportRequest : IRequest<PaginatedResponse<NAPViewportD
     /// </summary>
     public List<Guid>? RegionIds { get; set; }
 
+    [SetsRequiredMembers]
     public GetAllNAPsViewportRequest(int pageNumber, int pageSize, ViewportBounds viewport)
     {
         PageNumber = pageNumber;

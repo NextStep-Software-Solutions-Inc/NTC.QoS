@@ -15,7 +15,6 @@ namespace NTC.QoS.API.Controllers;
 
 public class ServiceProvidersController(IMediator mediator) : ControllerBase
 {
-    private const int BrowserCacheDuration = 21600;
     private readonly IMediator _mediator = mediator;
 
     [HttpPost]
@@ -28,7 +27,6 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewServiceProviders)]
-    [ResponseCache(Duration = BrowserCacheDuration, Location = ResponseCacheLocation.Any, NoStore = false, VaryByQueryKeys = new[] { "pageSize", "pageNumber", "providerIds", "serviceIds", "serviceTypes", "search" })]
     public async Task<ActionResult<PaginatedResponse<ServiceProviderDto>>> GetAllServiceProviders(int pageSize = 10,
                                                                                                   int pageNumber = 1,
                                                                                                   [FromQuery] List<Guid>? providerIds = null,
@@ -61,6 +59,14 @@ public class ServiceProvidersController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> UpdateServiceProviderById(Guid id, UpdateServiceProviderDto updateServiceProvider)
     {
         var serviceProvider = await _mediator.Send(new UpdateServiceProviderByIdRequest(id, updateServiceProvider));
+        return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
+    }
+
+    [HttpPost("{id}/restore")]
+    [RequirePermission(Permissions.CreateServiceProviders)]
+    public async Task<ActionResult<ApiResponse<ServiceProviderDto>>> RestoreServiceProviderById(Guid id)
+    {
+        var serviceProvider = await _mediator.Send(new RestoreServiceProviderByIdRequest(id));
         return serviceProvider.Succeeded ? Ok(serviceProvider) : BadRequest(serviceProvider);
     }
 

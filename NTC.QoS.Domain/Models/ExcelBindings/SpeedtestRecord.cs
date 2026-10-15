@@ -72,4 +72,7 @@ public record SpeedtestRecord
     [ExcelHeader("success")]
     public string Success { get; set; } = string.Empty;
 
+    [ExcelHeader("nbc")]
+    public bool? IsNoBroadbandCoverage { get; set; }
+
 }

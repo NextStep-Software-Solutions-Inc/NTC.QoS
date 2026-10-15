@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  qos-api:
+    image: ${IMAGE_NAME:-qos-api:prod}
+    container_name: ${CONTAINER_NAME:-qos-api}
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: NTC.QoS.API/Dockerfile
+      args:
+        BUILD_CONFIGURATION: Release
+        ASPNETCORE_ENVIRONMENT: Production
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Database__RunMigrationsOnStartup=true
+      - ConnectionStrings__PostgreSqlConnection=${DB_CONNECTION_STRING}
+      - ConnectionStrings__Redis=${REDIS_CONNECTION_STRING:-}
+      - ConnectionStrings__BlobStorageConnection=${BLOB_STORAGE_CONNECTION_STRING}
+      - Clerk__SecretKey=${CLERK_SECRET_KEY}
+      - Clerk__WebhookSecret=${CLERK_WEBHOOK_SECRET}
+      - Clerk__FrontendUrl=${CLERK_FRONTEND_URL:-https://app.qos.ntc.gov.ph}
+      - GoogleAI__ApiKey=${GOOGLE_AI_API_KEY}
+      - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
+    expose:
+      - "8080"
+    networks:
+      - ntcqos_db_net
+      - npm_proxy_net
+
+networks:
+  ntcqos_db_net:
+    external: true
+  npm_proxy_net:
+    external: true

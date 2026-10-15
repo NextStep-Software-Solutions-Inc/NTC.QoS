@@ -25,7 +25,6 @@ public static class AuthorizationServiceExtensions
         // Register authorization handlers
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddScoped<IAuthorizationHandler, RoleAuthorizationHandler>();
-        services.AddScoped<IAuthorizationHandler, OrganizationAuthorizationHandler>();
         services.AddScoped<IAuthorizationHandler, RegionAuthorizationHandler>();
 
         // Register dynamic policy provider
@@ -36,7 +35,6 @@ public static class AuthorizationServiceExtensions
         {
             ConfigurePermissionPolicies(options);
             ConfigureRolePolicies(options);
-            ConfigureOrganizationPolicies(options);
             ConfigureRegionPolicies(options);
             ConfigureCombinedPolicies(options);
         });
@@ -76,12 +74,6 @@ public static class AuthorizationServiceExtensions
 
         options.AddPolicy(Policies.CanViewReports, policy =>
             policy.AddRequirements(new PermissionRequirement(Permissions.ViewReports)));
-
-        options.AddPolicy(Policies.CanManageOrganizations, policy =>
-            policy.AddRequirements(
-                new PermissionRequirement(Permissions.CreateOrganizations),
-                new PermissionRequirement(Permissions.UpdateOrganizations),
-                new PermissionRequirement(Permissions.DeleteOrganizations)));
 
         options.AddPolicy(Policies.CanViewCells, policy =>
             policy.AddRequirements(new PermissionRequirement(Permissions.ViewCells)));
@@ -142,13 +134,6 @@ public static class AuthorizationServiceExtensions
             policy.AddRequirements(new RoleRequirement(Roles.Viewer)));
     }
 
-    private static void ConfigureOrganizationPolicies(AuthorizationOptions options)
-    {
-        // Organization-based policies
-        options.AddPolicy(Policies.SameOrganization, policy =>
-            policy.AddRequirements(new OrganizationRequirement(requireSameOrganization: true)));
-    }
-
     private static void ConfigureRegionPolicies(AuthorizationOptions options)
     {
         // Region-based policies
@@ -159,25 +144,6 @@ public static class AuthorizationServiceExtensions
     private static void ConfigureCombinedPolicies(AuthorizationOptions options)
     {
         // Combined policies
-        options.AddPolicy(Policies.AdminOrSameOrganization, policy =>
-            policy.RequireAssertion(async context =>
-            {
-                // Check if user is admin
-                if (context.User.HasClaim("role", Roles.Admin))
-                    return true;
-
-                // Check if user belongs to same organization (this would need custom logic)
-                var authService = context.Resource as IUserAuthorizationService;
-                if (authService != null)
-                {
-                    var userOrgId = await authService.GetUserOrganizationIdAsync();
-                    // Additional logic would be needed here to compare with target organization
-                    return userOrgId.HasValue;
-                }
-
-                return false;
-            }));
-
         options.AddPolicy(Policies.ManagerWithRegionAccess, policy =>
             policy.AddRequirements(
                 new RoleRequirement(Roles.Manager),

@@ -1,0 +1,37 @@
+export type Sector = {
+  id: string;
+  networkId: string;
+  antennaType?: string;
+  number?: number;
+  mimoId: string;
+  cellSectorId: string;
+  radioEquipment: string;
+  isRxEqualTx: boolean;
+  txPower: number;
+  txAntennaModel: string;
+  txCableType: string;
+  txCableLength: number;
+  txCableLoss: number;
+  txAdditionalLoss: number;
+  txAntennaHeight?: number;
+  txAntennaGain: number;
+  txAzimuth?: number;
+  txBeamTilt?: number;
+  txAntennaPatternId: string;
+  txEIRP: number;
+  rxAntennaModel: string;
+  rxCableType: string;
+  rxCableLength: number;
+  rxCableLoss: number;
+  rxAdditionalLoss: number;
+  rxAntennaHeight: number;
+  rxAntennaGain: number;
+  rxAzimuth: number;
+  rxBeamTilt: number;
+  rxAntennaPatternId: string;
+  rxEIRP: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SectorDetails = Sector;

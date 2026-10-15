@@ -1,4 +1,5 @@
 using MediatR;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Reports;
 
@@ -23,6 +24,13 @@ public class GetConnectivityGapReportQuery : IRequest<ApiResponse<ConnectivityGa
     /// Optional filter by Municipality ID
     /// </summary>
     public Guid? MunicipalityId { get; set; }
+
+    /// <summary>
+    /// Optional filter by connectivity status within gap areas.
+    /// When null, all gap areas (Unserved and Underserved) are included.
+    /// Only Unserved (1) and Underserved (2) are applicable; Served areas are never included in the gap report.
+    /// </summary>
+    public ConnectivityStatusEnum? FilterByStatus { get; set; }
 
     /// <summary>
     /// Page number for pagination (default: 1)

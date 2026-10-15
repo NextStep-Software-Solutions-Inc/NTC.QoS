@@ -1,4 +1,6 @@
 using Azure.Storage.Blobs;
+using Azure.Storage;
+using System.Data.Common;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NTC.QoS.Domain.Interfaces;
@@ -28,20 +30,20 @@ public static class BlobStorageServiceExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Configure BlobClientOptions with extended timeouts for large file uploads
-        var blobClientOptions = new Azure.Storage.Blobs.BlobClientOptions
-        {
-            Retry =
-            {
-                MaxRetries = 10, // Increased from default 3 to 10
-                NetworkTimeout = TimeSpan.FromMinutes(10), // Increased from 100 seconds to 10 minutes for large files
-                Delay = TimeSpan.FromSeconds(2), // Initial delay between retries
-                MaxDelay = TimeSpan.FromSeconds(30), // Max delay between retries
-                Mode = Azure.Core.RetryMode.Exponential
-            }
-        };
+        services.AddSingleton(new BlobServiceClient(blobConnectionString));
 
-        services.AddSingleton(provider => new BlobServiceClient(blobConnectionString, blobClientOptions));
+        var connectionStringBuilder = new DbConnectionStringBuilder
+        {
+            ConnectionString = blobConnectionString
+        };
+        if (connectionStringBuilder.TryGetValue("AccountName", out var accountName) &&
+            connectionStringBuilder.TryGetValue("AccountKey", out var accountKey) &&
+            accountName is string accountNameValue &&
+            accountKey is string accountKeyValue)
+        {
+            services.AddSingleton(new StorageSharedKeyCredential(accountNameValue, accountKeyValue));
+        }
+
         services.AddScoped<IBlobStorageService, BlobStorageService>();
 
         return services;

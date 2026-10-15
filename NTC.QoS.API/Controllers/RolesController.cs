@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.API.Authorization;
@@ -12,7 +12,6 @@ namespace NTC.QoS.API.Controllers;
 [ApiController]
 [Route("roles", Name = "roles")]
 [Authorize]
-
 public class RolesController(IMediator mediator) : ControllerBase
 {
     private readonly IMediator _mediator = mediator;
@@ -27,9 +26,14 @@ public class RolesController(IMediator mediator) : ControllerBase
 
     [HttpGet]
     [RequirePermission(Permissions.ViewRoles)]
-    public async Task<ActionResult<PaginatedResponse<RoleDto>>> GetAllRoles(int pageSize = 10, int pageNumber = 1, [FromQuery] string? search = null)
+    public async Task<ActionResult<PaginatedResponse<RoleDto>>> GetAllRoles(
+        int pageSize = 10,
+        int pageNumber = 1,
+        [FromQuery] string? search = null,
+        [FromQuery] string? scope = null,
+        [FromQuery] Guid? regionId = null)
     {
-        var result = await _mediator.Send(new GetAllRolesRequest(pageSize, pageNumber, search));
+        var result = await _mediator.Send(new GetAllRolesRequest(pageSize, pageNumber, search, scope, regionId));
         return Ok(result);
     }
 
@@ -46,6 +50,14 @@ public class RolesController(IMediator mediator) : ControllerBase
     public async Task<ActionResult<ApiResponse<RoleDto>>> UpdateRoleById(Guid id, UpdateRoleDto updateRoleDto)
     {
         var role = await _mediator.Send(new UpdateRoleByIdRequest(id, updateRoleDto));
+        return role.Succeeded ? Ok(role) : BadRequest(role);
+    }
+
+    [HttpPut("{id}/permissions")]
+    [RequirePermission(Permissions.UpdateRoles)]
+    public async Task<ActionResult<ApiResponse<RoleDto>>> UpdateRolePermissions(Guid id, UpdateRolePermissionsDto updatePermissionsDto)
+    {
+        var role = await _mediator.Send(new UpdateRolePermissionsRequest(id, updatePermissionsDto));
         return role.Succeeded ? Ok(role) : BadRequest(role);
     }
 
