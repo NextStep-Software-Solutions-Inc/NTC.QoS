@@ -665,6 +665,17 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     return mapByName;
   }, [generationsData]);
 
+  const generationNameById = useMemo(() => {
+    const mapById = new Map<string, string>();
+    const rows = (generationsData as { data?: Array<{ id: string; name?: string }> } | undefined)?.data;
+    for (const row of rows ?? []) {
+      const name = toNonEmptyString(row.name);
+      if (!name) continue;
+      mapById.set(row.id, name);
+    }
+    return mapById;
+  }, [generationsData]);
+
   // Accumulate cells from all pages
   const accumulatedCells = useMemo(() => {
     if (cellsData) {
@@ -1804,19 +1815,73 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     }
 
     if (options.serviceProviderIds && options.serviceProviderIds.length > 0) {
-      filterExpression.push(["in", ["coalesce", ["get", "networkProviderId"], ""], ["literal", options.serviceProviderIds]]);
+      const selectedNames = options.serviceProviderIds
+        .map((id) => providerNameById.get(id)?.toLowerCase())
+        .filter((n): n is string => Boolean(n));
+
+      if (selectedNames.length > 0) {
+        filterExpression.push([
+          "any",
+          ["in", ["coalesce", ["get", "networkProviderId"], ""], ["literal", options.serviceProviderIds]],
+          ["in", ["downcase", ["coalesce", ["get", "network"], ["get", "provider"], ""]], ["literal", selectedNames]],
+        ]);
+      } else {
+        filterExpression.push(["in", ["coalesce", ["get", "networkProviderId"], ""], ["literal", options.serviceProviderIds]]);
+      }
     }
 
     if (options.generationIds && options.generationIds.length > 0) {
-      filterExpression.push(["in", ["coalesce", ["get", "generationId"], ""], ["literal", options.generationIds]]);
+      const selectedGenNames = options.generationIds
+        .map((id) => generationNameById.get(id)?.toLowerCase())
+        .filter((n): n is string => Boolean(n));
+
+      if (selectedGenNames.length > 0) {
+        filterExpression.push([
+          "any",
+          ["in", ["coalesce", ["get", "generationId"], ""], ["literal", options.generationIds]],
+          ["in", ["downcase", ["coalesce", ["get", "technology"], ""]], ["literal", selectedGenNames]],
+        ]);
+      } else {
+        filterExpression.push(["in", ["coalesce", ["get", "generationId"], ""], ["literal", options.generationIds]]);
+      }
     }
 
     if (signalSearchQuery) {
-      filterExpression.push([
-        ">=",
-        ["index-of", signalSearchQuery, ["downcase", ["coalesce", ["get", "search_text"], ""]]],
-        0,
-      ]);
+      const searchTokens = signalSearchQuery.split(/\s+/).map((t) => t.trim()).filter(Boolean);
+      if (searchTokens.length > 0) {
+        const searchTarget: any = [
+          "concat",
+          ["downcase", ["to-string", ["coalesce", ["get", "search_text"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "band"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "network"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "technology"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "provider"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "duplex_mode"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "frequency"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "location"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "barangay"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "address"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "cell_id"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "cellId"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "areaStudy"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "source_file"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "city"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "municipality"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "province"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "region"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "site_id"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "site_name"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"], ""]]],
+        ];
+
+        for (const token of searchTokens) {
+          filterExpression.push([
+            ">=",
+            ["index-of", token, searchTarget],
+            0,
+          ]);
+        }
+      }
     }
 
     const applyFilter = (layerId: string, filter: any) => {
@@ -1848,6 +1913,8 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     signalStrengthMin,
     signalStrengthMax,
     signalSearchQuery,
+    providerNameById,
+    generationNameById,
   ]);
 
   // Dynamically update signal coverage circle colors when configured signal levels change

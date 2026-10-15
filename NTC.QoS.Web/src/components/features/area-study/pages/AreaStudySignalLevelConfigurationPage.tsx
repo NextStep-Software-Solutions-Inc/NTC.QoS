@@ -55,7 +55,7 @@ const levelCountSchema = z.object({
     .max(8, "Maximum is 8 levels."),
 });
 
-const defaultColors = ["#1A7A1A", "#7EC850", "#FFF200", "#FF9900", "#FF0000", "#A020F0", "#0099FF", "#777777"];
+const defaultColors = ["#FF0000", "#FF9900", "#FFF200", "#7EC850", "#1A7A1A", "#0099FF", "#A020F0", "#777777"];
 
 const parseNumber = (value: string): number | null => {
   const parsed = Number(value);
@@ -68,7 +68,7 @@ function buildRows(entries: SignalLevelEntry[], noOfLevels: number): EditableSig
   const existingRows = sortedEntries.map((entry, index) => ({
     rowKey: entry.id,
     id: entry.id,
-    color: entry.color || defaultColors[index % defaultColors.length] || "#1A7A1A",
+    color: entry.color || defaultColors[index % defaultColors.length] || "#FF0000",
     thresholdFrom: entry.thresholdFrom?.toString() ?? "",
     thresholdTo: entry.thresholdTo?.toString() ?? "",
     description: entry.description ?? "",
@@ -80,7 +80,7 @@ function buildRows(entries: SignalLevelEntry[], noOfLevels: number): EditableSig
     const absoluteIndex = existingRows.length + index;
     return {
       rowKey: `draft-${absoluteIndex}`,
-      color: defaultColors[absoluteIndex % defaultColors.length] || "#1A7A1A",
+      color: defaultColors[absoluteIndex % defaultColors.length] || "#FF0000",
       thresholdFrom: "",
       thresholdTo: "",
       description: `Level ${absoluteIndex + 1}`,
@@ -355,6 +355,56 @@ export default function AreaStudySignalLevelConfigurationPage() {
     );
   };
 
+  const [isSavingAll, setIsSavingAll] = useState(false);
+
+  const applyStandardColors = () => {
+    setRows((prev) =>
+      prev.map((row, index) => ({
+        ...row,
+        color: defaultColors[index % defaultColors.length] || "#FF0000",
+      }))
+    );
+    toast.info("Standard colors applied (Weakest = Red, Strongest = Green). Click 'Save All' or 'Save' on each row to persist.");
+  };
+
+  const saveAllRows = async () => {
+    if (!signalLevelId) return;
+    setIsSavingAll(true);
+    try {
+      let savedCount = 0;
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row) continue;
+        const payload = validateRow(row, i, false);
+        if (!payload) {
+          setIsSavingAll(false);
+          return;
+        }
+        if (row.id) {
+          await editEntryMutation.mutateAsync({
+            pathParams: { signalLevelId, id: row.id },
+            payload,
+          });
+        } else {
+          const res = await createEntryMutation.mutateAsync({
+            pathParams: { signalLevelId },
+            payload,
+          });
+          setRows((prev) =>
+            prev.map((item, idx) => (idx === i ? { ...item, id: res.data.id, rowKey: res.data.id } : item))
+          );
+        }
+        savedCount++;
+      }
+      toast.success(`Successfully saved ${savedCount} signal levels.`);
+      await invalidateSignalQueries();
+    } catch {
+      toast.error("Failed to save all signal levels.");
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
+
   const areaStudyName = areaStudyDetails?.data?.name ?? "Area Study";
 
   const isStateALoading = isLoadingSignalLevels && !signalLevel;
@@ -430,14 +480,31 @@ export default function AreaStudySignalLevelConfigurationPage() {
                 <Badge variant="secondary">{rows.length} levels</Badge>
                 <Badge variant="outline">Configured count: {configuredNoOfLevels}</Badge>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setRows(buildRows(entries, configuredNoOfLevels));
-                }}>
-                Reset Drafts
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={applyStandardColors}>
+                  Standard Colors (Red → Green)
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => void saveAllRows()}
+                  disabled={isSavingAll || createEntryMutation.isPending || editEntryMutation.isPending}
+                  className="gap-1">
+                  {isSavingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  Save All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setRows(buildRows(entries, configuredNoOfLevels));
+                  }}>
+                  Reset Drafts
+                </Button>
+              </div>
             </div>
 
             <div className="rounded-md border overflow-x-auto">
