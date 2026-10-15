@@ -20,11 +20,14 @@ import type { InfiniteData } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { getPublicCellsInfiniteRequest } from "@/components/features/cell/handlers/getPublicCellsInfiniteRequest";
+import { getGenerationsRequest } from "@/components/features/generation/handlers/getGenerationsRequest";
+import { getServiceProvidersRequest } from "@/components/features/service-provider/handlers/getServiceProvidersRequest";
 import { type CellViewport } from "@/components/features/cell/types/Cell";
 import { type CellularCoverageTileset } from "@/components/features/cellular-coverage/types/CellularCoverageTileset";
 import { useCellGeoJSONWorker, type CellGeoJSONFeatureCollection } from "@/hooks/useCellGeoJSONWorker";
 import { useMap } from "@/hooks/useMap";
 import { useMapViewport } from "@/hooks/useMapViewport";
+import { createQueryHookFromTemplate } from "@/hooks/createQueryHookFromTemplate";
 import { PHILIPPINES_BOUNDS } from "@/lib/constants/map-bounds";
 import { request } from "@/services/fetch";
 import type { APIResponse, PaginationResponse } from "@/types/reusable/api";
@@ -37,6 +40,7 @@ import {
   getPointViewCirclePaint,
   getProviderIconId,
   getSignalCoverageCirclePaint,
+  getSignalStrengthColor,
   loadProviderIcons,
 } from "./map-cells-utils";
 
@@ -62,82 +66,445 @@ export interface CellOptions {
   serviceProviderIds?: string[];
   generationIds?: string[];
   isAdminMode?: boolean; // New: determines if admin-only layers are available
+  /** Area study label used to scope signal coverage GeoJSON features. */
+  signalCoverageAreaStudyName?: string;
+  /** Explicit signal-level ranges to include (combined with OR). */
+  signalLevelRanges?: Array<{ min?: number; max?: number }>;
   /** Signal strength range filter (dBm) applied to the Radio Network Coverage layer */
   signalStrengthFilter?: { min: number; max: number };
+  /** Free-text search for signal coverage properties (e.g., location, technology, cell GUID). */
+  searchQuery?: string;
 }
 
 const useGetCellsInfinite = createInfiniteQueryHookFromTemplate(getPublicCellsInfiniteRequest);
+const useGetWirelessServiceProviders = createQueryHookFromTemplate(getServiceProvidersRequest);
+const useGetGenerations = createQueryHookFromTemplate(getGenerationsRequest);
+
+const SIGNAL_COVERAGE_GEOJSON_POC_PATH = "/api/signal-coverage/geojson";
+const MAPTILER_SIGNAL_COVERAGE_URL = process.env.NEXT_PUBLIC_MAPTILER_SIGNAL_COVERAGE_URL;
+const MAPTILER_SIGNAL_SOURCE_LAYER_ID = process.env.NEXT_PUBLIC_MAPTILER_SIGNAL_SOURCE_LAYER_ID ?? "signal_coverage";
+
+const normalizeSearchToken = (value: unknown): string => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+const PROVIDER_NAME_STRIP_REGEX =
+  /\b(INC\.?|CORP\.?|CORPORATION|COMMUNICATIONS?|TELECOM(MUNICATIONS?)?|TELECOMMUNITY|NETWORKS?|DATA|SOLUTIONS?|SERVICES?|CO\.?|LTD\.?|LLC|COMPANY|ENTERPRISES?|TECHNOLOGY|ICT)\b\.?/gi;
+
+const getProviderLookupTokens = (value: unknown): string[] => {
+  const normalized = normalizeSearchToken(value);
+  if (!normalized) return [];
+
+  const cleaned = normalized.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  const stripped = cleaned.replace(PROVIDER_NAME_STRIP_REGEX, " ").replace(/\s+/g, " ").trim();
+  const firstWord = stripped.split(" ")[0] ?? "";
+
+  return Array.from(new Set([normalized, cleaned, stripped, firstWord].filter(Boolean)));
+};
+
+const parseAzimuthToDecimal = (value: unknown): number | undefined => {
+  if (value === null || value === undefined) return undefined;
+
+  const cleaned = String(value).replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+  if (!cleaned?.[0]) return undefined;
+
+  const parsed = Number(cleaned[0]);
+  if (!Number.isFinite(parsed)) return undefined;
+
+  const normalized = ((parsed % 360) + 360) % 360;
+  return Number(normalized.toFixed(2));
+};
+
+const formatAzimuth = (value?: number): string => {
+  if (value === undefined) return "N/A";
+  return `${value}°`;
+};
+
+const toNonEmptyString = (value: unknown): string | undefined => {
+  const text = String(value ?? "").trim();
+  return text.length > 0 ? text : undefined;
+};
+
+type SignalCoverageFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Point, Record<string, unknown>>;
+type SignalCoveragePolygonCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon, Record<string, unknown>>;
+type SignalCoverageGridCollection = GeoJSON.FeatureCollection<GeoJSON.Polygon, Record<string, unknown>>;
+
+const roundLongitudeColumn = (lng: number): string => lng.toFixed(6);
+
+const getSignalColorFromValue = (value: number): string => {
+  return getSignalStrengthColor(value);
+};
+
+const calculateMedian = (values: number[]): number => {
+  if (values.length === 0) return -120;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2;
+  }
+  return sorted[middle] as number;
+};
+
+const isSameCoordinate = (a: [number, number], b: [number, number]): boolean =>
+  Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+
+const medianStep = (values: number[]): number => {
+  if (values.length < 2) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const diffs: number[] = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const diff = Math.abs((sorted[i] as number) - (sorted[i - 1] as number));
+    if (diff > 0) diffs.push(diff);
+  }
+  if (diffs.length === 0) return 0;
+  const ordered = diffs.sort((a, b) => a - b);
+  const mid = Math.floor(ordered.length / 2);
+  if (ordered.length % 2 === 0) {
+    return ((ordered[mid - 1] as number) + (ordered[mid] as number)) / 2;
+  }
+  return ordered[mid] as number;
+};
+
+const estimateIDWStrength = (
+  lng: number,
+  lat: number,
+  features: GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>>[],
+  k: number = 8,
+  power: number = 2,
+): number | undefined => {
+  if (features.length === 0) return undefined;
+
+  const nearest = features
+    .map((feature) => {
+      const flng = feature.geometry.coordinates[0];
+      const flat = feature.geometry.coordinates[1];
+      if (flng === undefined || flat === undefined) return { feature, distance2: Infinity };
+      const dx = flng - lng;
+      const dy = flat - lat;
+      return {
+        feature,
+        distance2: dx * dx + dy * dy,
+      };
+    })
+    .sort((a, b) => a.distance2 - b.distance2)
+    .slice(0, Math.min(k, features.length));
+
+  const exact = nearest.find((entry) => entry.distance2 === 0);
+  if (exact) {
+    const exactStrength = Number(exact.feature.properties?.strength);
+    return Number.isFinite(exactStrength) ? exactStrength : undefined;
+  }
+
+  let weighted = 0;
+  let weightSum = 0;
+
+  for (const item of nearest) {
+    const strength = Number(item.feature.properties?.strength);
+    if (!Number.isFinite(strength)) continue;
+
+    const distance = Math.sqrt(item.distance2);
+    const weight = 1 / Math.pow(Math.max(distance, 1e-6), power);
+    weighted += strength * weight;
+    weightSum += weight;
+  }
+
+  if (weightSum <= 0) return undefined;
+  return weighted / weightSum;
+};
+
+const buildInterpolatedCoverageGrid = (points: SignalCoverageFeatureCollection): SignalCoverageGridCollection => {
+  const features = points.features;
+  if (features.length === 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  const uniqueLng = Array.from(
+    new Set(features.map((f) => f.geometry.coordinates[0]).filter((v): v is number => typeof v === "number")),
+  );
+  const uniqueLat = Array.from(
+    new Set(features.map((f) => f.geometry.coordinates[1]).filter((v): v is number => typeof v === "number")),
+  );
+  const stepLng = medianStep(uniqueLng) || 0.004;
+  const stepLat = medianStep(uniqueLat) || 0.004;
+  const halfLng = stepLng / 2;
+  const halfLat = stepLat / 2;
+
+  const gridFeatures: SignalCoverageGridCollection["features"] = [];
+  for (const feature of features) {
+    const lng = feature.geometry.coordinates[0];
+    const lat = feature.geometry.coordinates[1];
+    if (lng === undefined || lat === undefined || !Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+
+    const measuredStrength = Number(feature.properties?.strength ?? -120);
+
+    const ring: [number, number][] = [
+      [lng - halfLng, lat - halfLat],
+      [lng + halfLng, lat - halfLat],
+      [lng + halfLng, lat + halfLat],
+      [lng - halfLng, lat + halfLat],
+      [lng - halfLng, lat - halfLat],
+    ];
+
+    gridFeatures.push({
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [ring],
+      },
+      properties: {
+        ...(feature.properties ?? {}),
+        strength: Number(measuredStrength.toFixed(2)),
+        fillColor: getSignalColorFromValue(measuredStrength),
+        interpolation_method: "measured-cell",
+      },
+    });
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: gridFeatures,
+  };
+};
+
+const buildCoveragePolygonsFromPoints = (
+  points: SignalCoverageFeatureCollection,
+): SignalCoveragePolygonCollection => {
+  const groups = new Map<string, GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>>[]>();
+
+  for (const feature of points.features) {
+    const props = feature.properties ?? {};
+    const key =
+      String(props.source_file ?? "").trim() ||
+      String(props.cell_id ?? "").trim() ||
+      [props.network, props.technology, props.band, props.frequency]
+        .map((part) => String(part ?? "").trim())
+        .filter(Boolean)
+        .join("|") ||
+      "coverage-default";
+
+    const bucket = groups.get(key) ?? [];
+    bucket.push(feature);
+    groups.set(key, bucket);
+  }
+
+  const polygonFeatures: SignalCoveragePolygonCollection["features"] = [];
+
+  for (const [groupKey, groupFeatures] of groups.entries()) {
+    const columns = new Map<string, { lng: number; minLat: number; maxLat: number }>();
+    const strengths: number[] = [];
+
+    for (const feature of groupFeatures) {
+      const lng = feature.geometry.coordinates[0];
+      const lat = feature.geometry.coordinates[1];
+      if (lng === undefined || lat === undefined || !Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+
+      const key = roundLongitudeColumn(lng);
+      const existing = columns.get(key);
+      if (!existing) {
+        columns.set(key, { lng, minLat: lat, maxLat: lat });
+      } else {
+        existing.minLat = Math.min(existing.minLat, lat);
+        existing.maxLat = Math.max(existing.maxLat, lat);
+      }
+
+      const strength = Number(feature.properties?.strength);
+      if (Number.isFinite(strength)) strengths.push(strength);
+    }
+
+    if (columns.size < 2) continue;
+
+    const sortedColumns = Array.from(columns.values()).sort((a, b) => a.lng - b.lng);
+    const topEdge: [number, number][] = sortedColumns.map((column) => [column.lng, column.maxLat]);
+    const bottomEdge: [number, number][] = [...sortedColumns]
+      .reverse()
+      .map((column) => [column.lng, column.minLat]);
+
+    const ring = [...topEdge, ...bottomEdge];
+    if (ring.length < 4) continue;
+
+    const first = ring[0] as [number, number];
+    const last = ring[ring.length - 1] as [number, number];
+    if (!isSameCoordinate(first, last)) {
+      ring.push(first);
+    }
+
+    if (ring.length < 4) continue;
+
+    const medianStrength = calculateMedian(strengths);
+    const fillColor = getSignalColorFromValue(medianStrength);
+    const sample = groupFeatures[0]?.properties ?? {};
+
+    polygonFeatures.push({
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [ring],
+      },
+      properties: {
+        ...sample,
+        coverage_key: groupKey,
+        strength: medianStrength,
+        fillColor,
+      },
+    });
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: polygonFeatures,
+  };
+};
+
+const parseSignalCoverageGeoJSON = (
+  raw: unknown,
+  providerIdByName: Map<string, string>,
+  providerNameById: Map<string, string>,
+  generationIdByName: Map<string, string>,
+): SignalCoverageFeatureCollection => {
+  const empty: SignalCoverageFeatureCollection = { type: "FeatureCollection", features: [] };
+  if (!raw || typeof raw !== "object") return empty;
+
+  const maybeCollection = raw as {
+    type?: string;
+    features?: Array<{
+      type?: string;
+      geometry?: { type?: string; coordinates?: [number, number] };
+      properties?: Record<string, unknown>;
+    }>;
+  };
+
+  if (maybeCollection.type !== "FeatureCollection" || !Array.isArray(maybeCollection.features)) {
+    return empty;
+  }
+
+  const features: SignalCoverageFeatureCollection["features"] = [];
+
+  for (const feature of maybeCollection.features) {
+    if (feature?.type !== "Feature") continue;
+    if (feature.geometry?.type !== "Point") continue;
+
+    const lng = feature.geometry.coordinates?.[0];
+    const lat = feature.geometry.coordinates?.[1];
+    if (lng === undefined || lat === undefined || !Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+
+    const properties = feature.properties ?? {};
+    const strengthRaw = properties.signal_strength_dbm ?? properties.strength;
+    const strength = Number(strengthRaw);
+    if (!Number.isFinite(strength)) continue;
+
+    const network = toNonEmptyString(properties.network) ?? "Unknown";
+    const technology = toNonEmptyString(properties.technology) ?? "Unknown";
+    const band = toNonEmptyString(properties.band);
+    const frequency = toNonEmptyString(properties.frequency);
+    const address = toNonEmptyString(properties.address);
+    const location = toNonEmptyString(properties.location);
+    const cellId = toNonEmptyString(properties.cell_id);
+    const areaStudy = toNonEmptyString(properties.areaStudy);
+    const azimuthValue = parseAzimuthToDecimal(properties.azimuth);
+    const normalizedNetwork = normalizeSearchToken(network);
+    const normalizedTechnology = normalizeSearchToken(technology);
+    const providerId = getProviderLookupTokens(normalizedNetwork)
+      .map((token) => providerIdByName.get(token))
+      .find((value): value is string => Boolean(value));
+    const providerName = providerId ? providerNameById.get(providerId) : undefined;
+    const generationId = generationIdByName.get(normalizedTechnology);
+
+    const searchText = [network, providerName, technology, band, frequency, address, location, cellId, areaStudy]
+      .filter((token): token is string => Boolean(token))
+      .join(" ")
+      .toLowerCase();
+
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lng, lat] },
+      properties: {
+        strength,
+        barangay: location ?? address,
+        azimuth: formatAzimuth(azimuthValue),
+        azimuthValue,
+        network,
+        networkProviderId: providerId,
+        technology,
+        generationId,
+        band,
+        frequency,
+        address,
+        location,
+        cell_id: cellId,
+        areaStudy,
+        search_text: searchText,
+        service_type: "Wireless",
+      },
+    });
+  }
+
+  return { type: "FeatureCollection", features };
+};
+
+const parseSignalCoverageFlatData = (
+  raw: unknown,
+  providerIdByName: Map<string, string>,
+  providerNameById: Map<string, string>,
+  generationIdByName: Map<string, string>,
+): SignalCoverageFeatureCollection => {
+  const empty: SignalCoverageFeatureCollection = { type: "FeatureCollection", features: [] };
+  if (!Array.isArray(raw)) return empty;
+
+  const features: SignalCoverageFeatureCollection["features"] = [];
+
+  for (const point of raw as Array<Record<string, unknown>>) {
+    const lat = Number(point.lat);
+    const lng = Number(point.lng);
+    const strength = Number(point.strength);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(strength)) continue;
+
+    const network = toNonEmptyString(point.network) ?? "Unknown";
+    const technology = toNonEmptyString(point.technology) ?? "Unknown";
+    const normalizedNetwork = normalizeSearchToken(network);
+    const normalizedTechnology = normalizeSearchToken(technology);
+    const providerId = getProviderLookupTokens(normalizedNetwork)
+      .map((token) => providerIdByName.get(token))
+      .find((value): value is string => Boolean(value));
+    const providerName = providerId ? providerNameById.get(providerId) : undefined;
+
+    const azimuthValue = parseAzimuthToDecimal(point.azimuth);
+    const location = toNonEmptyString(point.location) ?? toNonEmptyString(point.barangay);
+    const areaStudy = toNonEmptyString(point.areaStudy);
+    const searchText = [network, providerName, technology, location, toNonEmptyString(point.cell_id), areaStudy]
+      .filter((token): token is string => Boolean(token))
+      .join(" ")
+      .toLowerCase();
+
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lng, lat] },
+      properties: {
+        strength,
+        barangay: location,
+        azimuth: formatAzimuth(azimuthValue),
+        azimuthValue,
+        network,
+        networkProviderId: providerId,
+        technology,
+        generationId: generationIdByName.get(normalizedTechnology),
+        cell_id: toNonEmptyString(point.cell_id),
+        areaStudy,
+        search_text: searchText,
+        service_type: "Wireless",
+      },
+    });
+  }
+
+  return { type: "FeatureCollection", features };
+};
 
 /**
- * Finds the insertion anchor layer for cell layers so they render ABOVE base map layers
- * (terrain, landcover, water, roads, buildings, fiber) and BELOW higher data layers (NAPs, Speedtests)
- * and base-map place-name labels.
+ * Base map layers that should render BELOW cell layers.
+ * Used to find the insertion anchor when re-ordering layers after style changes.
+ * Must be in order of typical z-order in MapTiler styles.
  */
-function findCellAnchorLayer(map: any): string | undefined {
-  try {
-    if (!map.isStyleLoaded()) return undefined;
-    const style = map.getStyle();
-    if (!style?.layers) return undefined;
-
-    // Check if higher-priority custom data layers exist (NAPs or Speedtests)
-    const higherDataLayers = [
-      "NAPs-cluster",
-      "NAPs-cluster-count",
-      "NAPs-unclustered",
-      "speedtests-heatmap",
-      "speedtests-circles",
-    ];
-    for (const layerId of higherDataLayers) {
-      if (map.getLayer(layerId)) {
-        return layerId;
-      }
-    }
-
-    // Custom cell & higher layer IDs to exclude when looking for place labels
-    const customLayerIds = new Set([
-      "cells-clusters",
-      "cells-cluster-count",
-      "cells-circles",
-      "cells-symbols",
-      "cells-heatmap",
-      "cells-point-view",
-      "signal-coverage-circles",
-      ...higherDataLayers,
-    ]);
-
-    // Priority 1: place / settlement / city / town labels (so cell layers are on top of terrain, water, roads, buildings)
-    for (const layer of style.layers) {
-      if (layer.type === "symbol" && !customLayerIds.has(layer.id)) {
-        const id = layer.id.toLowerCase();
-        if (
-          id.includes("place") ||
-          id.includes("settlement") ||
-          id.includes("city") ||
-          id.includes("town")
-        ) {
-          return layer.id;
-        }
-      }
-    }
-
-    // Priority 2 (fallback): any symbol layer whose id contains "label"
-    for (const layer of style.layers) {
-      if (layer.type === "symbol" && !customLayerIds.has(layer.id)) {
-        const id = layer.id.toLowerCase();
-        if (id.includes("label")) {
-          return layer.id;
-        }
-      }
-    }
-
-    return undefined;
-  } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.debug("[useMapCells] findCellAnchorLayer error:", err);
-    }
-    return undefined;
-  }
-}
+const LAYERS_BELOW_CELLS = [
+  // Base map elements that commonly exist in most styles
+  "background", "water", "landuse", "landcover", "terrain", "building", "road", "bridge", "tunnel",
+] as const;
 
 /**
  * Main hook for managing cell site layers
@@ -180,30 +547,18 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     features: [],
   });
   const [totalLoadedCount, setTotalLoadedCount] = useState(0);
+  const [rawSignalCoverageData, setRawSignalCoverageData] = useState<unknown>(null);
   const [signalCoverageData, setSignalCoverageData] = useState<GeoJSON.FeatureCollection | null>(null);
   const [coverageSourceType, setCoverageSourceType] = useState<"maptiler" | "geojson" | null>(null);
   const [dynamicCoverageUrl, setDynamicCoverageUrl] = useState<string | null>(null);
+  const [signalCoveragePolygons, setSignalCoveragePolygons] = useState<SignalCoveragePolygonCollection | null>(null);
+  const [signalCoverageGrid, setSignalCoverageGrid] = useState<SignalCoverageGridCollection | null>(null);
 
   const lastToastUpdateRef = useRef(0);
   const lastProgressPercentRef = useRef(0);
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const enforceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousViewportRef = useRef<typeof viewportBounds>(null);
   const previousOptionsRef = useRef<string>("");
-
-  // Clean up all pending timeouts on unmount
-  useEffect(() => {
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-        updateTimeoutRef.current = null;
-      }
-      if (enforceTimeoutRef.current) {
-        clearTimeout(enforceTimeoutRef.current);
-        enforceTimeoutRef.current = null;
-      }
-    };
-  }, []);
 
   // Keep a ref to the latest accumulated GeoJSON so the main layer setup effect can access it
   // without needing it as a dependency (avoids layer teardown on every data update)
@@ -216,19 +571,14 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
   // can apply the correct visibility after a style change without needing normalizedConfig
   // in the main effect's dependency array (which would cause unnecessary layer teardown).
   const normalizedConfigRef = useRef(normalizedConfig);
-  normalizedConfigRef.current = normalizedConfig;
   useLayoutEffect(() => {
     normalizedConfigRef.current = normalizedConfig;
   }, [normalizedConfig]);
 
-  // Cell sites API fetching is only needed when cell sites, heatmap, or pointView layers are enabled.
-  // Radio Network Coverage uses separate coverage data and must NOT trigger cell site viewport fetching.
-  const isCellSitesActive = normalizedConfig.cellSites || normalizedConfig.cellSiteHeatmap || normalizedConfig.pointView;
-
   // Track viewport for spatial loading
   const { bounds: viewportBounds, isStable: isViewportStable } = useMapViewport({
     debounceMs: 800,
-    enabled: isMapLoaded && isCellSitesActive,
+    enabled: isMapLoaded && Object.values(normalizedConfig).some((v) => v),
     constraint: PHILIPPINES_BOUNDS,
     showDebugBox: process.env.NODE_ENV === "development",
   });
@@ -241,10 +591,10 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     isFetchingNextPage,
     isLoading,
   } = useGetCellsInfinite({
-    enabled: isMapLoaded && isCellSitesActive && isViewportStable && !!viewportBounds,
+    enabled: isMapLoaded && Object.values(normalizedConfig).some((v) => v) && isViewportStable && !!viewportBounds,
     pathParams: {},
     queryParams: {
-      regionIds: options?.regionIds?.length ? options.regionIds : undefined,
+      regionIds: options?.regionIds?.length ? options.regionIds : [],
       serviceProviderIds: options?.serviceProviderIds,
       generationIds: options?.generationIds,
       pageSize: PAGE_SIZE,
@@ -257,6 +607,53 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       }),
     },
   });
+
+  const { data: wirelessProvidersData } = useGetWirelessServiceProviders({
+    enabled: options?.isAdminMode && normalizedConfig.signalCoverage,
+    pathParams: {},
+    queryParams: { pageSize: 1000, serviceTypes: ["Wireless"] },
+  });
+
+  const { data: generationsData } = useGetGenerations({
+    enabled: options?.isAdminMode && normalizedConfig.signalCoverage,
+    pathParams: {},
+    queryParams: { pageSize: 100 },
+  });
+
+  const providerIdByName = useMemo(() => {
+    const mapByName = new Map<string, string>();
+    const rows = (wirelessProvidersData as { data?: Array<{ id: string; provider?: { name?: string } }> } | undefined)
+      ?.data;
+    for (const row of rows ?? []) {
+      for (const token of getProviderLookupTokens(row.provider?.name)) {
+        mapByName.set(token, row.id);
+      }
+    }
+    return mapByName;
+  }, [wirelessProvidersData]);
+
+  const providerNameById = useMemo(() => {
+    const mapById = new Map<string, string>();
+    const rows = (wirelessProvidersData as { data?: Array<{ id: string; provider?: { name?: string } }> } | undefined)
+      ?.data;
+    for (const row of rows ?? []) {
+      const providerName = toNonEmptyString(row.provider?.name);
+      if (!providerName) continue;
+      mapById.set(row.id, providerName);
+    }
+    return mapById;
+  }, [wirelessProvidersData]);
+
+  const generationIdByName = useMemo(() => {
+    const mapByName = new Map<string, string>();
+    const rows = (generationsData as { data?: Array<{ id: string; name?: string }> } | undefined)?.data;
+    for (const row of rows ?? []) {
+      const name = normalizeSearchToken(row.name);
+      if (!name) continue;
+      mapByName.set(name, row.id);
+    }
+    return mapByName;
+  }, [generationsData]);
 
   // Accumulate cells from all pages
   const accumulatedCells = useMemo(() => {
@@ -334,40 +731,15 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     }
   }, [accumulatedCells, processCells, totalLoadedCount, accumulatedGeoJSON.features]);
 
-  // Max pages to auto-fetch per viewport to prevent network flooding (zoom < 10: 2 pages, zoom >= 10: 4 pages)
-  const maxAutoPages = (viewportBounds?.zoom ?? 5) < 10 ? 2 : 4;
-  const loadedPageCount = (cellsData as any)?.pages?.length ?? 0;
-
-  // Auto-fetch next page up to maxAutoPages limit
+  // Auto-fetch next page
   useEffect(() => {
-    if (
-      hasNextPage &&
-      !isFetchingNextPage &&
-      isMapLoaded &&
-      isViewportStable &&
-      isCellSitesActive &&
-      loadedPageCount < maxAutoPages
-    ) {
+    if (hasNextPage && !isFetchingNextPage && isMapLoaded && isViewportStable) {
       void fetchNextPage();
     }
-  }, [
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-    isMapLoaded,
-    isViewportStable,
-    isCellSitesActive,
-    loadedPageCount,
-    maxAutoPages,
-  ]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, isMapLoaded, isViewportStable]);
 
-  // Show cell sites loading progress toast
+  // Show loading progress toast
   useEffect(() => {
-    if (!isCellSitesActive) {
-      toast.dismiss("loading-cells");
-      return;
-    }
-
     const now = Date.now();
     const { current, total } = loadingProgress;
 
@@ -379,29 +751,34 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
     if (isLoading || isFetchingNextPage) {
       if (timeSinceLastUpdate >= 1000 || progressChanged) {
-        toast.loading(`Loading cell sites... ${progressPercent}%`, {
+        toast.loading(`Loading cells... ${progressPercent}%`, {
           id: "loading-cells",
-          description: `${current.toLocaleString()} of ${total.toLocaleString()} cell sites loaded`,
+          description: `${current.toLocaleString()} of ${total.toLocaleString()} cells loaded`,
         });
         lastToastUpdateRef.current = now;
         lastProgressPercentRef.current = progressPercent;
       }
     } else if (current > 0) {
-      toast.success("Cell sites loaded successfully!", {
+      toast.success("Cells loaded successfully!", {
         id: "loading-cells",
-        description: `${current.toLocaleString()} cell sites loaded`,
+        description: `${current.toLocaleString()} cells loaded`,
       });
     }
-  }, [isLoading, isFetchingNextPage, loadingProgress, isCellSitesActive]);
+  }, [isLoading, isFetchingNextPage, loadingProgress]);
 
-  // Load signal coverage data (admin-only) - Priority: Active MapTiler backend tileset -> env fallback -> JSON assets fallback
+  // Load signal coverage data (admin-only) with multi-tier fallback cascade:
+  // Primary: Active MapTiler backend tileset -> env fallback
+  // Fallback 1: Next.js GeoJSON API (/api/signal-coverage/geojson)
+  // Fallback 2: Legacy flat JSON file (/data/all_telco_band_data_flat.json or cell-signal.json)
   useEffect(() => {
-    if (!normalizedConfig.signalCoverage || !options?.isAdminMode) return;
-    if (signalCoverageData || coverageSourceType) return;
+    if (!options?.isAdminMode || !normalizedConfig.signalCoverage || rawSignalCoverageData || coverageSourceType) return;
+
+    let cancelled = false;
 
     const loadCoverage = async () => {
       // 1. Try active MapTiler tileset from backend API first
-      let resolvedCoverageUrl: string | undefined = process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_URL;
+      let resolvedCoverageUrl: string | undefined =
+        process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_URL || MAPTILER_SIGNAL_COVERAGE_URL;
 
       try {
         const regionParam = options?.regionIds?.[0] ? `?regionId=${encodeURIComponent(options.regionIds[0])}` : "";
@@ -423,6 +800,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
       // If MapTiler vector tiles source is configured (from API or env)
       if (resolvedCoverageUrl) {
+        if (cancelled) return;
         toast.loading("Loading radio network coverage from MapTiler...", {
           id: "loading-coverage",
           description: "Connecting to MapTiler coverage source",
@@ -437,61 +815,103 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         return;
       }
 
-      // 2. Fallback: Load from public JSON assets (all_telco_band_data_flat.json or cell-signal.json)
-      toast.loading("Loading radio network coverage...", {
-        id: "loading-coverage",
-        description: "Fetching coverage data points",
-      });
+      // 2. Fallback Tier 1: Next.js GeoJSON API
+      try {
+        const geojsonRes = await fetch(SIGNAL_COVERAGE_GEOJSON_POC_PATH);
+        if (geojsonRes.ok) {
+          const rawGeoJSON = await geojsonRes.json();
+          if (!cancelled) {
+            setRawSignalCoverageData(rawGeoJSON);
+            setCoverageSourceType("geojson");
+            toast.success("Radio network coverage loaded successfully!", {
+              id: "loading-coverage",
+              description: "Loaded from GeoJSON source",
+            });
+            return;
+          }
+        }
+      } catch (geoErr) {
+        console.warn("🗺️ [Signal Coverage] Fallback Tier 1 failed:", geoErr);
+      }
 
+      // 3. Fallback Tier 2: Static flat JSON assets
       const jsonPaths = ["/data/all_telco_band_data_flat.json", "/data/cell-signal.json"];
-
       for (const path of jsonPaths) {
         try {
           const res = await fetch(path);
           if (!res.ok) continue;
-          const data: Array<{ lat: number; lng: number; strength: number; barangay?: string; azimuth?: string }> =
-            await res.json();
+          const data = await res.json();
           if (!Array.isArray(data) || data.length === 0) continue;
 
-          const geojson: GeoJSON.FeatureCollection = {
-            type: "FeatureCollection",
-            features: data.map((point) => ({
-              type: "Feature" as const,
-              geometry: { type: "Point" as const, coordinates: [point.lng, point.lat] },
-              properties: { strength: point.strength, barangay: point.barangay, azimuth: point.azimuth },
-            })),
-          };
-          setSignalCoverageData(geojson);
-          setCoverageSourceType("geojson");
-          toast.success("Radio network coverage loaded successfully!", {
-            id: "loading-coverage",
-            description: `${data.length.toLocaleString()} coverage points loaded`,
-          });
-          return;
+          if (!cancelled) {
+            setRawSignalCoverageData(data);
+            setCoverageSourceType("geojson");
+            toast.success("Radio network coverage loaded successfully!", {
+              id: "loading-coverage",
+              description: `${data.length.toLocaleString()} coverage points loaded`,
+            });
+            return;
+          }
         } catch (err) {
           console.warn(`Failed to load coverage fallback from ${path}:`, err);
         }
       }
 
-      toast.error("Failed to load radio network coverage", {
-        id: "loading-coverage",
-      });
+      if (!cancelled) {
+        toast.error("Failed to load radio network coverage", {
+          id: "loading-coverage",
+        });
+      }
     };
 
     void loadCoverage();
-  }, [normalizedConfig.signalCoverage, signalCoverageData, coverageSourceType, options?.isAdminMode, options?.regionIds]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    normalizedConfig.signalCoverage,
+    rawSignalCoverageData,
+    coverageSourceType,
+    options?.isAdminMode,
+    options?.regionIds,
+  ]);
+
+  // Transform raw signal data to normalized map GeoJSON with full searchable properties.
+  useEffect(() => {
+    if (!options?.isAdminMode || !normalizedConfig.signalCoverage || !rawSignalCoverageData) return;
+
+    const transformed = Array.isArray(rawSignalCoverageData)
+      ? parseSignalCoverageFlatData(rawSignalCoverageData, providerIdByName, providerNameById, generationIdByName)
+      : parseSignalCoverageGeoJSON(rawSignalCoverageData, providerIdByName, providerNameById, generationIdByName);
+
+    setSignalCoverageData(transformed);
+  }, [
+    options?.isAdminMode,
+    normalizedConfig.signalCoverage,
+    rawSignalCoverageData,
+    providerIdByName,
+    providerNameById,
+    generationIdByName,
+  ]);
+
+  useEffect(() => {
+    if (!signalCoverageData) {
+      setSignalCoveragePolygons(null);
+      setSignalCoverageGrid(null);
+      return;
+    }
+
+    const typedData = signalCoverageData as SignalCoverageFeatureCollection;
+    setSignalCoveragePolygons(buildCoveragePolygonsFromPoints(typedData));
+    setSignalCoverageGrid(buildInterpolatedCoverageGrid(typedData));
+  }, [signalCoverageData]);
 
   // Helper to set layer visibility
   const setLayerVisible = useCallback(
     (layerId: string, visible: boolean) => {
-      try {
-        if (map && map.isStyleLoaded() && map.getLayer(layerId)) {
-          map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
-        }
-      } catch (err) {
-        if (process.env.NODE_ENV === "development") {
-          console.debug("[useMapCells] setLayerVisible error:", err);
-        }
+      if (map?.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
       }
     },
     [map],
@@ -499,39 +919,102 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
   /**
    * Enforces proper layer ordering after style changes or concurrent layer additions.
-   * Uses map.moveLayer() to ensure cell layers are positioned consistently:
-   * Above base map layers (and fiber) and below NAPs/Speedtests and place labels.
+   * Uses map.moveLayer() to ensure cell layers are positioned consistently,
+   * regardless of the map style's base layer structure.
+   *
+   * Strategy:
+   * 1. Find the highest-z "floor" layer from LAYERS_BELOW_CELLS that exists in the current style
+   * 2. Find the first non-cell layer above that floor (this is our insertion anchor)
+   * 3. Move all cell layers to just above the floor, before the anchor
+   *
+   * This ensures: [...floor layers..., signal-coverage, cell-layers, <anchor/labels>, ...]
    */
   const enforceCellLayerOrder = useCallback(() => {
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
 
-    try {
-      const anchorId = findCellAnchorLayer(map);
+    const style = map.getStyle();
+    if (!style?.layers) return;
 
-      // Move cell layers in bottom-to-top order within the cell group
-      const moveOrder = [
-        "signal-coverage-circles",
-        "cells-heatmap",
-        "cells-point-view",
-        "cells-clusters",
-        "cells-cluster-count",
-        "cells-circles",
-        "cells-symbols",
-      ] as const;
+    // Skip if no cell layers exist yet
+    const cellLayerIds = [
+      "signal-coverage-grid-fill",
+      "signal-coverage-polygon-fill",
+      "signal-coverage-polygon-border",
+      "signal-coverage-circles",
+      "cells-heatmap",
+      "cells-point-view",
+      "cells-clusters",
+      "cells-cluster-count",
+      "cells-circles",
+      "cells-symbols",
+    ];
 
-      for (const layerId of moveOrder) {
-        if (!map.getLayer(layerId)) continue;
-        try {
-          map.moveLayer(layerId, anchorId);
-        } catch (err) {
-          if (process.env.NODE_ENV === "development") {
-            console.debug(`[useMapCells] moveLayer(${layerId}) failed, will retry:`, err);
-          }
+    if (!cellLayerIds.some((id) => map.getLayer(id))) return;
+
+    const layerIds = style.layers.map((l) => l.id).filter((id): id is string => id !== undefined);
+
+    // Phase 1: Find the highest-z "floor" layer from known base map layers
+    let floorIdx = -1;
+    for (const id of LAYERS_BELOW_CELLS) {
+      const idx = layerIds.indexOf(id as string);
+      if (idx > floorIdx) floorIdx = idx;
+    }
+
+    let anchorId: string | undefined;
+
+    if (floorIdx !== -1) {
+      // Walk forward from just above the floor layer to find the first non-cell layer.
+      // This is the slot where cell layers will be inserted.
+      for (let i = floorIdx + 1; i < layerIds.length; i++) {
+        const id = layerIds[i];
+        if (id && !cellLayerIds.includes(id)) {
+          anchorId = id;
+          break;
         }
       }
-    } catch (err) {
-      if (process.env.NODE_ENV === "development") {
-        console.debug("[useMapCells] enforceCellLayerOrder error:", err);
+    }
+
+    // Phase 2 fallback: find the topmost non-cell symbol layer (typically place labels)
+    if (!anchorId) {
+      for (let i = style.layers.length - 1; i >= 0; i--) {
+        const layer = style.layers[i];
+        if (layer && layer.type === "symbol" && !cellLayerIds.includes(layer.id)) {
+          anchorId = layer.id;
+          break;
+        }
+      }
+    }
+
+    if (!anchorId) return; // No suitable anchor found
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("🗺️ [Cells] Enforcing layer order before", anchorId);
+    }
+
+    // Move cell layers in order (signal coverage first, then others)
+    // This ensures proper z-order: signal-coverage below all other cells
+    const moveOrder = [
+      "signal-coverage-grid-fill",
+      "signal-coverage-polygon-fill",
+      "signal-coverage-polygon-border",
+      "signal-coverage-circles",
+      "cells-heatmap",
+      "cells-point-view",
+      "cells-clusters",
+      "cells-cluster-count",
+      "cells-circles",
+      "cells-symbols",
+    ] as const;
+
+    for (const layerId of moveOrder) {
+      if (!map.getLayer(layerId)) continue;
+      try {
+        map.moveLayer(layerId, anchorId);
+      } catch (err) {
+        // Layer may not be ready yet; will be retried on the next scheduled call
+        if (process.env.NODE_ENV === "development") {
+          console.debug(`[useMapCells] moveLayer(${layerId}) failed, will retry:`, err);
+        }
       }
     }
   }, [map]);
@@ -548,45 +1031,35 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
     // Add or update cells source (clustered)
     const addCellsSource = () => {
-      try {
-        if (!map.getSource("cells")) {
-          map.addSource("cells", {
-            type: "geojson",
-            // Use ref so initial data is current without needing accumulatedGeoJSON in effect deps
-            data: accumulatedGeoJSONRef.current,
-            cluster: true,
-            clusterMaxZoom: CLUSTER_MAX_ZOOM,
-            clusterRadius: CLUSTER_RADIUS,
-          });
-        }
-      } catch (err) {
-        if (process.env.NODE_ENV === "development") {
-          console.debug("[useMapCells] addCellsSource error:", err);
-        }
+      if (!map.getSource("cells")) {
+        map.addSource("cells", {
+          type: "geojson",
+          // Use ref so initial data is current without needing accumulatedGeoJSON in effect deps
+          data: accumulatedGeoJSONRef.current,
+          cluster: true,
+          clusterMaxZoom: CLUSTER_MAX_ZOOM,
+          clusterRadius: CLUSTER_RADIUS,
+        });
       }
+      // Data updates are handled by a dedicated effect to avoid layer rebuilding
     };
 
     // Add non-clustered source for heatmap and point view (admin-only)
     const addCellsHeatmapSource = () => {
       if (options?.isAdminMode) {
-        try {
-          if (!map.getSource("cells-heatmap-source")) {
-            map.addSource("cells-heatmap-source", {
-              type: "geojson",
-              // Use ref so initial data is current without needing accumulatedGeoJSON in effect deps
-              data: accumulatedGeoJSONRef.current,
-              cluster: false,
-            });
-          }
-        } catch (err) {
-          if (process.env.NODE_ENV === "development") {
-            console.debug("[useMapCells] addCellsHeatmapSource error:", err);
-          }
+        if (!map.getSource("cells-heatmap-source")) {
+          map.addSource("cells-heatmap-source", {
+            type: "geojson",
+            // Use ref so initial data is current without needing accumulatedGeoJSON in effect deps
+            data: accumulatedGeoJSONRef.current,
+            cluster: false,
+          });
         }
+        // Data updates are handled by a dedicated effect to avoid layer rebuilding
       }
     };
 
-    // Add signal coverage source (admin-only) - Priority: MapTiler source first, then GeoJSON fallback
+    // Add signal coverage source (admin-only)
     const addSignalCoverageSource = () => {
       if (!options?.isAdminMode) return;
 
@@ -617,6 +1090,28 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
           console.debug("[useMapCells] addSignalCoverageSource error:", err);
         }
       }
+
+      if (options?.isAdminMode && normalizedConfig.signalCoverage && signalCoveragePolygons) {
+        if (!map.getSource("signal-coverage-polygon-source")) {
+          map.addSource("signal-coverage-polygon-source", { type: "geojson", data: signalCoveragePolygons });
+        } else {
+          const polygonSource = map.getSource<GeoJSONSource>("signal-coverage-polygon-source");
+          if (polygonSource) {
+            polygonSource.setData(signalCoveragePolygons);
+          }
+        }
+      }
+
+      if (options?.isAdminMode && normalizedConfig.signalCoverage && signalCoverageGrid) {
+        if (!map.getSource("signal-coverage-grid-source")) {
+          map.addSource("signal-coverage-grid-source", { type: "geojson", data: signalCoverageGrid });
+        } else {
+          const gridSource = map.getSource<GeoJSONSource>("signal-coverage-grid-source");
+          if (gridSource) {
+            gridSource.setData(signalCoverageGrid);
+          }
+        }
+      }
     };
 
     // Load provider icons
@@ -625,164 +1120,238 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     };
 
     // Add cell layers
+    // Find the appropriate layer to insert custom layers before it
+    // We want custom layers ABOVE base map layers but BELOW place labels
+    // Strategy: Look for place/settlement/city labels or fallback to any label layer
+    const findCellBeforeLayer = () => {
+      const layers = map.getStyle().layers;
+      if (!layers) return undefined;
+
+      // First, try to find a place name or settlement label layer
+      // These typically come after roads/buildings in MapTiler styles (including outdoor)
+      for (const layer of layers) {
+        if (layer.type === "symbol") {
+          const layerId = layer.id.toLowerCase();
+          if (layerId.includes("place") || layerId.includes("settlement") || layerId.includes("city") || layerId.includes("town")) {
+            return layer.id;
+          }
+        }
+      }
+
+      // Fallback: find any label layer
+      for (const layer of layers) {
+        if (layer.type === "symbol" && layer.id.toLowerCase().includes("label")) {
+          return layer.id;
+        }
+      }
+
+      return undefined; // Will render on top if no suitable layer found
+    };
+
     const addCellLayers = () => {
-      try {
-        if (!map.isStyleLoaded()) return;
-        const beforeId = findCellAnchorLayer(map);
-        const initialVis =
-          normalizedConfigRef.current.cellSites && !normalizedConfigRef.current.pointView ? "visible" : "none";
+      const beforeId = findCellBeforeLayer();
 
-        // Cluster circles
-        if (!map.getLayer("cells-clusters")) {
-          map.addLayer(
-            {
-              id: "cells-clusters",
-              type: "circle",
-              source: "cells",
-              filter: ["has", "point_count"],
-              paint: getClusterLayerPaint(),
-              layout: {
-                visibility: initialVis,
-              },
-            },
-            beforeId,
-          );
-        }
+      if (process.env.NODE_ENV === "development") {
+        console.log("🗺️ [Cells] Adding layers", beforeId ? `before "${beforeId}"` : "on top");
+      }
 
-        // Cluster count labels
-        if (!map.getLayer("cells-cluster-count")) {
-          map.addLayer(
-            {
-              id: "cells-cluster-count",
-              type: "symbol",
-              source: "cells",
-              filter: ["has", "point_count"],
-              layout: {
-                "text-field": "{point_count_abbreviated}",
-                "text-font": ["Open Sans Bold"],
-                "text-size": 11,
-                visibility: initialVis,
-              },
-              paint: { "text-color": "#ffffff" },
-            },
-            beforeId,
-          );
-        }
+      // Cluster circles
+      if (!map.getLayer("cells-clusters")) {
+        map.addLayer({
+          id: "cells-clusters",
+          type: "circle",
+          source: "cells",
+          filter: ["has", "point_count"],
+          paint: getClusterLayerPaint(),
+          layout: {
+            visibility: "none", // Start hidden, controlled by visibility effect
+          },
+        }, beforeId);
+      }
 
-        // Individual cell circles (fallback)
-        if (!map.getLayer("cells-circles")) {
-          map.addLayer(
-            {
-              id: "cells-circles",
-              type: "circle",
-              source: "cells",
-              filter: ["!has", "point_count"],
-              paint: getCellCircleLayerPaint(),
-              layout: {
-                visibility: initialVis,
-              },
-            },
-            beforeId,
-          );
-        }
+      // Cluster count labels
+      if (!map.getLayer("cells-cluster-count")) {
+        map.addLayer({
+          id: "cells-cluster-count",
+          type: "symbol",
+          source: "cells",
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": "{point_count_abbreviated}",
+            "text-font": ["Open Sans Bold"],
+            "text-size": 11,
+            visibility: "none", // Start hidden, controlled by visibility effect
+          },
+          paint: { "text-color": "#ffffff" },
+        }, beforeId);
+      }
 
-        // Cell symbols with provider icons
-        if (!map.getLayer("cells-symbols")) {
-          map.addLayer(
-            {
-              id: "cells-symbols",
-              type: "symbol",
-              source: "cells",
-              filter: ["!has", "point_count"],
-              layout: {
-                "icon-image": ["get", "providerIcon"],
-                "icon-size": CELL_ICON_SIZE,
-                "icon-allow-overlap": true,
-                "icon-ignore-placement": true,
-                visibility: initialVis,
-                "icon-anchor": "bottom",
-              },
-            },
-            beforeId,
-          );
-        }
-      } catch (err) {
-        if (process.env.NODE_ENV === "development") {
-          console.debug("[useMapCells] addCellLayers error:", err);
-        }
+      // Individual cell circles (fallback)
+      if (!map.getLayer("cells-circles")) {
+        map.addLayer({
+          id: "cells-circles",
+          type: "circle",
+          source: "cells",
+          filter: ["!has", "point_count"],
+          paint: getCellCircleLayerPaint(),
+          layout: {
+            visibility: "none", // Start hidden, controlled by visibility effect
+          },
+        }, beforeId);
+      }
+
+      // Cell symbols with provider icons
+      if (!map.getLayer("cells-symbols")) {
+        map.addLayer({
+          id: "cells-symbols",
+          type: "symbol",
+          source: "cells",
+          filter: ["!has", "point_count"],
+          layout: {
+            "icon-image": ["get", "providerIcon"],
+            "icon-size": CELL_ICON_SIZE,
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            visibility: "none", // Start hidden, controlled by visibility effect
+            "icon-anchor": "bottom",
+          },
+        }, beforeId);
       }
     };
 
     // Add admin-only layers
     const addAdminLayers = () => {
       if (!options?.isAdminMode) return;
-      try {
-        const beforeId = findCellAnchorLayer(map);
 
-        // Cell site heatmap - always add if in admin mode, control visibility separately
-        if (!map.getLayer("cells-heatmap")) {
-          map.addLayer(
-            {
-              id: "cells-heatmap",
-              type: "heatmap",
-              source: "cells-heatmap-source",
-              maxzoom: 15,
-              paint: getCellSiteHeatmapPaint(0.7),
-              layout: {
-                visibility: "none", // Start hidden, controlled by applyVisibility
-              },
-            },
-            beforeId,
-          );
-        }
+      const beforeId = findCellBeforeLayer();
 
-        // Point view layer - always add if in admin mode, control visibility separately
-        if (!map.getLayer("cells-point-view")) {
-          map.addLayer(
-            {
-              id: "cells-point-view",
-              type: "circle",
-              source: "cells-heatmap-source",
-              paint: getPointViewCirclePaint(),
-              layout: {
-                visibility: "none", // Start hidden, controlled by applyVisibility
-              },
-            },
-            beforeId,
-          );
-        }
+      // Cell site heatmap - always add if in admin mode, control visibility separately
+      if (!map.getLayer("cells-heatmap")) {
+        map.addLayer({
+          id: "cells-heatmap",
+          type: "heatmap",
+          source: "cells-heatmap-source",
+          maxzoom: 15,
+          paint: getCellSiteHeatmapPaint(0.7),
+          layout: {
+            visibility: "none", // Start hidden, controlled by applyVisibility
+          },
+        }, beforeId);
+      }
 
-        // Signal coverage layer - always add if in admin mode and source is available
-        if (map.getSource("signal-coverage-source") && !map.getLayer("signal-coverage-circles")) {
-          const signalBeforeId = map.getLayer("cells-clusters")
+      // Point view layer - always add if in admin mode, control visibility separately
+      if (!map.getLayer("cells-point-view")) {
+        map.addLayer({
+          id: "cells-point-view",
+          type: "circle",
+          source: "cells-heatmap-source",
+          paint: getPointViewCirclePaint(),
+          layout: {
+            visibility: "none", // Start hidden, controlled by applyVisibility
+          },
+        }, beforeId);
+      }
+
+      // Signal coverage layer - always add if in admin mode, control visibility separately
+      // Insert BELOW all cellsite layers (before cells-clusters, the lowest cellsite layer)
+      // so that radio-coverage circles render underneath cell tower icons and heatmap.
+      if (!map.getLayer("signal-coverage-polygon-fill")) {
+        const polygonBeforeId = map.getLayer("signal-coverage-circles")
+          ? "signal-coverage-circles"
+          : map.getLayer("cells-clusters")
             ? "cells-clusters"
-            : map.getLayer("cells-circles")
-              ? "cells-circles"
-              : map.getLayer("cells-symbols")
-                ? "cells-symbols"
-                : beforeId;
+            : beforeId;
 
-          const coverageLayerSpec: any = {
+        map.addLayer(
+          {
+            id: "signal-coverage-polygon-fill",
+            type: "fill",
+            source: "signal-coverage-polygon-source",
+            paint: {
+              "fill-color": ["coalesce", ["get", "fillColor"], "#1a9850"],
+              "fill-opacity": 0,
+            },
+            layout: {
+              visibility: "none",
+            },
+          },
+          polygonBeforeId,
+        );
+      }
+
+      if (!map.getLayer("signal-coverage-polygon-border")) {
+        const borderBeforeId = map.getLayer("signal-coverage-circles")
+          ? "signal-coverage-circles"
+          : map.getLayer("cells-clusters")
+            ? "cells-clusters"
+            : beforeId;
+
+        map.addLayer(
+          {
+            id: "signal-coverage-polygon-border",
+            type: "line",
+            source: "signal-coverage-polygon-source",
+            paint: {
+              "line-color": "#60a5fa",
+              "line-opacity": 0.45,
+              "line-width": 1.2,
+              "line-dasharray": [4, 3],
+            },
+            layout: {
+              visibility: "none",
+            },
+          },
+          borderBeforeId,
+        );
+      }
+
+      if (!map.getLayer("signal-coverage-grid-fill")) {
+        const gridBeforeId = map.getLayer("signal-coverage-polygon-border")
+          ? "signal-coverage-polygon-border"
+          : map.getLayer("signal-coverage-circles")
+            ? "signal-coverage-circles"
+            : beforeId;
+
+        map.addLayer(
+          {
+            id: "signal-coverage-grid-fill",
+            type: "fill",
+            source: "signal-coverage-grid-source",
+            paint: {
+              "fill-color": ["coalesce", ["get", "fillColor"], "#1a9850"],
+              "fill-opacity": 0.2,
+            },
+            layout: {
+              visibility: "none",
+            },
+          },
+          gridBeforeId,
+        );
+      }
+
+      if (!map.getLayer("signal-coverage-circles")) {
+        // addCellLayers() always runs synchronously before addAdminLayers() in the
+        // same effect body, so cells-clusters should reliably be present here.
+        // Fallback keeps the layer below any currently-available cell visual layer.
+        const signalBeforeId = map.getLayer("cells-clusters")
+          ? "cells-clusters"
+          : map.getLayer("cells-circles")
+            ? "cells-circles"
+            : map.getLayer("cells-symbols")
+              ? "cells-symbols"
+              : beforeId;
+        map.addLayer(
+          {
             id: "signal-coverage-circles",
             type: "circle",
             source: "signal-coverage-source",
             paint: getSignalCoverageCirclePaint(0.8),
             layout: {
-              visibility: normalizedConfigRef.current.signalCoverage ? "visible" : "none",
+              visibility: "none", // Start hidden, controlled by applyVisibility
             },
-          };
-
-          if (coverageSourceType === "maptiler") {
-            coverageLayerSpec["source-layer"] =
-              process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_SOURCE_LAYER_ID ?? "coverage";
-          }
-
-          map.addLayer(coverageLayerSpec, signalBeforeId);
-        }
-      } catch (err) {
-        if (process.env.NODE_ENV === "development") {
-          console.debug("[useMapCells] addAdminLayers error:", err);
-        }
+          },
+          signalBeforeId,
+        );
       }
     };
 
@@ -826,6 +1395,61 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       }
     };
 
+    const handleSignalCoverageGridClick = (e: any) => {
+      if (!options?.isAdminMode) return;
+      const features = map.queryRenderedFeatures(e.point, { layers: ["signal-coverage-grid-fill"] });
+      if (features && features.length > 0) {
+        const feature = features[0];
+        if (!feature) return;
+
+        const properties = feature.properties as { strength?: number; barangay?: string; azimuth?: string };
+        if (!properties) return;
+
+        popup.setLngLat(e.lngLat).setHTML(createSignalCoveragePopupHTML(properties as any)).addTo(map);
+      }
+    };
+
+    const handleSignalCoverageInterpolatedMapClick = (e: any) => {
+      if (!options?.isAdminMode || !normalizedConfig.signalCoverage || !signalCoverageData) return;
+
+      const hasDirectHit = map.queryRenderedFeatures(e.point, {
+        layers: ["signal-coverage-grid-fill", "signal-coverage-circles"],
+      });
+      if (hasDirectHit.length > 0) return;
+
+      const signalPoints = (signalCoverageData as SignalCoverageFeatureCollection).features;
+      if (signalPoints.length === 0) return;
+
+      const interpolated = estimateIDWStrength(e.lngLat.lng, e.lngLat.lat, signalPoints, 8, 2);
+      if (interpolated === undefined || !Number.isFinite(interpolated)) return;
+
+      const nearest = signalPoints
+        .map((feature) => {
+          const flng = feature.geometry.coordinates[0];
+          const flat = feature.geometry.coordinates[1];
+          if (flng === undefined || flat === undefined) return { feature, distance2: Infinity };
+          const dx = flng - e.lngLat.lng;
+          const dy = flat - e.lngLat.lat;
+          return { feature, distance2: dx * dx + dy * dy };
+        })
+        .sort((a, b) => a.distance2 - b.distance2)[0]?.feature;
+
+      const properties = {
+        ...(nearest?.properties ?? {}),
+        strength: Number(interpolated.toFixed(1)),
+        interpolation_method: "IDW",
+        interpolation_note: "interpolated",
+      };
+
+      popup.setLngLat(e.lngLat).setHTML(createSignalCoveragePopupHTML(properties as any)).addTo(map);
+    };
+
+    // Mouse enter/leave handlers for signal coverage (admin-only)
+    const handleSignalCoverageEnter = () => {
+      if (options?.isAdminMode) {
+        map.getCanvas().style.cursor = "pointer";
+      }
+    };
     const handleSignalCoverageLeave = () => {
       if (options?.isAdminMode) {
         map.getCanvas().style.cursor = "";
@@ -842,6 +1466,9 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         "cells-symbols",
         "cells-heatmap",
         "cells-point-view",
+        "signal-coverage-polygon-fill",
+        "signal-coverage-polygon-border",
+        "signal-coverage-grid-fill",
         "signal-coverage-circles",
       ];
 
@@ -854,7 +1481,13 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
     // Helper to remove all cell-related sources safely
     const removeCellSources = () => {
-      const sourcesToRemove = ["cells", "cells-heatmap-source", "signal-coverage-source"];
+      const sourcesToRemove = [
+        "cells",
+        "cells-heatmap-source",
+        "signal-coverage-source",
+        "signal-coverage-polygon-source",
+        "signal-coverage-grid-source",
+      ];
 
       for (const sourceId of sourcesToRemove) {
         if (map.getSource(sourceId)) {
@@ -863,10 +1496,21 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       }
     };
 
+    // Initialize
+    void loadIcons();
+    addCellsSource();
+    addCellsHeatmapSource();
+    addSignalCoverageSource();
+    addCellLayers();
+    addAdminLayers();
+
+    // Enforce proper layer ordering after all layers are added
+    // Use deferred setTimeout to ensure all concurrent layer additions complete first
+    setTimeout(() => enforceCellLayerOrder(), 0);
+
     // Apply initial visibility immediately after adding layers
     const applyInitialVisibility = () => {
-      const cfg = normalizedConfigRef.current;
-      const cellSitesVisible = cfg.cellSites && !cfg.pointView;
+      const cellSitesVisible = normalizedConfig.cellSites && !normalizedConfig.pointView;
 
       setLayerVisible("cells-clusters", cellSitesVisible);
       setLayerVisible("cells-cluster-count", cellSitesVisible);
@@ -874,9 +1518,9 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       setLayerVisible("cells-symbols", cellSitesVisible);
 
       if (options?.isAdminMode) {
-        setLayerVisible("cells-heatmap", cfg.cellSiteHeatmap);
+        setLayerVisible("cells-heatmap", normalizedConfig.cellSiteHeatmap);
 
-        if (cfg.pointView) {
+        if (normalizedConfig.pointView) {
           setLayerVisible("cells-point-view", true);
           setLayerVisible("cells-clusters", false);
           setLayerVisible("cells-cluster-count", false);
@@ -886,44 +1530,15 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
           setLayerVisible("cells-point-view", false);
         }
 
-        setLayerVisible("signal-coverage-circles", cfg.signalCoverage);
+        setLayerVisible("signal-coverage-circles", normalizedConfig.signalCoverage);
+        setLayerVisible("signal-coverage-polygon-fill", normalizedConfig.signalCoverage);
+        setLayerVisible("signal-coverage-polygon-border", normalizedConfig.signalCoverage);
+        setLayerVisible("signal-coverage-grid-fill", normalizedConfig.signalCoverage);
       }
     };
 
-    const setupCellLayers = () => {
-      if (!map.isStyleLoaded()) return;
-      void loadIcons();
-      addCellsSource();
-      addCellsHeatmapSource();
-      addSignalCoverageSource();
-      addCellLayers();
-      addAdminLayers();
-      applyInitialVisibility();
-      if (enforceTimeoutRef.current) clearTimeout(enforceTimeoutRef.current);
-      enforceTimeoutRef.current = setTimeout(() => enforceCellLayerOrder(), 0);
-    };
-
-    // Initialize once style is ready
-    let cleanupStyleListener: (() => void) | undefined;
-    if (map.isStyleLoaded()) {
-      setupCellLayers();
-    } else {
-      const onStyleReady = () => {
-        if (map.isStyleLoaded()) {
-          map.off("styledata", onStyleReady);
-          map.off("idle", onStyleReady);
-          setupCellLayers();
-        }
-      };
-      map.on("styledata", onStyleReady);
-      map.on("idle", onStyleReady);
-      const timer = setTimeout(onStyleReady, 100);
-      cleanupStyleListener = () => {
-        map.off("styledata", onStyleReady);
-        map.off("idle", onStyleReady);
-        clearTimeout(timer);
-      };
-    }
+    // Apply visibility after layers are added
+    applyInitialVisibility();
 
     // Attach click handlers
     map.on("click", "cells-circles", handleCellClick);
@@ -933,31 +1548,60 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     if (options?.isAdminMode) {
       map.on("click", "signal-coverage-circles", handleSignalCoverageMouseMove);
       map.on("mousemove", "signal-coverage-circles", handleSignalCoverageMouseMove);
+      map.on("click", "signal-coverage-grid-fill", handleSignalCoverageGridClick);
+      map.on("click", handleSignalCoverageInterpolatedMapClick);
+      map.on("mouseenter", "signal-coverage-circles", handleSignalCoverageEnter);
       map.on("mouseleave", "signal-coverage-circles", handleSignalCoverageLeave);
+      map.on("mouseenter", "signal-coverage-grid-fill", handleSignalCoverageEnter);
+      map.on("mouseleave", "signal-coverage-grid-fill", handleSignalCoverageLeave);
     }
 
-    // Handle style changes (e.g. map.setStyle() wipes sources and layers)
+    // Handle style changes
     const handleStyleData = () => {
-      if (isCleaningUpRef.current || !map.isStyleLoaded()) return;
-      if (!map.getSource("cells") || !map.getLayer("cells-clusters")) {
-        setupCellLayers();
-      }
+      if (isCleaningUpRef.current) return;
+      void loadIcons();
+      addCellsSource();
+      addCellsHeatmapSource();
+      addSignalCoverageSource();
     };
 
     const handleSourceData = () => {
-      if (isCleaningUpRef.current || !map.isStyleLoaded()) return;
+      if (isCleaningUpRef.current) return;
       // Detect whether layers are about to be newly added (style-change recovery).
       // cells-clusters is the first cell layer added; if it is absent the whole
       // layer set is being re-created and we must re-apply the current visibility
       // after the add, because the layers start with visibility:"none".
       const layersWereMissing = !map.getLayer("cells-clusters");
-      addCellsSource();
       addCellLayers();
       addAdminLayers();
       if (layersWereMissing && map.getLayer("cells-clusters")) {
-        applyInitialVisibility();
-        if (enforceTimeoutRef.current) clearTimeout(enforceTimeoutRef.current);
-        enforceTimeoutRef.current = setTimeout(() => enforceCellLayerOrder(), 0);
+        // Re-apply the current visibility from the always-current ref so that
+        // switching map styles doesn't leave every cell layer hidden.
+        const cfg = normalizedConfigRef.current;
+        const cellSitesVisible = cfg.cellSites && !cfg.pointView;
+        setLayerVisible("cells-clusters", cellSitesVisible);
+        setLayerVisible("cells-cluster-count", cellSitesVisible);
+        setLayerVisible("cells-circles", cellSitesVisible);
+        setLayerVisible("cells-symbols", cellSitesVisible);
+        if (options?.isAdminMode) {
+          setLayerVisible("cells-heatmap", cfg.cellSiteHeatmap);
+          if (cfg.pointView) {
+            setLayerVisible("cells-point-view", true);
+            setLayerVisible("cells-clusters", false);
+            setLayerVisible("cells-cluster-count", false);
+            setLayerVisible("cells-circles", false);
+            setLayerVisible("cells-symbols", false);
+          } else {
+            setLayerVisible("cells-point-view", false);
+          }
+          setLayerVisible("signal-coverage-circles", cfg.signalCoverage);
+          setLayerVisible("signal-coverage-polygon-fill", cfg.signalCoverage);
+          setLayerVisible("signal-coverage-polygon-border", cfg.signalCoverage);
+          setLayerVisible("signal-coverage-grid-fill", cfg.signalCoverage);
+        }
+
+        // Enforce proper layer ordering after re-adding layers on style change
+        setTimeout(() => enforceCellLayerOrder(), 0);
       }
     };
 
@@ -969,11 +1613,6 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     handleSourceDataRef.current = handleSourceData;
 
     return () => {
-      cleanupStyleListener?.();
-      if (enforceTimeoutRef.current) {
-        clearTimeout(enforceTimeoutRef.current);
-        enforceTimeoutRef.current = null;
-      }
       // Prevent handlers from running during teardown
       isCleaningUpRef.current = true;
 
@@ -984,7 +1623,12 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       if (options?.isAdminMode) {
         map.off("click", "signal-coverage-circles", handleSignalCoverageMouseMove);
         map.off("mousemove", "signal-coverage-circles", handleSignalCoverageMouseMove);
+        map.off("click", "signal-coverage-grid-fill", handleSignalCoverageGridClick);
+        map.off("click", handleSignalCoverageInterpolatedMapClick);
+        map.off("mouseenter", "signal-coverage-circles", handleSignalCoverageEnter);
         map.off("mouseleave", "signal-coverage-circles", handleSignalCoverageLeave);
+        map.off("mouseenter", "signal-coverage-grid-fill", handleSignalCoverageEnter);
+        map.off("mouseleave", "signal-coverage-grid-fill", handleSignalCoverageLeave);
       }
 
       if (handleStyleDataRef.current) {
@@ -1003,13 +1647,21 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     };
     // accumulatedGeoJSON intentionally omitted from deps; updates handled by dedicated effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, isMapLoaded, signalCoverageData, coverageSourceType, options?.isAdminMode, setLayerVisible]);
+  }, [
+    map,
+    isMapLoaded,
+    signalCoverageData,
+    signalCoveragePolygons,
+    signalCoverageGrid,
+    options?.isAdminMode,
+    setLayerVisible,
+  ]);
 
   // Dedicated effect to update source data whenever accumulatedGeoJSON changes.
   // This calls source.setData() directly WITHOUT removing/re-adding layers, preventing
   // the visible blank flash that would occur if accumulatedGeoJSON were in the main effect's deps.
   useEffect(() => {
-    if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !isMapLoaded) return;
 
     const cellsSource = map.getSource<GeoJSONSource>("cells");
     if (cellsSource) {
@@ -1028,79 +1680,141 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
   useEffect(() => {
     if (!map || !isMapLoaded) return;
 
-    const applyVisibility = () => {
-      const cellSitesVisible = normalizedConfig.cellSites && !normalizedConfig.pointView;
+    const cellSitesVisible = normalizedConfig.cellSites && !normalizedConfig.pointView;
 
-      setLayerVisible("cells-clusters", cellSitesVisible);
-      setLayerVisible("cells-cluster-count", cellSitesVisible);
-      setLayerVisible("cells-circles", cellSitesVisible);
-      setLayerVisible("cells-symbols", cellSitesVisible);
+    setLayerVisible("cells-clusters", cellSitesVisible);
+    setLayerVisible("cells-cluster-count", cellSitesVisible);
+    setLayerVisible("cells-circles", cellSitesVisible);
+    setLayerVisible("cells-symbols", cellSitesVisible);
 
-      if (options?.isAdminMode) {
-        // Admin-only layer visibility - just toggle, don't remove/add
-        setLayerVisible("cells-heatmap", normalizedConfig.cellSiteHeatmap);
+    if (options?.isAdminMode) {
+      // Admin-only layer visibility - just toggle, don't remove/add
+      setLayerVisible("cells-heatmap", normalizedConfig.cellSiteHeatmap);
 
-        if (normalizedConfig.pointView) {
-          setLayerVisible("cells-point-view", true);
-          // Hide clusters in point view mode
-          setLayerVisible("cells-clusters", false);
-          setLayerVisible("cells-cluster-count", false);
-          setLayerVisible("cells-circles", false);
-          setLayerVisible("cells-symbols", false);
-        } else {
-          setLayerVisible("cells-point-view", false);
-        }
-
-        // Signal coverage - toggle independently
-        setLayerVisible("signal-coverage-circles", normalizedConfig.signalCoverage);
+      if (normalizedConfig.pointView) {
+        setLayerVisible("cells-point-view", true);
+        // Hide clusters in point view mode
+        setLayerVisible("cells-clusters", false);
+        setLayerVisible("cells-cluster-count", false);
+        setLayerVisible("cells-circles", false);
+        setLayerVisible("cells-symbols", false);
+      } else {
+        setLayerVisible("cells-point-view", false);
       }
-    };
 
-    if (!map.isStyleLoaded()) {
-      const onStyleReady = () => {
-        if (map.isStyleLoaded()) {
-          map.off("styledata", onStyleReady);
-          map.off("idle", onStyleReady);
-          applyVisibility();
-        }
-      };
-      map.on("styledata", onStyleReady);
-      map.on("idle", onStyleReady);
-      const timer = setTimeout(onStyleReady, 100);
-      return () => {
-        map.off("styledata", onStyleReady);
-        map.off("idle", onStyleReady);
-        clearTimeout(timer);
-      };
+      // Signal coverage - toggle independently
+      setLayerVisible("signal-coverage-circles", normalizedConfig.signalCoverage);
+      setLayerVisible("signal-coverage-polygon-fill", normalizedConfig.signalCoverage);
+      setLayerVisible("signal-coverage-polygon-border", normalizedConfig.signalCoverage);
+      setLayerVisible("signal-coverage-grid-fill", normalizedConfig.signalCoverage);
     }
-
-    applyVisibility();
   }, [map, isMapLoaded, normalizedConfig, options?.isAdminMode, setLayerVisible]);
 
   // Apply signal strength filter to the Radio Network Coverage layer (admin-only)
   // Uses MapTiler's GPU-accelerated filter expressions for efficient large-dataset filtering
   const signalStrengthMin = options?.signalStrengthFilter?.min;
   const signalStrengthMax = options?.signalStrengthFilter?.max;
+  const signalLevelRanges = options?.signalLevelRanges ?? [];
+  const signalCoverageAreaStudyName = options?.signalCoverageAreaStudyName?.trim().toLowerCase();
+  const signalSearchQuery = options?.searchQuery?.trim().toLowerCase();
 
   useEffect(() => {
-    if (!map || !isMapLoaded || !map.isStyleLoaded() || !options?.isAdminMode) return;
+    if (!map || !isMapLoaded || !options?.isAdminMode) return;
     if (!map.getLayer("signal-coverage-circles")) return;
 
-    // No filter when values are absent or cover the full default range (-120 to -40)
-    if (signalStrengthMin === undefined || signalStrengthMax === undefined ||
-        (signalStrengthMin <= -120 && signalStrengthMax >= -40)) {
-      map.setFilter("signal-coverage-circles", null);
+    const strengthExpr: any = ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"]];
+    const filterExpression: any[] = ["all"];
+
+    const hasStrengthFilter =
+      signalStrengthMin !== undefined && signalStrengthMax !== undefined &&
+      !(signalStrengthMin <= -120 && signalStrengthMax >= -80);
+
+    if (signalLevelRanges.length > 0) {
+      const rangeExpression: any[] = ["any"];
+
+      for (const range of signalLevelRanges) {
+        const min = typeof range.min === "number" ? range.min : undefined;
+        const max = typeof range.max === "number" ? range.max : undefined;
+
+        if (min === undefined && max === undefined) continue;
+
+        const singleRange: any[] = ["all"];
+        if (min !== undefined) {
+          singleRange.push([">=", strengthExpr, min]);
+        }
+        if (max !== undefined) {
+          singleRange.push(["<=", strengthExpr, max]);
+        }
+
+        rangeExpression.push(singleRange);
+      }
+
+      if (rangeExpression.length > 1) {
+        filterExpression.push(rangeExpression);
+      }
+    } else if (hasStrengthFilter) {
+      filterExpression.push([">=", strengthExpr, signalStrengthMin]);
+      // The top 3GPP bucket is open-ended (Excellent: >= -80 dBm),
+      // so we skip an upper bound when the slider handle is at -80.
+      if (signalStrengthMax < -80) {
+        filterExpression.push(["<=", strengthExpr, signalStrengthMax]);
+      }
+    }
+
+    if (signalCoverageAreaStudyName) {
+      filterExpression.push([
+        "==",
+        ["downcase", ["coalesce", ["get", "areaStudy"], ["get", "source_file"], ""]],
+        signalCoverageAreaStudyName,
+      ]);
+    }
+
+    if (options.serviceProviderIds && options.serviceProviderIds.length > 0) {
+      filterExpression.push(["in", ["coalesce", ["get", "networkProviderId"], ""], ["literal", options.serviceProviderIds]]);
+    }
+
+    if (options.generationIds && options.generationIds.length > 0) {
+      filterExpression.push(["in", ["coalesce", ["get", "generationId"], ""], ["literal", options.generationIds]]);
+    }
+
+    if (signalSearchQuery) {
+      filterExpression.push([
+        ">=",
+        ["index-of", signalSearchQuery, ["downcase", ["coalesce", ["get", "search_text"], ""]]],
+        0,
+      ]);
+    }
+
+    const applyFilter = (layerId: string, filter: any) => {
+      if (map.getLayer(layerId)) {
+        map.setFilter(layerId, filter);
+      }
+    };
+
+    if (filterExpression.length === 1) {
+      applyFilter("signal-coverage-circles", null);
+      applyFilter("signal-coverage-polygon-fill", null);
+      applyFilter("signal-coverage-polygon-border", null);
+      applyFilter("signal-coverage-grid-fill", null);
       return;
     }
 
-    // Apply inclusive range filter as a MapTiler expression
-    const strengthExpr: any = ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"]];
-    map.setFilter("signal-coverage-circles", [
-      "all",
-      [">=", strengthExpr, signalStrengthMin],
-      ["<=", strengthExpr, signalStrengthMax],
-    ] as any);
-  }, [map, isMapLoaded, options?.isAdminMode, signalStrengthMin, signalStrengthMax]);
+    applyFilter("signal-coverage-circles", filterExpression as any);
+    applyFilter("signal-coverage-polygon-fill", filterExpression as any);
+    applyFilter("signal-coverage-polygon-border", filterExpression as any);
+    applyFilter("signal-coverage-grid-fill", filterExpression as any);
+  }, [
+    map,
+    isMapLoaded,
+    options?.isAdminMode,
+    options?.serviceProviderIds,
+    options?.generationIds,
+    signalLevelRanges,
+    signalCoverageAreaStudyName,
+    signalStrengthMin,
+    signalStrengthMax,
+    signalSearchQuery,
+  ]);
 
   // Re-enforce cell layer ordering after any map style or source change.
   // This ensures cell layers stay in the correct z-order across all map styles,

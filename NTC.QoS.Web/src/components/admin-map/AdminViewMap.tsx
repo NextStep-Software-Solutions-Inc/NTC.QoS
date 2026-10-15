@@ -244,8 +244,19 @@ function AdminMapContent() {
       generationIds: filters.generationIds.length > 0 ? filters.generationIds : undefined,
       isAdminMode: true,
       signalStrengthFilter: filters.signalStrength,
+      signalLevelRanges: filters.signalCoverageSignalLevelRanges,
+      signalCoverageAreaStudyName: filters.signalCoverageAreaStudyName,
+      searchQuery: filters.searchQuery?.trim() ? filters.searchQuery : undefined,
     }),
-    [effectiveRegionIds, filters.providers, filters.generationIds, filters.signalStrength],
+    [
+      effectiveRegionIds,
+      filters.providers,
+      filters.generationIds,
+      filters.signalStrength,
+      filters.signalCoverageSignalLevelRanges,
+      filters.signalCoverageAreaStudyName,
+      filters.searchQuery,
+    ],
   );
 
   // Build NAP options from filters - includes wired service provider filtering

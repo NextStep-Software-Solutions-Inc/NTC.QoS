@@ -109,7 +109,7 @@ export interface DateRangeFilter {
  */
 export interface SignalStrengthFilter {
   min: number; // dBm (e.g., -120)
-  max: number; // dBm (e.g., -40)
+  max: number; // dBm (e.g., -80)
 }
 
 /**
@@ -136,6 +136,10 @@ export interface AdminMapFilters {
   wiredServiceProviderIds: string[]; // Wired service provider IDs for NAP/fiber filtering
   fiberProviderNames: string[]; // Provider display names matching vector tile Providers property
   generationIds: string[]; // Generation IDs for network type filtering (replaces networkTypes)
+  signalCoverageAreaStudyId?: string; // Area study filter used to resolve signal level ranges
+  signalCoverageAreaStudyName?: string; // Area study label used to match GeoJSON annotations
+  signalCoverageSignalLevelEntryIds: string[]; // Selected signal-level entries inside the chosen area study
+  signalCoverageSignalLevelRanges: Array<{ min?: number; max?: number }>; // OR-ed ranges derived from selected entries
   dateRange: DateRangeFilter;
   signalStrength: SignalStrengthFilter;
   speedTest: SpeedTestFilter;
@@ -152,8 +156,12 @@ export const DEFAULT_ADMIN_MAP_FILTERS: AdminMapFilters = {
   wiredServiceProviderIds: [],
   fiberProviderNames: [],
   generationIds: [],
+  signalCoverageAreaStudyId: undefined,
+  signalCoverageAreaStudyName: undefined,
+  signalCoverageSignalLevelEntryIds: [],
+  signalCoverageSignalLevelRanges: [],
   dateRange: {},
-  signalStrength: { min: -120, max: -40 },
+  signalStrength: { min: -120, max: -80 },
   speedTest: {},
   regionIds: [],
   searchQuery: "",

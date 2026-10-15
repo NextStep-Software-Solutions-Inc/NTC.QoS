@@ -32,6 +32,9 @@ import {
 } from "lucide-react";
 
 import { getGenerationsRequest } from "@/components/features/generation/handlers/getGenerationsRequest";
+import { getAreaStudiesRequest } from "@/components/features/area-study/handlers/getAreaStudiesRequest";
+import { getSignalLevelsRequest } from "@/components/features/area-study/handlers/getSignalLevelsRequest";
+import { getSignalLevelEntriesRequest } from "@/components/features/area-study/handlers/getSignalLevelEntriesRequest";
 import { getServiceProvidersRequest } from "@/components/features/service-provider/handlers/getServiceProvidersRequest";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,6 +65,9 @@ import { SearchBar } from "./SearchBar";
 const useGetWirelessServiceProviders = createQueryHookFromTemplate(getServiceProvidersRequest);
 const useGetWiredServiceProviders = createQueryHookFromTemplate(getServiceProvidersRequest);
 const useGetGenerations = createQueryHookFromTemplate(getGenerationsRequest);
+const useGetAreaStudies = createQueryHookFromTemplate(getAreaStudiesRequest);
+const useGetSignalLevels = createQueryHookFromTemplate(getSignalLevelsRequest);
+const useGetSignalLevelEntries = createQueryHookFromTemplate(getSignalLevelEntriesRequest);
 
 const DOWNLOAD_SPEED_RANGE: [number, number] = [0, 1000];
 const UPLOAD_SPEED_RANGE: [number, number] = [0, 500];
@@ -77,12 +83,22 @@ const fromDateInputValue = (value: string) => {
 };
 
 const SIGNAL_QUALITY_LABELS = [
-  { value: -110, label: "Very Weak" },
-  { value: -90, label: "Weak" },
-  { value: -70, label: "Fair" },
-  { value: -50, label: "Good" },
-  { value: -40, label: "Excellent" },
+  { minInclusive: -80, maxExclusive: Infinity, label: "Excellent (>= -80 dBm)", color: "#1a9850" },
+  { minInclusive: -90, maxExclusive: -80, label: "Good (-90 to < -80 dBm)", color: "#91cf60" },
+  { minInclusive: -100, maxExclusive: -90, label: "Fair (-100 to < -90 dBm)", color: "#fee08b" },
+  { minInclusive: -110, maxExclusive: -100, label: "Weak (-110 to < -100 dBm)", color: "#fc8d59" },
+  { minInclusive: -120, maxExclusive: -110, label: "Poor (< -110 dBm)", color: "#d73027" },
 ];
+
+const doesSignalRangeOverlapBucket = (
+  selectedMin: number,
+  selectedMax: number,
+  bucketMinInclusive: number,
+  bucketMaxExclusive: number,
+) => {
+  const overlapStart = Math.max(selectedMin, bucketMinInclusive);
+  return overlapStart <= selectedMax && overlapStart < bucketMaxExclusive;
+};
 
 interface FilterPanelProps {
   className?: string;
@@ -99,6 +115,15 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
   // Pending (staged) filters — only committed to context when "Apply Filters" is clicked
   const [pendingFilters, setPendingFilters] = useState<AdminMapFilters>({ ...filters });
   const panelCollapseDistance = FILTER_PANEL_WIDTH_PX;
+
+  const { data: areaStudiesData, isLoading: isLoadingAreaStudies } = useGetAreaStudies({
+    pathParams: {},
+    queryParams: { pageSize: 1000 },
+  });
+  const { data: signalLevelsData, isLoading: isLoadingSignalLevels } = useGetSignalLevels({
+    pathParams: {},
+    queryParams: { pageSize: 1000 },
+  });
 
   // Sync pending filters when applied filters change externally (e.g. after reset from context)
   useEffect(() => {
@@ -138,6 +163,78 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
   });
 
   const generations = useMemo(() => generationsData?.data ?? [], [generationsData]);
+  const areaStudies = useMemo(() => areaStudiesData?.data ?? [], [areaStudiesData]);
+  const selectedAreaStudy = useMemo(
+    () => areaStudies.find((areaStudy) => areaStudy.id === pendingFilters.signalCoverageAreaStudyId),
+    [areaStudies, pendingFilters.signalCoverageAreaStudyId],
+  );
+  const selectedSignalLevel = useMemo(
+    () => signalLevelsData?.data.find((signalLevel) => signalLevel.areaStudyId === selectedAreaStudy?.id),
+    [selectedAreaStudy?.id, signalLevelsData?.data],
+  );
+  const { data: signalLevelEntriesData, isLoading: isLoadingSignalLevelEntries } = useGetSignalLevelEntries({
+    pathParams: { signalLevelId: selectedSignalLevel?.id ?? "" },
+    queryParams: { pageSize: 1000 },
+    enabled: Boolean(selectedSignalLevel?.id),
+  } as never);
+  const signalLevelEntries = useMemo(
+    () => signalLevelEntriesData?.data ?? selectedSignalLevel?.signalLevelEntries ?? [],
+    [signalLevelEntriesData, selectedSignalLevel],
+  );
+
+  const selectedSignalLevelEntryIds = pendingFilters.signalCoverageSignalLevelEntryIds;
+
+  const deriveRangesFromSelectedEntries = useCallback(
+    (selectedIds: string[]) => {
+      return signalLevelEntries
+        .filter((entry) => selectedIds.includes(entry.id))
+        .map((entry) => ({
+          min: typeof entry.thresholdFrom === "number" ? entry.thresholdFrom : undefined,
+          max: typeof entry.thresholdTo === "number" ? entry.thresholdTo : undefined,
+        }))
+        .filter((range) => range.min !== undefined || range.max !== undefined);
+    },
+    [signalLevelEntries],
+  );
+
+  const deriveEnvelopeFromRanges = useCallback((ranges: Array<{ min?: number; max?: number }>) => {
+    if (ranges.length === 0) {
+      return { min: -120, max: -80 };
+    }
+
+    const mins = ranges.map((range) => range.min).filter((value): value is number => value !== undefined);
+    const maxs = ranges.map((range) => range.max).filter((value): value is number => value !== undefined);
+
+    return {
+      min: mins.length > 0 ? Math.min(...mins) : -120,
+      max: maxs.length > 0 ? Math.max(...maxs) : -80,
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedAreaStudy || signalLevelEntries.length === 0) return;
+
+    if (selectedSignalLevelEntryIds.length > 0) return;
+
+    const nextEntry = signalLevelEntries[0];
+    if (!nextEntry) return;
+
+    const nextSelectedIds = [nextEntry.id];
+    const ranges = deriveRangesFromSelectedEntries(nextSelectedIds);
+
+    updatePending({
+      signalCoverageSignalLevelEntryIds: nextSelectedIds,
+      signalCoverageSignalLevelRanges: ranges,
+      signalStrength: deriveEnvelopeFromRanges(ranges),
+    });
+  }, [
+    deriveEnvelopeFromRanges,
+    deriveRangesFromSelectedEntries,
+    selectedAreaStudy,
+    selectedSignalLevelEntryIds,
+    signalLevelEntries,
+    updatePending,
+  ]);
 
   // Transform wireless service providers to options (for cellular & speedtest tabs)
   const wirelessServiceProviders = useMemo<Array<{ id: string; name: string; color?: string }>>(() => {
@@ -164,8 +261,10 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
     if (pendingFilters.wirelessServiceProviderIds.length > 0) count++;
     if (pendingFilters.wiredServiceProviderIds.length > 0) count++;
     if (pendingFilters.generationIds.length > 0) count++;
+    if (pendingFilters.signalCoverageAreaStudyId) count++;
+    if ((pendingFilters.searchQuery ?? "").trim().length > 0) count++;
     if (pendingFilters.dateRange.startDate || pendingFilters.dateRange.endDate) count++;
-    if (pendingFilters.signalStrength.min > -120 || pendingFilters.signalStrength.max < -40) count++;
+    if (pendingFilters.signalCoverageSignalLevelEntryIds.length > 0) count++;
     if (
       pendingFilters.speedTest.downloadMin !== undefined ||
       pendingFilters.speedTest.downloadMax !== undefined ||
@@ -211,6 +310,40 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
     [pendingFilters.generationIds, updatePending],
   );
 
+  const handleAreaStudyChange = useCallback(
+    (areaStudyId: string) => {
+      const areaStudy = areaStudies.find((item) => item.id === areaStudyId);
+      const signalLevel = signalLevelsData?.data.find((item) => item.areaStudyId === areaStudyId);
+      updatePending({
+        signalCoverageAreaStudyId: areaStudy?.id,
+        signalCoverageAreaStudyName: areaStudy?.name,
+        signalCoverageSignalLevelEntryIds: [],
+        signalCoverageSignalLevelRanges: [],
+      });
+
+      if (!signalLevel) {
+        updatePending({ signalStrength: { min: -120, max: -80 } });
+      }
+    },
+    [areaStudies, signalLevelsData?.data, updatePending],
+  );
+
+  const handleSignalLevelEntrySelect = useCallback(
+    (entryId: string) => {
+      const nextSelectedIds = selectedSignalLevelEntryIds.includes(entryId)
+        ? selectedSignalLevelEntryIds.filter((id) => id !== entryId)
+        : [...selectedSignalLevelEntryIds, entryId];
+
+      const ranges = deriveRangesFromSelectedEntries(nextSelectedIds);
+      updatePending({
+        signalCoverageSignalLevelEntryIds: nextSelectedIds,
+        signalCoverageSignalLevelRanges: ranges,
+        signalStrength: deriveEnvelopeFromRanges(ranges),
+      });
+    },
+    [deriveEnvelopeFromRanges, deriveRangesFromSelectedEntries, selectedSignalLevelEntryIds, updatePending],
+  );
+
   // Toggle wired service provider selection for NAP/fiber filtering
   const toggleWiredServiceProvider = useCallback(
     (serviceProviderId: string, providerName: string) => {
@@ -243,7 +376,7 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
   // Handle signal strength change
   const handleSignalStrengthChange = useCallback(
     (values: number[]) => {
-      updatePending({ signalStrength: { min: values[0] ?? -120, max: values[1] ?? -40 } });
+      updatePending({ signalStrength: { min: values[0] ?? -120, max: values[1] ?? -80 } });
     },
     [updatePending],
   );
@@ -560,39 +693,115 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
                             </div>
                           </CollapsibleSection>
 
-                          {/* Signal Strength */}
+                          {/* Signal Levels */}
                           <CollapsibleSection
-                            title="Signal Strength"
+                            title="Signal Levels"
                             icon={<Signal className="w-4 h-4" />}
                             defaultExpanded={false}>
                             <div className="space-y-4 pt-2">
-                              <Slider
-                                value={[pendingFilters.signalStrength.min, pendingFilters.signalStrength.max]}
-                                min={-120}
-                                max={-40}
-                                step={5}
-                                onValueChange={handleSignalStrengthChange}
-                                className="w-full"
+                              <div className="space-y-2">
+                                <Label className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                                  Area study
+                                </Label>
+                                <select
+                                  value={pendingFilters.signalCoverageAreaStudyId ?? ""}
+                                  onChange={(event) => handleAreaStudyChange(event.target.value)}
+                                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                                  disabled={isLoadingAreaStudies}
+                                >
+                                  <option value="">Select an area study</option>
+                                  {areaStudies.map((areaStudy) => (
+                                    <option key={areaStudy.id} value={areaStudy.id}>
+                                      {areaStudy.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {selectedAreaStudy ? (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                                      Signal levels
+                                    </p>
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {selectedAreaStudy.name}
+                                    </Badge>
+                                  </div>
+                                  {isLoadingSignalLevels || isLoadingSignalLevelEntries ? (
+                                    <div className="flex items-center gap-2 py-2 text-sm text-gray-500">
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Loading signal levels...
+                                    </div>
+                                  ) : signalLevelEntries.length === 0 ? (
+                                    <p className="text-sm text-gray-400">
+                                      No signal levels configured for this area study.
+                                    </p>
+                                  ) : (
+                                    <div className="flex flex-col gap-2">
+                                      {signalLevelEntries.map((entry, index) => {
+                                        const isSelected = pendingFilters.signalCoverageSignalLevelEntryIds.includes(entry.id);
+                                        const hasExplicitRange = entry.thresholdFrom !== undefined || entry.thresholdTo !== undefined;
+                                        const rangeLabel = hasExplicitRange
+                                          ? `${entry.thresholdFrom ?? "-∞"} to ${entry.thresholdTo ?? "∞"} dBm`
+                                          : "Unbounded range";
+                                        return (
+                                          <button
+                                            key={entry.id}
+                                            type="button"
+                                            onClick={() => handleSignalLevelEntrySelect(entry.id)}
+                                            className={cn(
+                                              "flex items-center justify-between rounded-md border px-3 py-2 text-left transition-colors",
+                                              isSelected
+                                                ? "border-primary bg-primary/5"
+                                                : "border-border bg-background hover:bg-muted/50",
+                                            )}>
+                                            <div className="flex items-center gap-3">
+                                              <span
+                                                className="h-3 w-3 rounded-sm border border-black/10"
+                                                style={{ backgroundColor: entry.color }}
+                                              />
+                                              <div>
+                                                <p className="text-sm font-medium text-foreground">
+                                                  {entry.description || `Signal level ${index + 1}`}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">{rangeLabel}</p>
+                                              </div>
+                                            </div>
+                                            {isSelected ? <Check className="h-4 w-4 text-primary" /> : null}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-400">
+                                  Select an area study to load its configured signal levels.
+                                </p>
+                              )}
+                              {pendingFilters.signalCoverageSignalLevelEntryIds.length > 0 ? (
+                                <p className="text-xs text-muted-foreground">
+                                  {pendingFilters.signalCoverageSignalLevelEntryIds.length} level(s) selected.
+                                </p>
+                              ) : null}
+                            </div>
+                          </CollapsibleSection>
+
+                          <CollapsibleSection
+                            title="Signal Search"
+                            icon={<Filter className="w-4 h-4" />}
+                            defaultExpanded={false}>
+                            <div className="space-y-2 pt-2">
+                              <Input
+                                value={pendingFilters.searchQuery ?? ""}
+                                onChange={(e) => updatePending({ searchQuery: e.target.value })}
+                                placeholder="Search location, cell GUID, provider, band..."
                               />
-                              <div className="flex justify-between text-xs text-gray-500">
-                                <span>{pendingFilters.signalStrength.min} dBm</span>
-                                <span>{pendingFilters.signalStrength.max} dBm</span>
-                              </div>
-                              <div className="flex justify-between text-xs">
-                                {SIGNAL_QUALITY_LABELS.map((item) => (
-                                  <span
-                                    key={item.value}
-                                    className={cn(
-                                      "px-1",
-                                      item.value >= pendingFilters.signalStrength.min &&
-                                        item.value <= pendingFilters.signalStrength.max
-                                        ? "text-primary font-medium"
-                                        : "text-gray-400",
-                                    )}>
-                                    {item.label}
-                                  </span>
-                                ))}
-                              </div>
+                              <p className="text-xs text-gray-500">
+                                Filters radio coverage using source properties. You can search municipality/location or
+                                paste a cell GUID (`cell_id`).
+                              </p>
                             </div>
                           </CollapsibleSection>
                         </div>

@@ -14,12 +14,28 @@ export const CLUSTER_COLORS = {
 
 // Signal strength color scale
 export const SIGNAL_STRENGTH_COLORS = {
-  excellent: "#22c55e", // Green: -60 dBm or better
-  good: "#84cc16", // Lime: -70 to -60 dBm
-  fair: "#facc15", // Yellow: -80 to -70 dBm
-  poor: "#f97316", // Orange: -90 to -80 dBm
-  veryPoor: "#ef4444", // Red: worse than -90 dBm
+  excellent: "#1a9850", // >= -80 dBm
+  good: "#91cf60", // -90 to -80 dBm
+  fair: "#fee08b", // -100 to -90 dBm
+  weak: "#fc8d59", // -110 to -100 dBm
+  poor: "#d73027", // < -110 dBm
 };
+
+export function getSignalStrengthColor(strength: number): string {
+  if (strength >= -80) return SIGNAL_STRENGTH_COLORS.excellent;
+  if (strength >= -90) return SIGNAL_STRENGTH_COLORS.good;
+  if (strength >= -100) return SIGNAL_STRENGTH_COLORS.fair;
+  if (strength >= -110) return SIGNAL_STRENGTH_COLORS.weak;
+  return SIGNAL_STRENGTH_COLORS.poor;
+}
+
+export function getSignalStrengthQualityLabel(strength: number): string {
+  if (strength >= -80) return "Excellent";
+  if (strength >= -90) return "Good";
+  if (strength >= -100) return "Fair";
+  if (strength >= -110) return "Weak";
+  return "Poor";
+}
 
 /**
  * Get cluster layer paint configuration
@@ -103,30 +119,28 @@ export function getCellSiteHeatmapPaint(opacity: number = 0.7): HeatmapLayerSpec
  * Get signal coverage circle layer paint configuration (color-coded by RSSI).
  * Uses circles instead of heatmap to show actual signal strength per point.
  *
- * Color scale thresholds:
- *   ≥ -60 dBm  → Excellent (green)
- *   -70 to -60 → Good (lime)
- *   -80 to -70 → Fair (yellow)
- *   -90 to -80 → Poor (orange)
- *   < -90 dBm  → Very Poor (red)
+ * Color scale thresholds (3GPP-style):
+ *   >= -80 dBm   → Excellent (green)
+ *   -90 to -80   → Good (light green)
+ *   -100 to -90  → Fair (yellow)
+ *   -110 to -100 → Weak (orange)
+ *   < -110       → Poor (red)
  */
 export function getSignalCoverageCirclePaint(opacity: number = 0.8): CircleLayerSpecification["paint"] {
   return {
     "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 2, 10, 4, 15, 8],
     "circle-color": [
-      "interpolate",
-      ["linear"],
+      "step",
       ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"], -120],
-      -120,
-      SIGNAL_STRENGTH_COLORS.veryPoor, // Very weak - red
+      SIGNAL_STRENGTH_COLORS.poor,
+      -110,
+      SIGNAL_STRENGTH_COLORS.weak,
+      -100,
+      SIGNAL_STRENGTH_COLORS.fair,
       -90,
-      SIGNAL_STRENGTH_COLORS.poor, // Poor - orange
+      SIGNAL_STRENGTH_COLORS.good,
       -80,
-      SIGNAL_STRENGTH_COLORS.fair, // Fair - yellow
-      -70,
-      SIGNAL_STRENGTH_COLORS.good, // Good - lime
-      -60,
-      SIGNAL_STRENGTH_COLORS.excellent, // Excellent - green
+      SIGNAL_STRENGTH_COLORS.excellent,
     ],
     "circle-opacity": opacity,
     "circle-stroke-width": 0,
@@ -210,35 +224,23 @@ export function createSignalCoveragePopupHTML(properties: {
   source_file?: string;
   duplex_mode?: string;
   areaStudy?: string;
+  interpolation_note?: string;
 }): string {
   const rawStrength = properties.signal_strength_dbm ?? properties.strength;
   const strength = typeof rawStrength === "number" ? rawStrength : -120;
-  const signalLabel =
-    strength >= -60
-      ? "Excellent"
-      : strength >= -70
-        ? "Good"
-        : strength >= -80
-          ? "Fair"
-          : strength >= -90
-            ? "Poor"
-            : "Very Poor";
-
-  const signalColor =
-    strength >= -60
-      ? SIGNAL_STRENGTH_COLORS.excellent
-      : strength >= -70
-        ? SIGNAL_STRENGTH_COLORS.good
-        : strength >= -80
-          ? SIGNAL_STRENGTH_COLORS.fair
-          : strength >= -90
-            ? SIGNAL_STRENGTH_COLORS.poor
-            : SIGNAL_STRENGTH_COLORS.veryPoor;
+  const signalLabel = getSignalStrengthQualityLabel(strength);
+  const signalColor = getSignalStrengthColor(strength);
 
   const locationText = properties.address || properties.location || properties.barangay || "Unknown location";
   const azimuthText = properties.azimuth !== undefined && properties.azimuth !== null ? `${properties.azimuth}°` : "N/A";
+  const network = properties.network || "Unknown";
   const networkText = properties.network || "";
+  const technology = properties.technology || "Unknown";
+  const band = properties.band || "N/A";
+  const frequency = properties.frequency || "N/A";
+  const address = properties.address || "N/A";
   const techBandText = [properties.technology, properties.band].filter(Boolean).join(" - ");
+  const interpolationNote = properties.interpolation_note ? String(properties.interpolation_note) : "";
 
   // Enhanced styled popup with gradient background - matches CellsiteMapView
   return `
@@ -279,6 +281,7 @@ export function createSignalCoveragePopupHTML(properties: {
             <div style="font-weight: 700; font-size: 16px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
               ${signalLabel}
             </div>
+            ${interpolationNote ? `<div style="font-size: 11px; opacity: 0.9; margin-top: 1px;">(${interpolationNote})</div>` : ""}
             <div style="font-size: 20px; font-weight: 800; margin-top: 2px;">
               ${strength.toFixed(1)} dBm
             </div>
@@ -334,6 +337,34 @@ export function createSignalCoveragePopupHTML(properties: {
               <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Location</div>
               <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${locationText}</div>
             </div>
+          </div>
+
+          <div style="
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          ">
+            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
+              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Provider</div>
+              <div style="color: #1e293b; font-weight: 500;">${network}</div>
+            </div>
+            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
+              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Technology</div>
+              <div style="color: #1e293b; font-weight: 500;">${technology}</div>
+            </div>
+            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
+              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Band</div>
+              <div style="color: #1e293b; font-weight: 500;">${band}</div>
+            </div>
+            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
+              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Frequency</div>
+              <div style="color: #1e293b; font-weight: 500;">${frequency}</div>
+            </div>
+          </div>
+
+          <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
+            <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Address</div>
+            <div style="color: #1e293b; font-weight: 500;">${address}</div>
           </div>
           
           <div style="

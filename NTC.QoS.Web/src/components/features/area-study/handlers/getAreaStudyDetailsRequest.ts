@@ -1,10 +1,10 @@
 import { request } from "@/services/fetch";
-import { type APIResponse, type QueryBlueprintFromTemplate } from "@/types/reusable/api";
+import { type APIResponse, type QueryBlueprintFromTemplate, type QueryParams } from "@/types/reusable/api";
 import { type AreaStudyDetails } from "../types/AreaStudy";
 
 const endpoint = "/area-studies/:id";
 
-export const getAreaStudyDetailsRequest: QueryBlueprintFromTemplate<typeof endpoint, APIResponse<AreaStudyDetails>> = {
+export const getAreaStudyDetailsRequest: QueryBlueprintFromTemplate<typeof endpoint, APIResponse<AreaStudyDetails>, QueryParams> = {
   endpoint,
   key: ({ url, pathParams, queryParams }) => ["get-area-study", url, endpoint, pathParams, queryParams] as const,
   fetcher: async ({ finalUrl, signal }) => {
