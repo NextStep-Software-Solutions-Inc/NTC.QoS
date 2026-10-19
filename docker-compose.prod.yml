@@ -20,8 +20,16 @@ services:
       - Clerk__SecretKey=${CLERK_SECRET_KEY}
       - Clerk__WebhookSecret=${CLERK_WEBHOOK_SECRET}
       - Clerk__FrontendUrl=${CLERK_FRONTEND_URL:-https://app.qos.ntc.gov.ph}
+      - DOTNET_GCHeapHardLimitPercent=85
       - GoogleAI__ApiKey=${GOOGLE_AI_API_KEY}
       - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          cpus: '${API_MAX_CPUS:-1.7}'
+          memory: '${API_MAX_MEMORY:-3200M}'
+        reservations:
+          memory: 256M
     expose:
       - "8080"
     networks:
