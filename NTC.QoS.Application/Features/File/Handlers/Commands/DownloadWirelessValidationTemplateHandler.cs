@@ -151,7 +151,7 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         for (int col = 3; col <= lastCol; col++)
         {
             var colName = GetExcelColumnName(col);
-            AddDropdownValidation(ws, $"{colName}5:{colName}1048576", bandRange, allowBlank: true);
+            AddDropdownValidation(ws, $"{colName}5:{colName}1048576", bandRange, allowBlank: true, allowFrequencyFormat: true);
         }
 
         // Draw light grid borders on all data cells
@@ -362,23 +362,40 @@ internal sealed class DownloadWirelessValidationTemplateHandler
         ws.Cells[dim.Address].AutoFitColumns();
     }
 
-    private static void AddDropdownValidation(ExcelWorksheet worksheet, string range, ExcelRangeBase sourceRange, bool allowBlank = false)
+    private static void AddDropdownValidation(
+        ExcelWorksheet worksheet, 
+        string range, 
+        ExcelRangeBase sourceRange, 
+        bool allowBlank = false,
+        bool allowFrequencyFormat = false)
     {
         var validation = worksheet.DataValidations.AddListValidation(range);
         validation.AllowBlank = allowBlank;
-        validation.ShowErrorMessage = true;
-        validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-        validation.ErrorTitle = "Invalid Selection";
-        validation.Error = "The value entered does not match any preset option. Please choose from the dropdown menu.";
         validation.Formula.ExcelFormula = sourceRange.FullAddressAbsolute;
 
-        validation.ShowInputMessage = true;
-        validation.PromptTitle = "Preset Selection";
-        validation.Prompt = "Please choose from the dropdown menu. If copy-pasting, ensure values match the allowed options exactly.";
+        if (allowFrequencyFormat)
+        {
+            validation.ShowErrorMessage = false;
+            validation.ShowInputMessage = true;
+            validation.PromptTitle = "Preset Selection";
+            validation.Prompt = "Please choose from the dropdown menu (1, 0, TRUE, FALSE) or enter frequency specifications (e.g., CF: <val>, BW: <val>).";
+        }
+        else
+        {
+            validation.ShowErrorMessage = true;
+            validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
+            validation.ErrorTitle = "Invalid Selection";
+            validation.Error = "The value entered does not match any preset option. Please choose from the dropdown menu.";
+
+            validation.ShowInputMessage = true;
+            validation.PromptTitle = "Preset Selection";
+            validation.Prompt = "Please choose from the dropdown menu. If copy-pasting, ensure values match the allowed options exactly.";
+        }
 
         var firstCell = range.Split(':')[0];
         var cf = worksheet.ConditionalFormatting.AddExpression(new ExcelAddress(range));
-        cf.Formula = $"AND({firstCell}<>\"\", ISERROR(MATCH({firstCell}, {sourceRange.FullAddressAbsolute}, 0)))";
+        var customExemption = allowFrequencyFormat ? $"LEFT(UPPER(TRIM({firstCell})), 3)<>\"CF:\", " : "";
+        cf.Formula = $"AND({firstCell}<>\"\", {customExemption}ISERROR(MATCH({firstCell}, {sourceRange.FullAddressAbsolute}, 0)), ISERROR(MATCH(\"\"&{firstCell}, {sourceRange.FullAddressAbsolute}, 0)))";
         cf.Style.Fill.PatternType = ExcelFillStyle.Solid;
         cf.Style.Fill.BackgroundColor.Color = Color.FromArgb(255, 199, 206);
         cf.Style.Font.Color.Color = Color.FromArgb(156, 0, 6);
