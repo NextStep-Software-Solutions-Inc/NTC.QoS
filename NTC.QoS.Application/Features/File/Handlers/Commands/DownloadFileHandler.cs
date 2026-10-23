@@ -9,6 +9,7 @@ using OfficeOpenXml;
 using OfficeOpenXml.DataValidation;
 using OfficeOpenXml.Style;
 using System.Linq.Expressions;
+using NTC.QoS.Infrastructure.Helper;
 
 
 namespace NTC.QoS.Application.Features.File.Handlers.Commands;
@@ -127,7 +128,7 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         var providerRange = providerSheet.Cells[1, 1, providers.Count, 1];
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
 
-        AddDropdownValidation(worksheet, "A2:A1048576", providerRange);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "A2:A1048576", providerRange);
     }
 
     private async Task GenerateCellTemplate(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -152,17 +153,17 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "A4:A1048576", providerSheet.Cells[1, 1, providers.Count, 1]);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "A4:A1048576", providerSheet.Cells[1, 1, providers.Count, 1]);
 
         ExcelWorksheet towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
         towerTypeSheet.Cells.LoadFromCollection(towerTypes.Select(t => new { Type = t }));
         towerTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "X4:X1048576", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "X4:X1048576", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
 
         ExcelWorksheet antennaTypeSheet = package.Workbook.Worksheets.Add("AntennaTypes");
         antennaTypeSheet.Cells.LoadFromCollection(antennaTypes.Select(a => new { Type = a }));
         antennaTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "Y4:Y1048576", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "Y4:Y1048576", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
 
         // Add "1/0/TRUE/FALSE" dropdowns and conditional formatting for band columns
         ExcelWorksheet bandSheet = package.Workbook.Worksheets.Add("BandValues");
@@ -170,21 +171,21 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         bandSheet.Hidden = eWorkSheetHidden.VeryHidden;
         var bandRange = bandSheet.Cells[1, 1, bandValues.Count, 1];
 
-        AddDropdownValidation(worksheet, "I4:I1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "2G GSM 900"
-        AddDropdownValidation(worksheet, "J4:J1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "2G GSM 1800"
-        AddDropdownValidation(worksheet, "K4:K1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "3G WCDMA 850"
-        AddDropdownValidation(worksheet, "L4:L1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "3G WCDMA 900"
-        AddDropdownValidation(worksheet, "M4:M1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "3G WCDMA 2100"
-        AddDropdownValidation(worksheet, "N4:N1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 700"
-        AddDropdownValidation(worksheet, "O4:O1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 850"
-        AddDropdownValidation(worksheet, "P4:P1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 900"
-        AddDropdownValidation(worksheet, "Q4:Q1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 1800"
-        AddDropdownValidation(worksheet, "R4:R1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 2100"
-        AddDropdownValidation(worksheet, "S4:S1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G TDD-LTE 2300"
-        AddDropdownValidation(worksheet, "T4:T1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G TDD-LTE 2500"
-        AddDropdownValidation(worksheet, "U4:U1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G TDD-LTE 2600"
-        AddDropdownValidation(worksheet, "V4:V1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "5G 2600"
-        AddDropdownValidation(worksheet, "W4:W1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "5G 3500"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "I4:I1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "2G GSM 900"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "J4:J1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "2G GSM 1800"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "K4:K1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "3G WCDMA 850"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "L4:L1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "3G WCDMA 900"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "M4:M1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "3G WCDMA 2100"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "N4:N1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 700"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "O4:O1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 850"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "P4:P1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 900"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "Q4:Q1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 1800"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "R4:R1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G FDD-LTE 2100"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "S4:S1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G TDD-LTE 2300"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "T4:T1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G TDD-LTE 2500"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "U4:U1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "4G TDD-LTE 2600"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "V4:V1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "5G 2600"
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "W4:W1048576", bandRange, allowBlank: true, allowFrequencyFormat: true); // "5G 3500"
     }
 
     private async Task GenerateCellTemplateVersion3(ExcelPackage package, ExcelWorksheet worksheet, CancellationToken cancellationToken)
@@ -214,17 +215,17 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         ExcelWorksheet providerSheet = package.Workbook.Worksheets.Add("Providers");
         providerSheet.Cells.LoadFromCollection(providers.Select(p => new { Name = p }));
         providerSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "A4:A1048576", providerSheet.Cells[1, 1, providers.Count, 1]);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "A4:A1048576", providerSheet.Cells[1, 1, providers.Count, 1]);
 
         ExcelWorksheet towerTypeSheet = package.Workbook.Worksheets.Add("TowerTypes");
         towerTypeSheet.Cells.LoadFromCollection(towerTypes.Select(t => new { Type = t }));
         towerTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "AE4:AE1048576", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "AE4:AE1048576", towerTypeSheet.Cells[1, 1, towerTypes.Count, 1]);
 
         ExcelWorksheet antennaTypeSheet = package.Workbook.Worksheets.Add("AntennaTypes");
         antennaTypeSheet.Cells.LoadFromCollection(antennaTypes.Select(a => new { Type = a }));
         antennaTypeSheet.Hidden = eWorkSheetHidden.Hidden;
-        AddDropdownValidation(worksheet, "AF4:AF1048576", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, "AF4:AF1048576", antennaTypeSheet.Cells[1, 1, antennaTypes.Count, 1]);
 
         // Preset 1, 0, TRUE, FALSE (with blank allowed) dropdowns and conditional formatting for all 22 band columns (Cols 9 to 30: I through AD)
         List<string> bandValues = ["1", "0", "TRUE", "FALSE"];
@@ -235,8 +236,8 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
 
         for (int col = 9; col <= 30; col++)
         {
-            var colName = GetExcelColumnName(col);
-            AddDropdownValidation(worksheet, $"{colName}4:{colName}1048576", bandRange, allowBlank: true, allowFrequencyFormat: true);
+            var colName = ExcelTemplateHelper.GetExcelColumnName(col);
+            ExcelTemplateHelper.AddDropdownValidation(worksheet, $"{colName}4:{colName}1048576", bandRange, allowBlank: true, allowFrequencyFormat: true);
         }
     }
 
@@ -271,17 +272,17 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         technologySheet.Hidden = eWorkSheetHidden.Hidden;
 
         // Apply dropdown validations using dynamic column positions
-        var operatorCol = GetExcelColumnName(SpeedtestTemplateColumns.Operator);
-        var networkTypeCol = GetExcelColumnName(SpeedtestTemplateColumns.NetworkType);
-        var signalQualityCol = GetExcelColumnName(SpeedtestTemplateColumns.SignalQuality);
+        var operatorCol = ExcelTemplateHelper.GetExcelColumnName(SpeedtestTemplateColumns.Operator);
+        var networkTypeCol = ExcelTemplateHelper.GetExcelColumnName(SpeedtestTemplateColumns.NetworkType);
+        var signalQualityCol = ExcelTemplateHelper.GetExcelColumnName(SpeedtestTemplateColumns.SignalQuality);
 
-        AddDropdownValidation(worksheet, $"{operatorCol}2:{operatorCol}1048576", providerRange, allowBlank: false);
-        AddDropdownValidation(worksheet, $"{networkTypeCol}2:{networkTypeCol}1048576", technologyRange, allowBlank: true);
-        AddDropdownValidation(worksheet, $"{signalQualityCol}2:{signalQualityCol}1048576", signalQuality, allowBlank: true);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, $"{operatorCol}2:{operatorCol}1048576", providerRange, allowBlank: false);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, $"{networkTypeCol}2:{networkTypeCol}1048576", technologyRange, allowBlank: true);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, $"{signalQualityCol}2:{signalQualityCol}1048576", signalQuality, allowBlank: true);
 
         // Add NBC column dropdown: blank = no broadband coverage false, "NBC" = true, "TRUE"/"FALSE" also accepted
-        var nbcCol = GetExcelColumnName(SpeedtestTemplateColumns.Nbc);
-        AddDropdownValidation(worksheet, $"{nbcCol}2:{nbcCol}1048576", NbcValues, allowBlank: true);
+        var nbcCol = ExcelTemplateHelper.GetExcelColumnName(SpeedtestTemplateColumns.Nbc);
+        ExcelTemplateHelper.AddDropdownValidation(worksheet, $"{nbcCol}2:{nbcCol}1048576", NbcValues, allowBlank: true);
 
         // Mark required fields with red background color
         MarkRequiredFields(worksheet, new[]
@@ -354,12 +355,12 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
             hiddenSheet.Hidden = eWorkSheetHidden.VeryHidden;
             
             var range = hiddenSheet.Cells[1, 1, values.Count, 1];
-            AddDropdownValidation(worksheet, targetRange, range);
+            ExcelTemplateHelper.AddDropdownValidation(worksheet, targetRange, range);
         }
         else
         {
             // Use direct values for small lists
-            AddDropdownValidation(worksheet, targetRange, values);
+            ExcelTemplateHelper.AddDropdownValidation(worksheet, targetRange, values);
         }
     }
 
@@ -449,80 +450,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         worksheet.View.FreezePanes(startRow + numRows, 1);
     }
 
-    private static void AddDropdownValidation(
-        ExcelWorksheet worksheet, 
-        string range, 
-        ExcelRangeBase sourceRange, 
-        bool allowBlank = false, 
-        string? defaultValue = null,
-        bool allowFrequencyFormat = false)
-    {
-        var validation = worksheet.DataValidations.AddListValidation(range);
-        validation.AllowBlank = allowBlank;
-        validation.Formula.ExcelFormula = sourceRange.FullAddressAbsolute;
-
-        if (allowFrequencyFormat)
-        {
-            validation.ShowErrorMessage = false;
-            validation.ShowInputMessage = true;
-            validation.PromptTitle = "Preset Selection";
-            validation.Prompt = "Please choose from the dropdown menu (1, 0, TRUE, FALSE) or enter frequency specifications (e.g., CF: <val>, BW: <val>).";
-        }
-        else
-        {
-            validation.ShowErrorMessage = true;
-            validation.ErrorStyle = ExcelDataValidationWarningStyle.stop;
-            validation.ErrorTitle = "Invalid Selection";
-            validation.Error = "The value entered does not match any preset option. Please choose from the dropdown menu.";
-
-            validation.ShowInputMessage = true;
-            validation.PromptTitle = "Preset Selection";
-            validation.Prompt = "Please choose from the dropdown menu. If copy-pasting, ensure values match the allowed options exactly.";
-        }
-
-        // Highlight pasted mismatches (turns cell light red with dark red text)
-        var firstCell = range.Split(':')[0];
-        var cf = worksheet.ConditionalFormatting.AddExpression(new ExcelAddress(range));
-        var customExemption = allowFrequencyFormat ? $"LEFT(UPPER(TRIM({firstCell})), 3)<>\"CF:\", " : "";
-        cf.Formula = $"AND({firstCell}<>\"\", {customExemption}ISERROR(MATCH({firstCell}, {sourceRange.FullAddressAbsolute}, 0)), ISERROR(MATCH(\"\"&{firstCell}, {sourceRange.FullAddressAbsolute}, 0)))";
-        cf.Style.Fill.PatternType = ExcelFillStyle.Solid;
-        cf.Style.Fill.BackgroundColor.Color = System.Drawing.Color.FromArgb(255, 199, 206);
-        cf.Style.Font.Color.Color = System.Drawing.Color.FromArgb(156, 0, 6);
-
-        if (!string.IsNullOrEmpty(defaultValue))
-        {
-            string cellAddress = range.Split(':')[0];
-            ExcelRange targetCell = worksheet.Cells[cellAddress];
-            targetCell.Value = defaultValue;
-            targetCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
-        }
-    }
-
-    private static void AddDropdownValidation(
-        ExcelWorksheet worksheet, 
-        string range, 
-        List<string> values, 
-        bool allowBlank = false, 
-        string? defaultValue = null,
-        bool allowFrequencyFormat = false)
-    {
-        // Use a hidden sheet for the values to enable both Excel Data Validation and Conditional Formatting
-        var cleanRangeName = range.Replace(":", "_");
-        var sheetName = "Lkp_" + cleanRangeName;
-        if (sheetName.Length > 31) sheetName = sheetName[..31]; // Excel sheet names max 31 chars
-
-        var existingSheet = worksheet.Workbook.Worksheets[sheetName];
-        if (existingSheet == null)
-        {
-            existingSheet = worksheet.Workbook.Worksheets.Add(sheetName);
-            existingSheet.Cells[1, 1].LoadFromCollection(values.Select(v => new { Value = v }));
-            existingSheet.Hidden = eWorkSheetHidden.VeryHidden;
-        }
-
-        var sourceRange = existingSheet.Cells[1, 1, values.Count, 1];
-        AddDropdownValidation(worksheet, range, sourceRange, allowBlank, defaultValue, allowFrequencyFormat);
-    }
-
     private static void AutoFitColumns(ExcelWorksheet worksheet)
     {
         for (int i = 1; i <= worksheet.Dimension.Columns; i++)
@@ -531,22 +458,6 @@ internal sealed class DownloadFileHandler : IRequestHandler<DownloadTemplateFile
         }
     }
 
-    /// <summary>
-    /// Converts a 1-indexed column number to Excel column letter notation (e.g., 1 -> "A", 27 -> "AA")
-    /// </summary>
-    private static string GetExcelColumnName(int columnNumber)
-    {
-        var columnName = new System.Text.StringBuilder();
-
-        while (columnNumber > 0)
-        {
-            int modulo = (columnNumber - 1) % 26;
-            columnName.Insert(0, Convert.ToChar('A' + modulo));
-            columnNumber = (columnNumber - modulo) / 26;
-        }
-
-        return columnName.ToString();
-    }
 
     private async Task<List<string>> GetServiceProviders(ServiceTypeEnum service, CancellationToken cancellationToken)
     {
