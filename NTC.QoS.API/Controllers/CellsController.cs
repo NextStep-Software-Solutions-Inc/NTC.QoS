@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
@@ -6,6 +6,7 @@ using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Application.Features.Cells.Requests;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.Cell;
 using NTC.QoS.Domain.Models.RequestParams;
@@ -85,6 +86,46 @@ public class CellsController(IMediator mediator, IMemoryCache memoryCache) : Con
     public async Task<ActionResult<PaginatedResponse<CellDto>>> GetCellsInternal([FromQuery] CellsQueryParams query)
     {
         return await GetAllCells(query);
+    }
+
+    /// <summary>
+    /// Export cell sites with coordinates and technology bands in Excel (.xlsx) or PDF (.pdf) format.
+    /// Supports filtering by service provider, geographic boundaries, status, verification, and search term.
+    /// </summary>
+    [HttpGet("export")]
+    [RequirePermission(Permissions.ViewCells)]
+    public async Task<IActionResult> ExportCells(
+        [FromQuery] CellsQueryParams query,
+        [FromQuery] ReportFormat format = ReportFormat.Excel)
+    {
+        var request = new ExportCellsRequest
+        {
+            Format = format,
+            Search = query.Search,
+            Status = query.Status,
+            ServiceProviderIds = query.ServiceProviderIds,
+            ProviderIds = query.ProviderIds,
+            ServiceIds = query.ServiceIds,
+            GenerationIds = query.GenerationIds,
+            TechnologyIds = query.TechnologyIds,
+            BandIds = query.BandIds,
+            Coordinate = (query.Longitude != 0 || query.Latitude != 0) ? new(x: query.Longitude, y: query.Latitude) : null,
+            Distance = (query.Longitude != 0 || query.Latitude != 0) ? (query.Distance > 0 && query.Distance != 15000000 ? query.Distance : 50000) : null,
+            BarangayIds = query.BarangayIds,
+            MunicipalityIds = query.MunicipalityIds,
+            ProvinceIds = query.ProvinceIds,
+            RegionIds = query.RegionIds,
+            IsVerified = query.IsVerified
+        };
+
+        var result = await mediator.Send(request);
+        if (!result.Succeeded || result.Data == null)
+            return BadRequest(result);
+
+        return File(
+            result.Data.FileContent,
+            result.Data.ContentType,
+            result.Data.FileName);
     }
 
     [HttpGet("{id}")]

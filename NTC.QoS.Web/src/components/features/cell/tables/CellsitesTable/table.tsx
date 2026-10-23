@@ -10,8 +10,11 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Download,
   Edit,
   Eye,
+  FileSpreadsheet,
+  FileText,
   Loader2,
   MapPin,
   MoreVertical,
@@ -386,6 +389,10 @@ interface CellsitesTableProps {
   onToolbarCollapsedChange?: (collapsed: boolean) => void;
   // Add cell site component
   addCellSiteButton?: React.ReactNode;
+  // Export actions
+  onExportExcel?: () => void;
+  onExportPdf?: () => void;
+  isExporting?: boolean;
 }
 
 export function CellsitesTable({
@@ -427,6 +434,9 @@ export function CellsitesTable({
   toolbarCollapsed = false,
   onToolbarCollapsedChange,
   addCellSiteButton,
+  onExportExcel,
+  onExportPdf,
+  isExporting = false,
 }: CellsitesTableProps) {
   // Use filter options hook for cascading dropdowns
   const { providers, provinces, municipalities, barangays, regions } = useFilterOptions({
@@ -515,6 +525,39 @@ export function CellsitesTable({
 
           {/* Spacer to push Add button to right */}
           <div className="flex-1" />
+
+          {/* Export Dropdown Button */}
+          {(onExportExcel || onExportPdf) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-10" disabled={isExporting || totalCount === 0}>
+                  {isExporting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Export
+                  <ChevronDown className="h-3.5 w-3.5 ml-1.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Export Cell Sites</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {onExportExcel && (
+                  <DropdownMenuItem onClick={onExportExcel} disabled={isExporting}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                    Export as Excel (.xlsx)
+                  </DropdownMenuItem>
+                )}
+                {onExportPdf && (
+                  <DropdownMenuItem onClick={onExportPdf} disabled={isExporting}>
+                    <FileText className="mr-2 h-4 w-4 text-red-600" />
+                    Export as PDF (.pdf)
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Add Cell Site Button - Right side */}
           {!readonly && addCellSiteButton}
