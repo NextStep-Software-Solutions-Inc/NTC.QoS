@@ -95,14 +95,15 @@ public class Program
         {
             options.AddPolicy("Dev", policy =>
             {
-                policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+                policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition");
             });
             options.AddPolicy("Prod", policy =>
             {
                 var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
                 policy.WithOrigins(origins)
                       .AllowAnyHeader()
-                      .AllowAnyMethod();
+                      .AllowAnyMethod()
+                      .WithExposedHeaders("Content-Disposition");
             });
         });
 
