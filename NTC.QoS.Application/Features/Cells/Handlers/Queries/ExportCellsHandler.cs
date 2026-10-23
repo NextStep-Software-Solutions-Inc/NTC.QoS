@@ -39,8 +39,6 @@ public class ExportCellsHandler(
         {
             var cellQuery = _cellRepository.Query();
 
-            var locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
-
             if (!string.IsNullOrWhiteSpace(request.Search))
             {
                 var searchExpression = SearchHelper.BuildNullableKeywordSearchExpression<Domain.Aggregates.Cell>(
@@ -64,8 +62,17 @@ public class ExportCellsHandler(
                 .Where(c => request.ServiceProviderIds == null || request.ServiceProviderIds.Contains(c.ServiceProviderId))
                 .Where(c => request.ProviderIds == null || (c.ServiceProvider != null && request.ProviderIds.Contains(c.ServiceProvider.ProviderId)))
                 .Where(c => request.ServiceIds == null || (c.ServiceProvider != null && request.ServiceIds.Contains(c.ServiceProvider.ServiceId)))
-                .Where(c => request.IsVerified == null || c.IsVerified == request.IsVerified.Value)
-                .Where(c => locationPoint.IsValid && c.Location.IsWithinDistance(locationPoint, request.Distance));
+                .Where(c => request.IsVerified == null || c.IsVerified == request.IsVerified.Value);
+
+            if (request.Coordinate != null && (request.Coordinate.X != 0 || request.Coordinate.Y != 0))
+            {
+                var locationPoint = GeometryHelper.CreatePoint(request.Coordinate);
+                if (locationPoint.IsValid)
+                {
+                    var distance = request.Distance is > 0 ? request.Distance.Value : 50000;
+                    cellQuery = cellQuery.Where(c => c.Location.IsWithinDistance(locationPoint, distance));
+                }
+            }
 
             if (request.GenerationIds is { Count: > 0 } || request.TechnologyIds is { Count: > 0 } || request.BandIds is { Count: > 0 })
             {

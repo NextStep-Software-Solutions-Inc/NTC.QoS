@@ -17,8 +17,8 @@ public class ExportCellsRequest : IRequest<ApiResponse<CellExportResultDto>>
     public List<Guid>? GenerationIds { get; set; }
     public List<Guid>? TechnologyIds { get; set; }
     public List<Guid>? BandIds { get; set; }
-    public Coordinate Coordinate { get; set; } = new(0, 0);
-    public double Distance { get; set; } = 15000000;
+    public Coordinate? Coordinate { get; set; }
+    public double? Distance { get; set; } = 50000;
     public List<Guid>? BarangayIds { get; set; }
     public List<Guid>? MunicipalityIds { get; set; }
     public List<Guid>? ProvinceIds { get; set; }
