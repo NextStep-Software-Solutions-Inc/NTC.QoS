@@ -12,13 +12,13 @@ BEGIN;
 
 DO $$
 DECLARE
-    -- Deterministic UUID for NIR (matches application conventions)
-    v_nir_id UUID := '018f7000-0000-7000-8000-000000000018'::uuid;
+    -- Candidate deterministic UUID for NIR
+    v_nir_id_candidate UUID := '018f7000-0000-7000-8000-000000000018'::uuid;
+    v_nir_id UUID;
     v_r7_id UUID;
     v_r6_id UUID;
     v_now TIMESTAMPTZ := clock_timestamp();
     v_system_user TEXT := 'System';
-    v_nir_exists BOOLEAN;
 BEGIN
     SELECT "Id" INTO v_r7_id FROM "Regions" WHERE "Code" = 'PH07' LIMIT 1;
     SELECT "Id" INTO v_r6_id FROM "Regions" WHERE "Code" = 'PH06' LIMIT 1;
@@ -31,10 +31,19 @@ BEGIN
         RAISE EXCEPTION 'Region VI (Code PH06) not found in Regions table!';
     END IF;
 
-    SELECT EXISTS(SELECT 1 FROM "Regions" WHERE "Code" = 'PH18') INTO v_nir_exists;
+    -- Check if NIR already exists by code
+    SELECT "Id" INTO v_nir_id FROM "Regions" WHERE "Code" = 'PH18' LIMIT 1;
 
     -- 1. Insert NIR into Regions table using PostGIS union of its constituent provinces
-    IF NOT v_nir_exists THEN
+    IF v_nir_id IS NULL THEN
+        -- Collision check: ensure candidate UUID does not collide with an existing row in Regions
+        IF EXISTS (SELECT 1 FROM "Regions" WHERE "Id" = v_nir_id_candidate) THEN
+            v_nir_id := gen_random_uuid();
+            RAISE NOTICE 'Candidate UUID % already in use; generated dynamic UUID: %', v_nir_id_candidate, v_nir_id;
+        ELSE
+            v_nir_id := v_nir_id_candidate;
+        END IF;
+
         INSERT INTO "Regions" (
             "Id", "Name", "Code", "Description", "Area",
             "TotalPopulation", "HouseholdPopulation", "HouseholdCount",
@@ -62,8 +71,6 @@ BEGIN
         
         RAISE NOTICE 'Inserted NIR (PH18) with ID: %', v_nir_id;
     ELSE
-        -- If NIR row already exists, retrieve its ID
-        SELECT "Id" INTO v_nir_id FROM "Regions" WHERE "Code" = 'PH18' LIMIT 1;
         RAISE NOTICE 'NIR (PH18) already exists with ID: %', v_nir_id;
     END IF;
 
