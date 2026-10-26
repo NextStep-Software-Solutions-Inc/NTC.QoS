@@ -8,6 +8,9 @@
 -- 4. Recalculates Region VI (Western Visayas) boundary = excluding Negros Occidental.
 -- ==============================================================================
 
+-- Ensure PostGIS extension is enabled before executing spatial operations
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 BEGIN;
 
 DO $$
@@ -20,6 +23,10 @@ DECLARE
     v_now TIMESTAMPTZ := clock_timestamp();
     v_system_user TEXT := 'System';
 BEGIN
+    -- Verify PostGIS extension is active
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
+        RAISE EXCEPTION 'PostGIS extension is not installed or enabled in target database. Please ensure PostGIS is enabled before running spatial migrations.';
+    END IF;
     SELECT "Id" INTO v_r7_id FROM "Regions" WHERE "Code" = 'PH07' LIMIT 1;
     SELECT "Id" INTO v_r6_id FROM "Regions" WHERE "Code" = 'PH06' LIMIT 1;
 
