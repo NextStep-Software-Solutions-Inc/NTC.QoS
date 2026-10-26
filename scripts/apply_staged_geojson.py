@@ -9,6 +9,39 @@ import shutil
 import argparse
 from pathlib import Path
 
+
+def is_already_migrated_or_staged(orig: Path, staged: Path) -> bool:
+    """
+    Check if the target file is already migrated or identical to staged.
+    Prevents creating a pre-migration backup from an already-migrated file.
+    """
+    if not orig.exists():
+        return False
+
+    # Check 1: File size matches staged file and initial chunk matches
+    if staged.exists() and orig.stat().st_size == staged.stat().st_size:
+        try:
+            with open(orig, "rb") as f1, open(staged, "rb") as f2:
+                if f1.read(65536) == f2.read(65536):
+                    return True
+        except Exception:
+            pass
+
+    # Check 2: Content scan for RA 12000 NIR markers (PH18 / Negros Island Region)
+    try:
+        with open(orig, "r", encoding="utf-8", errors="ignore") as f:
+            for _ in range(5000):
+                line = f.readline()
+                if not line:
+                    break
+                if '"PH18"' in line or "Negros Island Region" in line or '"ADM1_PCODE":"PH18"' in line:
+                    return True
+    except Exception:
+        pass
+
+    return False
+
+
 def main():
     repo_root = Path(__file__).resolve().parent.parent
     default_api_dir = repo_root / "NTC.QoS.API"
@@ -50,16 +83,31 @@ def main():
     for f in files:
         orig = root_api / f
         bak = root_api / f"{f}.bak_pre_ra12000"
-        if orig.exists() and not bak.exists():
-            print(f"Backing up: {orig.name} -> {bak.name}...")
-            shutil.copy2(orig, bak)
-        elif bak.exists():
+        staged_file = staging_dir / f
+
+        if bak.exists():
             print(f"Backup {bak.name} already exists (skipping overwrite).")
+        elif orig.exists():
+            if is_already_migrated_or_staged(orig, staged_file):
+                print(f"Notice: {orig.name} is already migrated or matches staged file. Skipping backup to protect pre-migration baseline.")
+            else:
+                print(f"Backing up: {orig.name} -> {bak.name}...")
+                shutil.copy2(orig, bak)
 
     # 3. Copy staged into root_api
     for f in files:
         staged_file = staging_dir / f
         target_file = root_api / f
+
+        if target_file.exists() and target_file.stat().st_size == staged_file.stat().st_size:
+            try:
+                with open(target_file, "rb") as f1, open(staged_file, "rb") as f2:
+                    if f1.read(65536) == f2.read(65536):
+                        print(f"Skipping copy: {target_file.name} is already up to date.")
+                        continue
+            except Exception:
+                pass
+
         print(f"Copying: {staged_file.name} -> {target_file}...")
         shutil.copy2(staged_file, target_file)
 
