@@ -9,7 +9,13 @@
 -- ==============================================================================
 
 -- Ensure PostGIS extension is enabled before executing spatial operations
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- Note: Catches insufficient_privilege if executed by non-superuser deployment runners
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS postgis;
+EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'Non-superuser connection detected; skipping CREATE EXTENSION and verifying existing PostGIS installation.';
+END $$;
 
 BEGIN;
 

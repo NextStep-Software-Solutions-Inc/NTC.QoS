@@ -35,7 +35,11 @@ export const RegionDomainProvider = ({ children }: { children: React.ReactNode }
   const [isBarangayListOpen, setIsBarangayListOpen] = useState<boolean>(false);
 
   const { data: regions } = useRegion({ pathParams: {}, queryParams: { pageNumber: 1, pageSize: 100 } });
-  const regionData = regions?.data?.[16] ?? regions?.data?.[0];
+  // Explicitly prefer NCR (PH13) as default region context, with index fallbacks for backwards compatibility
+  const regionData =
+    regions?.data?.find((r) => r.code === "PH13" || r.name?.toUpperCase().includes("NCR")) ??
+    regions?.data?.[16] ??
+    regions?.data?.[0];
 
   const { data: regionDetails } = useRegionDetails({
     pathParams: { id: regionData?.id ?? "" },
