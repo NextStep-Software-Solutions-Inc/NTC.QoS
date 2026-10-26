@@ -20,6 +20,7 @@ import sys
 import json
 import time
 import shutil
+import argparse
 import re
 from pathlib import Path
 from shapely.geometry import shape, mapping, MultiPolygon, Polygon
@@ -377,8 +378,26 @@ def validate_staged_files(staging_dir: Path):
 
 
 def main():
-    root_api = Path(r"C:\Users\almau\NTC.QoS-Backend\NTC.QoS.API")
-    staging_dir = root_api / "geojson_staging"
+    repo_root = Path(__file__).resolve().parent.parent
+    default_api_dir = repo_root / "NTC.QoS.API"
+
+    parser = argparse.ArgumentParser(description="RA 12000 Administrative Boundaries Transformation Pipeline")
+    parser.add_argument(
+        "--api-dir",
+        type=Path,
+        default=default_api_dir,
+        help="Path to NTC.QoS.API directory containing source GeoJSON files."
+    )
+    parser.add_argument(
+        "--staging-dir",
+        type=Path,
+        default=None,
+        help="Path to staging output directory (defaults to <api-dir>/geojson_staging)."
+    )
+    args = parser.parse_args()
+
+    root_api = args.api_dir.resolve()
+    staging_dir = (args.staging_dir or (root_api / "geojson_staging")).resolve()
     staging_dir.mkdir(parents=True, exist_ok=True)
     
     print("=" * 70)

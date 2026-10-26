@@ -1,20 +1,42 @@
 #!/usr/bin/env python3
 """
 Applies staged GeoJSON boundary files to NTC.QoS.API with automatic backup.
+Dynamically resolves paths relative to the repository root for cross-platform compatibility.
 """
 
 import sys
 import shutil
+import argparse
 from pathlib import Path
 
 def main():
-    root_api = Path(r"C:\Users\almau\NTC.QoS-Backend\NTC.QoS.API")
-    staging_dir = root_api / "geojson_staging"
+    repo_root = Path(__file__).resolve().parent.parent
+    default_api_dir = repo_root / "NTC.QoS.API"
+
+    parser = argparse.ArgumentParser(description="Applies staged GeoJSON boundary files to NTC.QoS.API with backup.")
+    parser.add_argument(
+        "--api-dir",
+        type=Path,
+        default=default_api_dir,
+        help="Path to NTC.QoS.API directory (defaults to <repo_root>/NTC.QoS.API)."
+    )
+    parser.add_argument(
+        "--staging-dir",
+        type=Path,
+        default=None,
+        help="Path to staging directory (defaults to <api-dir>/geojson_staging)."
+    )
+    args = parser.parse_args()
+
+    root_api = args.api_dir.resolve()
+    staging_dir = (args.staging_dir or (root_api / "geojson_staging")).resolve()
     
     files = ["admin1.geojson", "admin2.geojson", "admin3.geojson", "admin4.geojson"]
     
     print("=" * 60)
     print("Applying Staged GeoJSON Boundary Files to NTC.QoS.API")
+    print(f"Target Directory:  {root_api}")
+    print(f"Staging Directory: {staging_dir}")
     print("=" * 60)
     
     # 1. Verify all staged files exist
@@ -41,7 +63,7 @@ def main():
         print(f"Copying: {staged_file.name} -> {target_file}...")
         shutil.copy2(staged_file, target_file)
 
-    print("\n? Successfully applied all staged GeoJSON files to NTC.QoS.API!")
+    print("\n✔ Successfully applied all staged GeoJSON files to NTC.QoS.API!")
     print("Original files backed up with '.bak_pre_ra12000' suffix.")
 
 if __name__ == "__main__":
