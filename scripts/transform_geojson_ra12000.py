@@ -38,6 +38,12 @@ NIR_PROVINCE_CODES = {
     "PH07061": "Siquijor"
 }
 
+# Expected baseline counts under official PSA/HDX administrative boundary definitions:
+# Negros Occidental: 32 (19 mun + 13 cities), Negros Oriental: 25 (19 mun + 6 cities), Siquijor: 6 mun = 63
+EXPECTED_NIR_MUNICIPALITY_COUNT = 63
+# Negros Occidental: 662, Negros Oriental: 557, Siquijor: 134 = 1,353
+EXPECTED_NIR_BARANGAY_COUNT = 1353
+
 R7_REMAINING_CODES = {
     "PH07012": "Bohol",
     "PH07022": "Cebu"
@@ -298,7 +304,7 @@ def process_admin_streaming(src_path: Path, dst_path: Path, admin_level: int):
     print(f"  Processed {total_count} admin{admin_level} features ({updated_count} patched to NIR) in {time.time() - t0:.2f}s")
 
 
-def validate_staged_files(staging_dir: Path):
+def validate_staged_files(staging_dir: Path, strict: bool = True):
     """
     Automated verification of transformed files in staging using lightweight streaming.
     """
@@ -323,7 +329,7 @@ def validate_staged_files(staging_dir: Path):
     # Verify NIR geometry
     nir_shape = shape(regions["PH18"]["geometry"])
     assert nir_shape.is_valid, "NIR geometry is invalid!"
-    print(f"  ? Admin 1: 18 regions verified. NIR geometry is valid ({nir_shape.geom_type}).")
+    print(f"  ✓ Admin 1: 18 regions verified. NIR geometry is valid ({nir_shape.geom_type}).")
 
     # 2. Admin 2 Validation
     a2_path = staging_dir / "admin2.geojson"
@@ -350,7 +356,7 @@ def validate_staged_files(staging_dir: Path):
     assert len(nir_provs) == 3, f"Expected 3 NIR provinces, found {len(nir_provs)}"
     assert len(r7_provs) == 2, f"Expected 2 Region VII provinces, found {len(r7_provs)}"
     assert len(r6_provs) == 5, f"Expected 5 Region VI provinces, found {len(r6_provs)}"
-    print(f"  ? Admin 2: Province distribution verified (NIR: 3, Region VII: 2, Region VI: 5).")
+    print(f"  ✓ Admin 2: Province distribution verified (NIR: 3, Region VII: 2, Region VI: 5).")
 
     # 3. Admin 3 Validation
     a3_path = staging_dir / "admin3.geojson"
@@ -360,8 +366,15 @@ def validate_staged_files(staging_dir: Path):
         for line in f:
             if f'"ADM1_PCODE": "{NIR_PCODE}"' in line:
                 a3_nir_count += 1
-    assert a3_nir_count == 63, f"Expected 63 municipalities in NIR, found {a3_nir_count}"
-    print(f"  ? Admin 3: Exactly 63 municipalities/cities verified in NIR.")
+    assert a3_nir_count > 0, "No municipalities/cities found mapped to NIR (PH18) in admin3.geojson!"
+    if a3_nir_count != EXPECTED_NIR_MUNICIPALITY_COUNT:
+        msg = f"NIR municipality count ({a3_nir_count}) does not match expected baseline ({EXPECTED_NIR_MUNICIPALITY_COUNT})."
+        if strict:
+            raise AssertionError(f"{msg} Pass --skip-strict-counts if target boundary dataset uses different administrative classifications.")
+        else:
+            print(f"  ⚠️  Admin 3 Notice: {msg} (allowed via --skip-strict-counts).")
+    else:
+        print(f"  ✓ Admin 3: Exactly {EXPECTED_NIR_MUNICIPALITY_COUNT} municipalities/cities verified in NIR.")
 
     # 4. Admin 4 Validation
     a4_path = staging_dir / "admin4.geojson"
@@ -371,10 +384,17 @@ def validate_staged_files(staging_dir: Path):
         for line in f:
             if f'"ADM1_PCODE": "{NIR_PCODE}"' in line:
                 a4_nir_count += 1
-    assert a4_nir_count == 1353, f"Expected 1,353 barangays in NIR, found {a4_nir_count}"
-    print(f"  ? Admin 4: Exactly 1,353 barangays verified in NIR.")
+    assert a4_nir_count > 0, "No barangays found mapped to NIR (PH18) in admin4.geojson!"
+    if a4_nir_count != EXPECTED_NIR_BARANGAY_COUNT:
+        msg = f"NIR barangay count ({a4_nir_count}) does not match expected baseline ({EXPECTED_NIR_BARANGAY_COUNT})."
+        if strict:
+            raise AssertionError(f"{msg} Pass --skip-strict-counts if target boundary dataset uses an alternate PSA census year.")
+        else:
+            print(f"  ⚠️  Admin 4 Notice: {msg} (allowed via --skip-strict-counts).")
+    else:
+        print(f"  ✓ Admin 4: Exactly {EXPECTED_NIR_BARANGAY_COUNT} barangays verified in NIR.")
 
-    print("\n?? All validation tests passed successfully!")
+    print("\n✅ All validation tests passed successfully!")
 
 
 def main():
@@ -394,6 +414,11 @@ def main():
         default=None,
         help="Path to staging output directory (defaults to <api-dir>/geojson_staging)."
     )
+    parser.add_argument(
+        "--skip-strict-counts",
+        action="store_true",
+        help="Downgrade exact admin3/admin4 count assertions to warnings to prevent pipeline failures on alternate boundary releases."
+    )
     args = parser.parse_args()
 
     root_api = args.api_dir.resolve()
@@ -404,6 +429,7 @@ def main():
     print("RA 12000 Administrative Boundaries Transformation Pipeline")
     print(f"Source Directory:  {root_api}")
     print(f"Staging Directory: {staging_dir}")
+    print(f"Strict Counts:     {'Disabled (--skip-strict-counts)' if args.skip_strict_counts else 'Enabled (Default)'}")
     print("=" * 70)
     
     total_start = time.time()
@@ -429,10 +455,10 @@ def main():
     process_admin_streaming(src_admin4, dst_admin4, admin_level=4)
     
     # Step 5: Validate all staged files
-    validate_staged_files(staging_dir)
+    validate_staged_files(staging_dir, strict=not args.skip_strict_counts)
     
     print("\n" + "=" * 70)
-    print(f"? Transformation & Validation completed in {time.time() - total_start:.2f}s")
+    print(f"✅ Transformation & Validation completed in {time.time() - total_start:.2f}s")
     print(f"Staged files are ready at: {staging_dir}")
     print("=" * 70)
 
