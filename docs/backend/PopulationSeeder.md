@@ -1,232 +1,184 @@
-# Population Data Seeder
+# Location and Population Seeding Architecture
 
 ## Overview
 
-The PopulationSeeder is designed to import census population data from Excel files into your location entities (Regions, Provinces, and Municipalities). It follows the same **static utility pattern** as `LocationSeeder` - simple, straightforward, and automatically called during application startup.
+Population data (Total Population, Household Population, and Household Count) is **directly integrated into the geospatial boundaries seeding pipeline** via `LocationSeederV2` and `StreamingGeoJsonParser`. 
 
-**Uses ClosedXML.Excel** - the same library already used throughout your project for Excel processing.
+The legacy Excel-based seeder (`census_population_data.xlsx`) and local root directory GeoJSON files (`admin1.geojson` - `admin4.geojson`) have been consolidated. The **authoritative single source of truth** is now **Cloud Blob Storage** (`IBlobStorageService`), which streams boundary and census metrics directly into database entities during initialization or on-demand background jobs.
 
-## Automatic Seeding
+---
 
-Population seeding is **automatically handled during application startup** through the infrastructure dependency injection. The system will:
+## 1. Cloud Storage Data Source
 
-1. Look for `census_population_data.xlsx` in the root directory
-2. Automatically seed population data if the file exists
-3. Log helpful information if the file is not found
-4. Continue with other seeders regardless
+Seeding data is hosted in the configured Blob Storage provider (Azure Blob Storage / MinIO / Azurite) under the `seeds` container.
 
-No manual intervention or command-line parameters are required.
-
-## Excel File Format
-
-Place your Excel file as `census_population_data.xlsx` in the root directory. The file should contain these sheets:
-
-### "Regions" Sheet
-| Column | Field Name | Description |
-|--------|------------|-------------|
-| A | RegionName | Name of the region (e.g., "NATIONAL CAPITAL REGION (NCR)") |
-| B | TotalPopulation | Total population in the region |
-| C | HouseholdPopulation | Population living in households |
-| D | NumberOfHouseholds | Total number of households |
-
-### "Provinces" Sheet
-| Column | Field Name | Description |
-|--------|------------|-------------|
-| A | RegionName | Name of the region this province belongs to |
-| B | ProvinceName | Name of the province |
-| C | TotalPopulation | Total population in the province |
-| D | HouseholdPopulation | Population living in households |
-| E | NumberOfHouseholds | Total number of households |
-
-### "Municipalities" Sheet  
-| Column | Field Name | Description |
-|--------|------------|-------------|
-| A | RegionName | Name of the region this municipality belongs to |
-| B | ProvinceName | Name of the province this municipality belongs to |
-| C | MunicipalityName | Name of the municipality/city |
-| D | TotalPopulation | Total population in the municipality |
-| E | HouseholdPopulation | Population living in households |
-| F | NumberOfHouseholds | Total number of households |
-
-## File Setup
-
-### 1. Default File Location (Recommended)
-```
-NTC.QoS-Backend/
-? census_population_data.xlsx    ? Place your Excel file here
-? admin1.geojson                 ? Your region GeoJSON files
-? admin2.geojson                 
-? admin3.geojson
-? admin4.geojson
-? [other project folders]
-```
-
-### 2. Automatic Detection
-The system automatically checks for the file during startup:
-- ? **File exists**: Population data is seeded automatically
-- ?? **File missing**: Logs helpful guidance about file placement
-
-## Integration with Application
-
-### Current Implementation
-Population seeding is integrated into the application startup pipeline in `InfrastructureDependencyInjection.cs`:
-
-```csharp
-// Automatic seeding during application startup
-await LocationSeeder.SeedAllAsync(dbContext, logger);     // Geographic data first
-await PopulationSeeder.SeedAsync(dbContext, logger);      // Population data (automatic file detection)
-await OrganizationSeeder.SeedAsync(dbContext, logger);    // Continue with other seeders
-```
-
-### Available Methods
-
-#### Automatic Seeding (Default and Only Public Method)
-```csharp
-// Handles file detection and logging automatically
-// Looks for census_population_data.xlsx in current directory
-await PopulationSeeder.SeedAsync(context, logger);
-```
-
-The seeder automatically:
-- Checks for `census_population_data.xlsx` in the current directory
-- Seeds population data if the file exists
-- Logs helpful information if the file is not found
-- Continues gracefully regardless of file availability
-
-**Note**: There is no public manual seeding method. All population seeding is handled through the single `SeedAsync` method which manages file detection internally.
-
-## Features
-
-### Excel Multi-Sheet Support
-- **Native Excel format**: Works directly with your .xlsx files using ClosedXML
-- **Multiple sheets**: Processes Regions, Provinces, and Municipalities sheets
-- **Flexible structure**: Can handle any combination of sheets
-- **Consistent with project**: Uses the same Excel library as your other components
-
-### Intelligent Matching
-- **Fuzzy Name Matching**: Handles variations in naming (e.g., "NCR" vs "National Capital Region")
-- **Administrative Term Normalization**: Removes common prefixes/suffixes like "REGION", "ADMINISTRATIVE"
-- **Hierarchical Context**: Matches municipalities within their correct regions and provinces
-- **Special Character Handling**: Handles accented characters and encoding variations
-
-### Error Handling
-- **Data Validation**: Checks for negative values and invalid formats
-- **Graceful Failures**: Continues processing even if individual records fail
-- **Detailed Logging**: Comprehensive logs for debugging and monitoring
-- **Progress Reporting**: Shows progress every 50 municipalities for large datasets
-
-### Comprehensive Statistics
-After seeding, you'll see detailed statistics like:
-```
-=== Population Data Seeding Results ===
-Regions - Matched: 17, Not Found: 0, Errors: 0
-Provinces - Matched: 81, Not Found: 2, Region Not Found: 0, Errors: 0  
-Municipalities - Matched: 1634, Not Found: 45, Region Not Found: 3, Errors: 2
-Summary - Total Matched: 1732, Total Not Found: 50, Total Errors: 2
-Success Rate: 97.08%
-```
-
-## Data Mapping
-
-The seeder maps your Excel data to these entity properties:
-
-### Region Entity
-- `TotalPopulation` ? TotalPopulation (Column B)
-- `HouseholdPopulation` ? HouseholdPopulation (Column C)  
-- `HouseholdCount` ? NumberOfHouseholds (Column D)
-
-### Province Entity  
-- `TotalPopulation` ? TotalPopulation (Column C)
-- `HouseholdPopulation` ? HouseholdPopulation (Column D)
-- `HouseholdCount` ? NumberOfHouseholds (Column E)
-
-### Municipality Entity
-- `TotalPopulation` ? TotalPopulation (Column D)
-- `HouseholdPopulation` ? HouseholdPopulation (Column E)
-- `HouseholdCount` ? NumberOfHouseholds (Column F)
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"Region not found"**: The region name in your Excel doesn't closely match any existing region
-   - Check the region names in your database vs Excel
-   - The fuzzy matching requires at least 70% similarity
-
-2. **"Municipality not found in region"**: The municipality exists but not in the expected region
-   - Verify the hierarchical relationship (Municipality ? Province ? Region)
-   - Check that the region name matches exactly
-
-3. **"Province not found in region"**: The province exists but not in the expected region
-   - Verify the province belongs to the specified region
-   - Check for spelling variations or administrative changes
-
-4. **Excel file issues**: Problems reading the Excel file
-   - Ensure the file is not open in Excel when the application starts
-   - Check that sheet names are exactly "Regions", "Provinces", and "Municipalities"
-   - Verify the file is named `census_population_data.xlsx` and in the root directory
-
-### Name Matching Issues
-
-The seeder handles common name variations:
+### Storage Hierarchy (`seeds` container)
 
 ```
-Excel: "Manila"           Database: "City of Manila"          ? Matches
-Excel: "Las Pi�as"        Database: "Las Pinas"               ? Matches  
-Excel: "NCR"              Database: "National Capital Region" ? Matches
-Excel: "ARMM"             Database: "BARMM"                   ? May not match
+seeds/
+└── boundaries/
+    ├── Regionbdry.geojson         # Admin Level 1 (Regions + Regional Census Metrics)
+    ├── Provincebdry.geojson       # Admin Level 2 (Provinces + Provincial Census Metrics)
+    ├── Municipalitybdry.geojson   # Admin Level 3 (Municipalities/Cities + Census Metrics)
+    └── Barangaybdry.geojson       # Admin Level 4 (Barangays boundaries)
 ```
 
-### Debugging Failed Matches
+No local files in the application root directory or deployment containers are required.
 
-When municipalities don't match, the system provides detailed logging:
+---
+
+## 2. Integrated Population Extraction
+
+GeoJSON feature collections in cloud storage carry administrative attributes alongside polygon geometry coordinates. The `StreamingGeoJsonParser` extracts both spatial boundaries and population metrics in a single pass.
+
+### Supported Feature Attributes
+
+| GeoJSON Property Key | Target Entity Property | Description |
+| :--- | :--- | :--- |
+| `TOTAL_POPN` or `TOTAL_POP` | `TotalPopulation` (`int?`) | Total resident population |
+| `HHOLD_POPN` | `HouseholdPopulation` (`int?`) | Household population |
+| `HHOLD_CNT` | `HouseholdCount` (`int?`) | Total number of households |
+| `AREA_SQKM` | `Area` (`float`) | Land area in square kilometers |
+| `ADM1_PCODE` / `ADM2_PCODE` / etc. | `Code` (`string`) | Standard geographic code |
+| `ADM1_EN` / `ADM2_EN` / etc. | `Name` (`string`) | Official geographic name |
+
+### Calculated Entity Metrics
+
+Entities automatically compute derived population metrics based on the imported values:
+
+* **Population Density** ($\text{persons} / \text{km}^2$):
+  $$\text{PopulationDensity} = \frac{\text{TotalPopulation}}{\text{Area}}$$
+* **Average Household Size**:
+  $$\text{AverageHouseholdSize} = \frac{\text{HouseholdPopulation}}{\text{HouseholdCount}}$$
+
+---
+
+## 3. Streaming Seeder Pipeline (`LocationSeederV2`)
+
+To handle large boundary datasets without high memory allocation (allocating less than 50 MB RAM for 2.5 GB of GeoJSON data), the architecture utilizes a streaming strategy:
+
 ```
-Municipality 'Sulu' not found in region 'BARMM'. 
-Available municipalities in this region (showing first 10): 
-[Bongao, Jolo, Parang, Siasi, Sitangkai, Tandubas, Turtle Islands, ...]
+[Cloud Blob Storage (seeds/boundaries/*)]
+              │ (Stream)
+              ▼
+    [StreamingGeoJsonParser]
+     - Streams features via Newtonsoft.Json JsonTextReader
+     - Parses boundary polygons (NetTopologySuite)
+     - Extracts TOTAL_POPN, HHOLD_POPN, HHOLD_CNT
+              │
+              ▼
+     [LocationTransformers]
+     - RegionTransformer / ProvinceTransformer / MunicipalityTransformer
+     - Maps properties to Domain Entities
+              │
+              ▼
+    [BatchedLocationWriter]
+     - Bulk inserts / updates in configurable batches
+     - Preserves PostGIS spatial topology
 ```
 
-### Best Practices
+### Seeding Hierarchy Order
 
-1. **File Placement**: Always place the file as `census_population_data.xlsx` in the root directory
-2. **Backup First**: Always backup your database before running with new census data
-3. **Check Logs**: Review the detailed logs to understand matching results
-4. **Data Validation**: Ensure your Excel data doesn't contain summary rows or province names in municipality columns
-5. **Run Once**: Population data rarely changes - the seeder runs automatically during startup
+1. **Regions (`Regionbdry.geojson`)**: Seeded first (independent roots).
+2. **Provinces (`Provincebdry.geojson`)**: Mapped to parent `RegionId` via `ADM1_PCODE`.
+3. **Municipalities (`Municipalitybdry.geojson`)**: Mapped to parent `ProvinceId` via `ADM2_PCODE`.
+4. **Barangays (`Barangaybdry.geojson`)**: Mapped to parent `MunicipalityId` via `ADM3_PCODE` (population fields null at barangay level).
 
-## Example Success Scenarios
+---
 
-### Typical Success Rates
-- **Regions**: 95-100% (usually perfect matches)
-- **Provinces**: 90-98% (occasional administrative boundary changes)
-- **Municipalities**: 85-95% (varies by data source and naming conventions)
+## 4. Execution & Triggering
 
-### What Gets Logged
+### Automatic Startup Seeding
+Managed via dependency injection in `NTC.QoS.Infrastructure`:
+* Controlled by configuration: `DatabaseOptions.ForceReseed`.
+* If complete data is already present in PostgreSQL, the seeder skips automatically to avoid duplicate processing.
+
+### On-Demand Reseeding (Super Admin API)
+Reseeding can be triggered via `SeedController` which enqueues a Hangfire background job (`ProcessLocationSeedJob`):
+
+```http
+POST /seed
+Authorization: Bearer <SUPER_ADMIN_TOKEN>
+Content-Type: application/json
+
+{
+  "regionEntity": true,
+  "provinceEntity": true,
+  "municipalityEntity": true,
+  "barangayEntity": false,
+  "forceReseed": false
+}
 ```
-[Info] Starting population data seeding from Excel file: C:\path\census_population_data.xlsx
-[Info] Available sheets: Regions, Provinces, Municipalities
-[Info] Processing 17 regions from Excel sheet
-[Debug] Region matched: 'National Capital Region (NCR)' ? 'NCR' (Pop: 13,484,462, HH: 2,849,469)
-[Info] Municipalities progress: 50/1649 (48 matched, 2 not found, 0 region not found, 0 errors)
-[Info] Population data seeding completed successfully!
+
+---
+
+## 5. Architectural Decision: GeoJSON vs. Excel Population Sources
+
+Historically, population figures were imported via a secondary startup pass using an Excel spreadsheet (`census_population_data.xlsx`) and `ClosedXML`. This design was deprecated and removed (commit `ba0b7f8b`) in favor of unified GeoJSON attributes.
+
+### Why Seeding Directly from Excel is High Risk
+1. **The Split-Brain Hazard**: Decoupling demographic attributes from spatial boundary polygons leaves the database prone to partial syncs, missing geometries, or orphaned census records.
+2. **Fuzzy String Matching Failures**: Excel spreadsheets identify administrative units by English strings (*"City of Manila"*, *"Las Piñas"*), requiring fuzzy string matching with a 70% threshold. In practice, this yielded an 85%–95% match rate, resulting in 5%–15% of LGUs having missing or incorrect demographic metrics due to spelling variations, diacritics, or naming conventions.
+3. **PCODE Determinism**: GeoJSON boundary features are indexed on official government standard PCODEs (`ADM1_PCODE`, `ADM2_PCODE`, `ADM3_PCODE`), guaranteeing 100% deterministic spatial and foreign key joins.
+4. **Stale Hierarchies**: Pre-existing Excel census files do not reflect newly enacted administrative divisions (such as RA 12000 NIR), risking accidental rollback of regional totals to legacy configurations.
+
+### Standard Operating Procedure (SOP) for New Census Releases
+When official census updates (e.g., from Philippine Statistics Authority / PSA) become available in tabular Excel/CSV format:
+1. **Pre-Processing (Offline)**: Do not parse raw Excel files inside the live .NET API. Instead, run an offline Python/GIS script to join the PSA census table to GeoJSON features using standard PCODEs.
+2. **Validation**: Verify that all administrative codes match 1:1 and that calculated regional/provincial summaries equal official national totals.
+3. **Storage Upload**: Upload the enriched GeoJSON files to Cloud Blob Storage (`seeds/boundaries/`).
+4. **Seeding / Reseeding**: Trigger `LocationSeederV2` (or the Hangfire seed endpoint) to stream updated attributes into PostgreSQL in a single deterministic pass.
+
+---
+
+## 6. Republic Act No. 12000 (NIR) Compliance & Migration Runbook
+
+Republic Act No. 12000 officially established the **Negros Island Region (NIR / Region XVIII, code `PH18`)**, transferring:
+* **Negros Occidental (`PH06045`)** from Region VI to NIR.
+* **Negros Oriental (`PH07046`)** and **Siquijor (`PH07061`)** from Region VII to NIR.
+
+### Resulting Administrative Counts
+* **NIR (`PH18`)**: 3 provinces, 63 municipalities/cities, 1,353 barangays.
+* **Region VII (`PH07`)**: 2 provinces (Cebu, Bohol).
+* **Region VI (`PH06`)**: 5 provinces (Aklan, Antique, Capiz, Guimaras, Iloilo).
+
+### Production Migration Strategy: DB In-Place Script vs. GeoJSON Reseed
+
+For production environments, **the in-place transactional SQL script is the required, low-risk approach**:
+
+| Factor | Option A: Full GeoJSON Reseed | Option B: In-Place SQL (`migrate_db_ra12000_nir.sql`) |
+| :--- | :--- | :--- |
+| **Execution Time** | 10 to 30+ minutes | **< 2 seconds** |
+| **Blast Radius** | 42,000+ barangay, municipality, province rows | **3 province rows, 3 region rows** |
+| **Foreign Key Safety** | High risk of violating `UserRegion`, `Role`, `File` FKs | **Zero risk** (preserves all existing UUIDs) |
+| **Downtime** | Requires maintenance window | **Zero downtime** (atomic transaction) |
+
+Because the QoS backend schema is relational (`Barangays` $\to$ `Municipalities` $\to$ `Provinces` $\to$ `Regions`), pointing `Provinces."RegionId"` to NIR on the 3 transferred provinces automatically cascades all 63 municipalities and 1,353 barangays into NIR without modifying a single municipality or barangay row.
+
+### Pipeline Tooling in Repository
+
+* **Database Migration**: [`scripts/migrate_db_ra12000_nir.sql`](file:///c:/Users/almau/NTC.QoS-Backend/scripts/migrate_db_ra12000_nir.sql)
+  * Idempotent SQL script that creates NIR (`PH18`), updates the 3 province foreign keys, and uses PostGIS `ST_Union` to recalculate Region VI, VII, and NIR boundaries and demographic metrics atomically.
+* **GeoJSON Transformation Pipeline**: [`scripts/transform_geojson_ra12000.py`](file:///c:/Users/almau/NTC.QoS-Backend/scripts/transform_geojson_ra12000.py)
+  * Generates updated GeoJSON boundary files (`admin1` to `admin4`) with Shapely geometry unions and PCODE reassignments for seeder synchronization.
+* **Staged GeoJSON Applicator**: [`scripts/apply_staged_geojson.py`](file:///c:/Users/almau/NTC.QoS-Backend/scripts/apply_staged_geojson.py)
+  * Stages transformed files with pre-migration backups (`.bak_pre_ra12000`) and dry-run simulation support.
+
+### Verification Queries
+Post-migration verification can be executed via:
+
+```sql
+-- 1. Province counts per region (Expected: PH06 = 5, PH07 = 2, PH18 = 3)
+SELECT r."Code", r."Name", COUNT(p."Id") AS "ProvinceCount"
+FROM "Regions" r
+LEFT JOIN "Provinces" p ON p."RegionId" = r."Id" AND NOT p."IsDeleted"
+WHERE r."Code" IN ('PH06', 'PH07', 'PH18')
+GROUP BY r."Code", r."Name"
+ORDER BY r."Code";
+
+-- 2. Verify PostGIS geometry validity
+SELECT "Code", "Name", ST_IsValid("Boundaries") AS "GeometryIsValid", ST_GeometryType("Boundaries") AS "GeomType"
+FROM "Regions"
+WHERE "Code" IN ('PH06', 'PH07', 'PH18')
+ORDER BY "Code";
 ```
-
-## Dependencies
-
-This seeder uses:
-- **ClosedXML.Excel**: For Excel file processing (already in your project)
-- **Entity Framework Core**: For database operations  
-- **Microsoft.Extensions.Logging**: For comprehensive logging
-- **NameMatcher Helper**: For intelligent fuzzy name matching
-
-## Population-Aware Analytics
-
-Once your population data is seeded, the analytics system automatically uses this data for:
-
-- **Population-based CMTS scoring**: Coverage calculations per capita
-- **Urban vs Rural classification**: Different infrastructure requirements based on population density  
-- **Household coverage estimates**: Actual percentage of households with broadband access
-- **Government-grade reporting**: CMTS-compliant coverage statistics
-- **Service gap analysis**: Identifying underserved areas based on population metrics
-
-The seeder provides a robust way to import your census data directly from Excel files while maintaining the same simple, clean pattern as your existing seeders and integrating seamlessly with your analytics capabilities.

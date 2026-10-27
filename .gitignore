@@ -349,6 +349,8 @@ FodyWeavers.xsd
 
 # geospatial files
 *.geojson
+*.bak*
+**/geojson_staging/
 
 # Kubernetes
 k8s/secret.yaml

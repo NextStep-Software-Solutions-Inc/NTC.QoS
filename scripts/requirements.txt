@@ -1,0 +1,4 @@
+# Python dependencies for NTC QoS administrative boundary transformation and PR review scripts
+shapely>=2.0.0
+google-genai>=0.1.1
+requests>=2.31.0
