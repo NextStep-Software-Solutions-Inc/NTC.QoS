@@ -85,7 +85,7 @@ Documentation covering the .NET 8 Web API, Domain/Application architecture, Post
 | Document | Summary |
 |---|---|
 | [LocationSeederRefactoring.md](./backend/LocationSeederRefactoring.md) | GeoJSON boundary batching and spatial indexing performance optimizations |
-| [PopulationSeeder.md](./backend/PopulationSeeder.md) | Location and population data seeding architecture (Cloud Blob Storage & GeoJSON) |
+| [PopulationSeeder.md](./backend/PopulationSeeder.md) | Location & population seeding architecture, GeoJSON vs. Excel governance, and RA 12000 NIR migration guide |
 | [DEFAULT_ADMIN_SETUP.md](./backend/DEFAULT_ADMIN_SETUP.md) | Initial system admin user setup and credential configuration |
 | [PRODUCTION_DATABASE_ISSUE_REPORT.md](./backend/PRODUCTION_DATABASE_ISSUE_REPORT.md) | Advisory lock deadlock investigation postmortem and recovery script |
 

@@ -61,20 +61,20 @@ To handle large boundary datasets without high memory allocation (allocating les
 [Cloud Blob Storage (seeds/boundaries/*)]
               │ (Stream)
               ▼
-   [StreamingGeoJsonParser]
-    - Streams features via Newtonsoft.Json JsonTextReader
-    - Parses boundary polygons (NetTopologySuite)
-    - Extracts TOTAL_POPN, HHOLD_POPN, HHOLD_CNT
+    [StreamingGeoJsonParser]
+     - Streams features via Newtonsoft.Json JsonTextReader
+     - Parses boundary polygons (NetTopologySuite)
+     - Extracts TOTAL_POPN, HHOLD_POPN, HHOLD_CNT
               │
               ▼
-    [LocationTransformers]
-    - RegionTransformer / ProvinceTransformer / MunicipalityTransformer
-    - Maps properties to Domain Entities
+     [LocationTransformers]
+     - RegionTransformer / ProvinceTransformer / MunicipalityTransformer
+     - Maps properties to Domain Entities
               │
               ▼
-   [BatchedLocationWriter]
-    - Bulk inserts / updates in configurable batches
-    - Preserves PostGIS spatial topology
+    [BatchedLocationWriter]
+     - Bulk inserts / updates in configurable batches
+     - Preserves PostGIS spatial topology
 ```
 
 ### Seeding Hierarchy Order
@@ -112,9 +112,73 @@ Content-Type: application/json
 
 ---
 
-## 5. Republic Act No. 12000 (NIR) Compliance
+## 5. Architectural Decision: GeoJSON vs. Excel Population Sources
 
-With the establishment of the **Negros Island Region (NIR)** under RA 12000:
-1. **Cloud Boundaries Update**: Update `Regionbdry.geojson` to include `PH18` (NIR) and recalculated `PH07` (Region VII) and `PH06` (Region VI).
-2. **Province & Municipality Attribution**: Update `Provincebdry.geojson` and `Municipalitybdry.geojson` in storage so that Negros Occidental, Negros Oriental, and Siquijor features point to `ADM1_PCODE: "PH18"`.
-3. **Automatic Population Roll-Up**: Because population data is embedded directly in the storage GeoJSON files, running the seeder or database patch immediately assigns the correct population to NIR, Region VII, and Region VI.
+Historically, population figures were imported via a secondary startup pass using an Excel spreadsheet (`census_population_data.xlsx`) and `ClosedXML`. This design was deprecated and removed (commit `ba0b7f8b`) in favor of unified GeoJSON attributes.
+
+### Why Seeding Directly from Excel is High Risk
+1. **The Split-Brain Hazard**: Decoupling demographic attributes from spatial boundary polygons leaves the database prone to partial syncs, missing geometries, or orphaned census records.
+2. **Fuzzy String Matching Failures**: Excel spreadsheets identify administrative units by English strings (*"City of Manila"*, *"Las Piñas"*), requiring fuzzy string matching with a 70% threshold. In practice, this yielded an 85%–95% match rate, resulting in 5%–15% of LGUs having missing or incorrect demographic metrics due to spelling variations, diacritics, or naming conventions.
+3. **PCODE Determinism**: GeoJSON boundary features are indexed on official government standard PCODEs (`ADM1_PCODE`, `ADM2_PCODE`, `ADM3_PCODE`), guaranteeing 100% deterministic spatial and foreign key joins.
+4. **Stale Hierarchies**: Pre-existing Excel census files do not reflect newly enacted administrative divisions (such as RA 12000 NIR), risking accidental rollback of regional totals to legacy configurations.
+
+### Standard Operating Procedure (SOP) for New Census Releases
+When official census updates (e.g., from Philippine Statistics Authority / PSA) become available in tabular Excel/CSV format:
+1. **Pre-Processing (Offline)**: Do not parse raw Excel files inside the live .NET API. Instead, run an offline Python/GIS script to join the PSA census table to GeoJSON features using standard PCODEs.
+2. **Validation**: Verify that all administrative codes match 1:1 and that calculated regional/provincial summaries equal official national totals.
+3. **Storage Upload**: Upload the enriched GeoJSON files to Cloud Blob Storage (`seeds/boundaries/`).
+4. **Seeding / Reseeding**: Trigger `LocationSeederV2` (or the Hangfire seed endpoint) to stream updated attributes into PostgreSQL in a single deterministic pass.
+
+---
+
+## 6. Republic Act No. 12000 (NIR) Compliance & Migration Runbook
+
+Republic Act No. 12000 officially established the **Negros Island Region (NIR / Region XVIII, code `PH18`)**, transferring:
+* **Negros Occidental (`PH06045`)** from Region VI to NIR.
+* **Negros Oriental (`PH07046`)** and **Siquijor (`PH07061`)** from Region VII to NIR.
+
+### Resulting Administrative Counts
+* **NIR (`PH18`)**: 3 provinces, 63 municipalities/cities, 1,353 barangays.
+* **Region VII (`PH07`)**: 2 provinces (Cebu, Bohol).
+* **Region VI (`PH06`)**: 5 provinces (Aklan, Antique, Capiz, Guimaras, Iloilo).
+
+### Production Migration Strategy: DB In-Place Script vs. GeoJSON Reseed
+
+For production environments, **the in-place transactional SQL script is the required, low-risk approach**:
+
+| Factor | Option A: Full GeoJSON Reseed | Option B: In-Place SQL (`migrate_db_ra12000_nir.sql`) |
+| :--- | :--- | :--- |
+| **Execution Time** | 10 to 30+ minutes | **< 2 seconds** |
+| **Blast Radius** | 42,000+ barangay, municipality, province rows | **3 province rows, 3 region rows** |
+| **Foreign Key Safety** | High risk of violating `UserRegion`, `Role`, `File` FKs | **Zero risk** (preserves all existing UUIDs) |
+| **Downtime** | Requires maintenance window | **Zero downtime** (atomic transaction) |
+
+Because the QoS backend schema is relational (`Barangays` $\to$ `Municipalities` $\to$ `Provinces` $\to$ `Regions`), pointing `Provinces."RegionId"` to NIR on the 3 transferred provinces automatically cascades all 63 municipalities and 1,353 barangays into NIR without modifying a single municipality or barangay row.
+
+### Pipeline Tooling in Repository
+
+* **Database Migration**: [`scripts/migrate_db_ra12000_nir.sql`](file:///c:/Users/almau/NTC.QoS-Backend/scripts/migrate_db_ra12000_nir.sql)
+  * Idempotent SQL script that creates NIR (`PH18`), updates the 3 province foreign keys, and uses PostGIS `ST_Union` to recalculate Region VI, VII, and NIR boundaries and demographic metrics atomically.
+* **GeoJSON Transformation Pipeline**: [`scripts/transform_geojson_ra12000.py`](file:///c:/Users/almau/NTC.QoS-Backend/scripts/transform_geojson_ra12000.py)
+  * Generates updated GeoJSON boundary files (`admin1` to `admin4`) with Shapely geometry unions and PCODE reassignments for seeder synchronization.
+* **Staged GeoJSON Applicator**: [`scripts/apply_staged_geojson.py`](file:///c:/Users/almau/NTC.QoS-Backend/scripts/apply_staged_geojson.py)
+  * Stages transformed files with pre-migration backups (`.bak_pre_ra12000`) and dry-run simulation support.
+
+### Verification Queries
+Post-migration verification can be executed via:
+
+```sql
+-- 1. Province counts per region (Expected: PH06 = 5, PH07 = 2, PH18 = 3)
+SELECT r."Code", r."Name", COUNT(p."Id") AS "ProvinceCount"
+FROM "Regions" r
+LEFT JOIN "Provinces" p ON p."RegionId" = r."Id" AND NOT p."IsDeleted"
+WHERE r."Code" IN ('PH06', 'PH07', 'PH18')
+GROUP BY r."Code", r."Name"
+ORDER BY r."Code";
+
+-- 2. Verify PostGIS geometry validity
+SELECT "Code", "Name", ST_IsValid("Boundaries") AS "GeometryIsValid", ST_GeometryType("Boundaries") AS "GeomType"
+FROM "Regions"
+WHERE "Code" IN ('PH06', 'PH07', 'PH18')
+ORDER BY "Code";
+```
