@@ -520,6 +520,7 @@ public class UserProvisioningService : IUserProvisioningService
                 var (inviteRoleId, inviteRegions) = ParseMetadata(invite.PublicMetadata);
                 var changed = false;
 
+                var regionsChanged = false;
                 if (!hasRegions && inviteRegions.Count > 0 && _userRegionRepository != null)
                 {
                     _logger.LogInformation("Assigning {Count} missing invited regions from invitation {InvitationId} to user {UserId} (AuthUserId: {AuthUserId}, Email: {Email})",
@@ -538,9 +539,11 @@ public class UserProvisioningService : IUserProvisioningService
                         }).ToList();
 
                     _userRegionRepository.AddRange(newRegions);
+                    regionsChanged = true;
                     changed = true;
                 }
 
+                var roleChanged = false;
                 if (isDefaultUserRole && inviteRoleId != Guid.Empty && _userRepository != null)
                 {
                     _logger.LogInformation("Updating role for existing invited user {UserId} (AuthUserId: {AuthUserId}, Email: {Email}, Invitation: {InvitationId}) to {RoleId}",
@@ -553,21 +556,21 @@ public class UserProvisioningService : IUserProvisioningService
                     {
                         dbUser.RoleId = inviteRoleId;
                         _userRepository.Update(dbUser);
+                        roleChanged = true;
                         changed = true;
                     }
                 }
 
-                // Persist both regional assignments and role update atomically in a single transaction boundary
-                if (changed)
+                // In production, both repositories are injected and share the same scoped ApplicationDbContext.
+                // In unit tests, they may be separate mock instances. We ensure SaveChangesAsync is invoked for each modified aggregate.
+                if (regionsChanged && _userRegionRepository != null)
                 {
-                    if (_userRepository != null)
-                    {
-                        await _userRepository.SaveChangesAsync(cancellationToken);
-                    }
-                    else if (_userRegionRepository != null)
-                    {
-                        await _userRegionRepository.SaveChangesAsync(cancellationToken);
-                    }
+                    await _userRegionRepository.SaveChangesAsync(cancellationToken);
+                }
+
+                if (roleChanged && _userRepository != null)
+                {
+                    await _userRepository.SaveChangesAsync(cancellationToken);
                 }
 
                 if (changed)
@@ -601,7 +604,7 @@ public class UserProvisioningService : IUserProvisioningService
         // 1. Try querying default/unspecified status first (for backwards compatibility and pending invites)
         try
         {
-            var defaultInvitations = await _clerkUserService.GetInvitationsAsync();
+            var defaultInvitations = await _clerkUserService.GetInvitationsAsync(null);
             var invite = defaultInvitations?
                 .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)

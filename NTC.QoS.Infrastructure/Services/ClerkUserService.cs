@@ -231,7 +231,10 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
         return invitationResponse ?? throw new InvalidOperationException("Failed to deserialize Clerk invitation response.");
     }
 
-    public async Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status = null, int? limit = null, int? offset = null)
+    public Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status) =>
+        GetInvitationsAsync(status, null, null);
+
+    public async Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status, int? limit, int? offset)
     {
         // If an explicit page size is requested, fetch that single page
         if (limit.HasValue)
