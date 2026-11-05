@@ -1,4 +1,6 @@
+using NTC.QoS.Domain.Constants;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
 using NTC.QoS.Application.Features.UserRegion.Requests;
@@ -47,12 +49,43 @@ public class UserProvisioningService : IUserProvisioningService
         }
 
         // Check if user already exists in DB by AuthUserId
-        var userQuery = new GetUserByAuthUserIdRequest(authUserId);
-        var userResponse = await _mediator.Send(userQuery, cancellationToken);
-        if (userResponse.Succeeded && userResponse.Data != null)
+        UserDto? existingUser = null;
+        if (_userRepository != null)
         {
-            var existingUser = userResponse.Data;
+            var userDbQuery = _userRepository.Query(u => u.AuthUserId == authUserId).Include(u => u.Role);
+            var dbUser = await _userRepository.FirstOrDefaultAsync(userDbQuery, cancellationToken);
+            if (dbUser != null)
+            {
+                existingUser = MapUserToDto(dbUser);
+            }
+        }
+        else
+        {
+            var userQuery = new GetUserByAuthUserIdRequest(authUserId, allowProvisioning: false);
+            var userResponse = await _mediator.Send(userQuery, cancellationToken);
+            if (userResponse.Succeeded && userResponse.Data != null)
+            {
+                existingUser = userResponse.Data;
+            }
+        }
+
+        if (existingUser != null)
+        {
             await ReconcileUserInvitationAsync(existingUser, cancellationToken);
+
+            if (_userRepository != null)
+            {
+                var refreshedQuery = _userRepository.Query(u => u.AuthUserId == authUserId).Include(u => u.Role);
+                var refreshedUser = await _userRepository.FirstOrDefaultAsync(refreshedQuery, cancellationToken);
+                return new ApiResponse<UserDto>
+                {
+                    Succeeded = true,
+                    Data = refreshedUser != null ? MapUserToDto(refreshedUser) : existingUser,
+                    Message = "User retrieved successfully."
+                };
+            }
+
+            var userQuery = new GetUserByAuthUserIdRequest(authUserId, allowProvisioning: false);
             return await _mediator.Send(userQuery, cancellationToken);
         }
 
@@ -130,11 +163,7 @@ public class UserProvisioningService : IUserProvisioningService
         {
             try
             {
-                var invitations = await _clerkUserService.GetInvitationsAsync();
-                var invite = invitations
-                    .Where(i => string.Equals(i.EmailAddress, clerkEmail, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
-                    .FirstOrDefault();
+                var invite = await FindInvitationByEmailAsync(clerkEmail);
 
                 if (invite?.PublicMetadata.HasValue == true)
                 {
@@ -201,10 +230,27 @@ public class UserProvisioningService : IUserProvisioningService
         {
             // Concurrent race condition recovery: if another thread created the user simultaneously,
             // re-query and return the existing user record idempotently.
-            var retryUser = await _mediator.Send(userQuery, cancellationToken);
-            if (retryUser.Succeeded && retryUser.Data != null)
+            if (_userRepository != null)
             {
-                return retryUser;
+                var retryDbQuery = _userRepository.Query(u => u.AuthUserId == authUserId).Include(u => u.Role);
+                var retryDbUser = await _userRepository.FirstOrDefaultAsync(retryDbQuery, cancellationToken);
+                if (retryDbUser != null)
+                {
+                    return new ApiResponse<UserDto>
+                    {
+                        Succeeded = true,
+                        Data = MapUserToDto(retryDbUser),
+                        Message = "User retrieved successfully."
+                    };
+                }
+            }
+            else
+            {
+                var retryUser = await _mediator.Send(new GetUserByAuthUserIdRequest(authUserId, allowProvisioning: false), cancellationToken);
+                if (retryUser.Succeeded && retryUser.Data != null)
+                {
+                    return retryUser;
+                }
             }
 
             _logger.LogError("Failed to create user for AuthUserId {AuthUserId} (Email: {Email}, Invitation: {InvitationId}): {ErrorMessage}",
@@ -242,13 +288,31 @@ public class UserProvisioningService : IUserProvisioningService
         }
 
         string? matchedInvitationId = null;
-        var userQuery = new GetUserByAuthUserIdRequest(userData.Id);
-        var userResponse = await _mediator.Send(userQuery, cancellationToken);
-        if (userResponse.Succeeded && userResponse.Data != null)
+        UserDto? existingWebhookUser = null;
+        if (_userRepository != null)
         {
-            await ReconcileUserInvitationAsync(userResponse.Data, cancellationToken);
+            var userDbQuery = _userRepository.Query(u => u.AuthUserId == userData.Id).Include(u => u.Role);
+            var dbUser = await _userRepository.FirstOrDefaultAsync(userDbQuery, cancellationToken);
+            if (dbUser != null)
+            {
+                existingWebhookUser = MapUserToDto(dbUser);
+            }
+        }
+        else
+        {
+            var userQuery = new GetUserByAuthUserIdRequest(userData.Id, allowProvisioning: false);
+            var userResponse = await _mediator.Send(userQuery, cancellationToken);
+            if (userResponse.Succeeded && userResponse.Data != null)
+            {
+                existingWebhookUser = userResponse.Data;
+            }
+        }
 
-            var updateRequest = new UpdateUserByIdRequest(userResponse.Data.Id, new UpdateUserDto
+        if (existingWebhookUser != null)
+        {
+            await ReconcileUserInvitationAsync(existingWebhookUser, cancellationToken);
+
+            var updateRequest = new UpdateUserByIdRequest(existingWebhookUser.Id, new UpdateUserDto
             {
                 AuthUserId = userData.Id,
                 FirstName = userData.FirstName ?? "",
@@ -260,7 +324,7 @@ public class UserProvisioningService : IUserProvisioningService
             if (!updateResponse.Succeeded)
             {
                 _logger.LogError("Failed to update user {UserId} (AuthUserId: {AuthUserId}) during webhook upsert: {ErrorMessage}",
-                    userResponse.Data.Id, userData.Id, updateResponse.Message);
+                    existingWebhookUser.Id, userData.Id, updateResponse.Message);
             }
             return updateResponse;
         }
@@ -301,11 +365,7 @@ public class UserProvisioningService : IUserProvisioningService
         {
             try
             {
-                var invitations = await _clerkUserService.GetInvitationsAsync();
-                var invite = invitations
-                    .Where(i => string.Equals(i.EmailAddress, webhookEmail, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
-                    .FirstOrDefault();
+                var invite = await FindInvitationByEmailAsync(webhookEmail);
 
                 if (invite?.PublicMetadata.HasValue == true)
                 {
@@ -372,24 +432,42 @@ public class UserProvisioningService : IUserProvisioningService
         {
             // Webhook retry or race condition recovery: if another event created the record concurrently,
             // fetch the existing record, reconcile any unsettled invitation metadata, and update it.
-            var retryUser = await _mediator.Send(userQuery, cancellationToken);
-            if (retryUser.Succeeded && retryUser.Data != null)
+            UserDto? retryUserData = null;
+            if (_userRepository != null)
             {
-                await ReconcileUserInvitationAsync(retryUser.Data, cancellationToken);
+                var userDbQuery = _userRepository.Query(u => u.AuthUserId == userData.Id).Include(u => u.Role);
+                var dbUser = await _userRepository.FirstOrDefaultAsync(userDbQuery, cancellationToken);
+                if (dbUser != null)
+                {
+                    retryUserData = MapUserToDto(dbUser);
+                }
+            }
+            else
+            {
+                var retryUser = await _mediator.Send(new GetUserByAuthUserIdRequest(userData.Id, allowProvisioning: false), cancellationToken);
+                if (retryUser.Succeeded && retryUser.Data != null)
+                {
+                    retryUserData = retryUser.Data;
+                }
+            }
 
-                var updateRequest = new UpdateUserByIdRequest(retryUser.Data.Id, new UpdateUserDto
+            if (retryUserData != null)
+            {
+                await ReconcileUserInvitationAsync(retryUserData, cancellationToken);
+
+                var updateRequest = new UpdateUserByIdRequest(retryUserData.Id, new UpdateUserDto
                 {
                     AuthUserId = userData.Id,
-                    FirstName = userData.FirstName ?? retryUser.Data.FirstName ?? "",
-                    LastName = userData.LastName ?? retryUser.Data.LastName ?? "",
-                    Email = webhookEmail ?? retryUser.Data.Email ?? ""
+                    FirstName = userData.FirstName ?? retryUserData.FirstName ?? "",
+                    LastName = userData.LastName ?? retryUserData.LastName ?? "",
+                    Email = webhookEmail ?? retryUserData.Email ?? ""
                 });
 
                 var updateResponse = await _mediator.Send(updateRequest, cancellationToken);
                 if (!updateResponse.Succeeded)
                 {
                     _logger.LogError("Failed to update user {UserId} (AuthUserId: {AuthUserId}, Invitation: {InvitationId}) during webhook concurrent retry: {ErrorMessage}",
-                        retryUser.Data.Id, userData.Id, matchedInvitationId ?? "none", StringHelper.SanitizeLogMessage(updateResponse.Message));
+                        retryUserData.Id, userData.Id, matchedInvitationId ?? "none", StringHelper.SanitizeLogMessage(updateResponse.Message));
                 }
                 return updateResponse;
             }
@@ -435,11 +513,7 @@ public class UserProvisioningService : IUserProvisioningService
 
         try
         {
-            var invitations = await _clerkUserService.GetInvitationsAsync();
-            var invite = invitations
-                .Where(i => string.Equals(i.EmailAddress, existingUser.Email, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
-                .FirstOrDefault();
+            var invite = await FindInvitationByEmailAsync(existingUser.Email);
 
             if (invite?.PublicMetadata.HasValue == true)
             {
@@ -504,6 +578,77 @@ public class UserProvisioningService : IUserProvisioningService
             _logger.LogWarning(ex, "Failed to reconcile invitation metadata for existing user {UserId} (AuthUserId: {AuthUserId}, Email: {Email}): {Message}",
                 existingUser.Id, existingUser.AuthUserId, StringHelper.MaskEmail(existingUser.Email), StringHelper.SanitizeLogMessage(ex.Message));
         }
+    }
+
+    private async Task<ClerkInvitationResponse?> FindInvitationByEmailAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        // 1. Try querying default/unspecified status first (for backwards compatibility and pending invites)
+        try
+        {
+            var defaultInvitations = await _clerkUserService.GetInvitationsAsync();
+            var invite = defaultInvitations?
+                .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
+                .FirstOrDefault();
+
+            if (invite != null)
+            {
+                return invite;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query default Clerk invitations for {Email}: {Message}",
+                StringHelper.MaskEmail(email), StringHelper.SanitizeLogMessage(ex.Message));
+        }
+
+        // 2. Once an invitation is accepted, Clerk changes its status to 'accepted'.
+        // Querying 'accepted' invitations recovers the role and region metadata when a user signs in.
+        try
+        {
+            var acceptedInvitations = await _clerkUserService.GetInvitationsAsync(ClerkInvitationStatus.Accepted);
+            var invite = acceptedInvitations?
+                .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
+                .FirstOrDefault();
+
+            if (invite != null)
+            {
+                return invite;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query accepted Clerk invitations for {Email}: {Message}",
+                StringHelper.MaskEmail(email), StringHelper.SanitizeLogMessage(ex.Message));
+        }
+
+        // 3. Fallback: try explicitly querying 'pending' status
+        try
+        {
+            var pendingInvitations = await _clerkUserService.GetInvitationsAsync(ClerkInvitationStatus.Pending);
+            var invite = pendingInvitations?
+                .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
+                .FirstOrDefault();
+
+            if (invite != null)
+            {
+                return invite;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query pending Clerk invitations for {Email}: {Message}",
+                StringHelper.MaskEmail(email), StringHelper.SanitizeLogMessage(ex.Message));
+        }
+
+        return null;
     }
 
     private static (Guid RoleId, List<CreateUserRegionAssignmentDto> Regions) ParseMetadata(System.Text.Json.JsonElement? publicMetadata)
@@ -615,4 +760,48 @@ public class UserProvisioningService : IUserProvisioningService
 
         return (roleId, regions);
     }
+    private static UserDto MapUserToDto(Domain.Entities.User user)
+
+    {
+
+        return new UserDto
+
+        {
+
+            Id = user.Id,
+
+            AuthUserId = user.AuthUserId,
+
+            Email = user.Email,
+
+            FirstName = user.FirstName,
+
+            LastName = user.LastName,
+
+            Role = user.Role != null ? new()
+
+            {
+
+                Id = user.Role.Id,
+
+                Name = user.Role.Name,
+
+                Key = user.Role.Key,
+
+                Description = user.Role.Description,
+
+                IsSystemRole = user.Role.IsSystemRole,
+
+                Scope = user.Role.Scope,
+
+                RegionId = user.Role.RegionId,
+
+                Permissions = user.Role.Permissions
+
+            } : null
+
+        };
+
+    }
+
 }

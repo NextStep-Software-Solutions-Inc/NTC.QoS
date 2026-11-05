@@ -233,7 +233,7 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
 
     public async Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status = null)
     {
-        string endpoint = string.IsNullOrWhiteSpace(status) ? "invitations" : $"invitations?status={Uri.EscapeDataString(status)}";
+        string endpoint = string.IsNullOrWhiteSpace(status) ? "invitations?limit=500" : $"invitations?status={Uri.EscapeDataString(status)}&limit=500";
         HttpResponseMessage response = await _httpClient.GetAsync(endpoint);
         string responseBody = await response.Content.ReadAsStringAsync();
 
