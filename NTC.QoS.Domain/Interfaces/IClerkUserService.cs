@@ -10,7 +10,7 @@ public interface IClerkUserService
     Task<List<ClerkUserResponse>> GetUsersByEmailAsync(string email);
     Task<ClerkUserResponse?> GetUserByIdAsync(string userId);
     Task<ClerkInvitationResponse> CreateInvitationAsync(CreateClerkInvitationPayload payload);
-    Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status = null);
+    Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status = null, int? limit = null, int? offset = null);
     Task<ClerkInvitationResponse> RevokeInvitationAsync(string invitationId);
 }
 

@@ -189,11 +189,11 @@ public class InviteUserHandler(
         };
 
         // If an existing DB user is being reinvited or configured, update their database record with role and regions
+        // All changes (user role update and new region assignments) are flushed in a single transaction boundary
         if (existingUser != null)
         {
             existingUser.RoleId = role.Id;
             _userRepository.Update(existingUser);
-            await _userRepository.SaveChangesAsync(cancellationToken);
 
             if (request.User.Regions is { Count: > 0 })
             {
@@ -217,9 +217,11 @@ public class InviteUserHandler(
                 if (newRegions.Count > 0)
                 {
                     _userRegionRepository.AddRange(newRegions);
-                    await _userRegionRepository.SaveChangesAsync(cancellationToken);
                 }
             }
+
+            // Commit all changes atomically in a single database transaction
+            await _userRepository.SaveChangesAsync(cancellationToken);
 
             // Sync metadata to Clerk profile if user has AuthUserId
             if (!string.IsNullOrEmpty(existingUser.AuthUserId))

@@ -538,7 +538,6 @@ public class UserProvisioningService : IUserProvisioningService
                         }).ToList();
 
                     _userRegionRepository.AddRange(newRegions);
-                    await _userRegionRepository.SaveChangesAsync(cancellationToken);
                     changed = true;
                 }
 
@@ -554,8 +553,20 @@ public class UserProvisioningService : IUserProvisioningService
                     {
                         dbUser.RoleId = inviteRoleId;
                         _userRepository.Update(dbUser);
-                        await _userRepository.SaveChangesAsync(cancellationToken);
                         changed = true;
+                    }
+                }
+
+                // Persist both regional assignments and role update atomically in a single transaction boundary
+                if (changed)
+                {
+                    if (_userRepository != null)
+                    {
+                        await _userRepository.SaveChangesAsync(cancellationToken);
+                    }
+                    else if (_userRegionRepository != null)
+                    {
+                        await _userRegionRepository.SaveChangesAsync(cancellationToken);
                     }
                 }
 

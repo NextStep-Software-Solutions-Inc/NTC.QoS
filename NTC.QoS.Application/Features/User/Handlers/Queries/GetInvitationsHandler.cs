@@ -25,7 +25,7 @@ public class GetInvitationsHandler(
     {
         try
         {
-            var clerkInvitations = await _clerkUserService.GetInvitationsAsync(request.Status);
+            var clerkInvitations = await _clerkUserService.GetInvitationsAsync(request.Status, request.Limit, request.Offset);
             if (clerkInvitations.Count == 0)
             {
                 return new ApiResponse<List<InvitationDto>>
