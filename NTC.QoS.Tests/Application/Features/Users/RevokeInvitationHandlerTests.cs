@@ -12,15 +12,28 @@ namespace NTC.QoS.Tests.Application.Features.Users;
 public class RevokeInvitationHandlerTests
 {
     private readonly Mock<IClerkUserService> _clerkUserServiceMock;
+    private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly Mock<IUserRegionRepository> _userRegionRepositoryMock;
     private readonly Mock<ILogger<RevokeInvitationHandler>> _loggerMock;
     private readonly RevokeInvitationHandler _handler;
 
     public RevokeInvitationHandlerTests()
     {
         _clerkUserServiceMock = new Mock<IClerkUserService>();
+        _userRepositoryMock = new Mock<IUserRepository>();
+        _userRegionRepositoryMock = new Mock<IUserRegionRepository>();
         _loggerMock = new Mock<ILogger<RevokeInvitationHandler>>();
 
-        _handler = new RevokeInvitationHandler(_clerkUserServiceMock.Object, _loggerMock.Object);
+        _userRepositoryMock.Setup(r => r.Query(It.IsAny<System.Linq.Expressions.Expression<Func<global::NTC.QoS.Domain.Entities.User, bool>>>()))
+            .Returns(new List<global::NTC.QoS.Domain.Entities.User>().AsQueryable());
+        _userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<global::NTC.QoS.Domain.Entities.User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((global::NTC.QoS.Domain.Entities.User?)null);
+
+        _handler = new RevokeInvitationHandler(
+            _clerkUserServiceMock.Object,
+            _userRepositoryMock.Object,
+            _userRegionRepositoryMock.Object,
+            _loggerMock.Object);
     }
 
     [Fact]
@@ -157,9 +170,9 @@ public class RevokeInvitationHandlerTests
 
         var handlerWithRepos = new RevokeInvitationHandler(
             _clerkUserServiceMock.Object,
-            _loggerMock.Object,
             userRepositoryMock.Object,
-            userRegionRepositoryMock.Object);
+            userRegionRepositoryMock.Object,
+            _loggerMock.Object);
 
         // Act
         var result = await handlerWithRepos.Handle(new RevokeInvitationRequest(invitationId), CancellationToken.None);

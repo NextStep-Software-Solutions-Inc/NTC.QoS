@@ -20,8 +20,8 @@ public class InviteUserHandler(
     IClerkUserService clerkUserService,
     IConfiguration configuration,
     IUserAuthorizationService authorizationService,
-    ILogger<InviteUserHandler>? logger = null,
-    IUserRegionRepository? userRegionRepository = null) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
+    IUserRegionRepository userRegionRepository,
+    ILogger<InviteUserHandler>? logger = null) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
@@ -29,8 +29,8 @@ public class InviteUserHandler(
     private readonly IClerkUserService _clerkUserService = clerkUserService;
     private readonly IConfiguration _configuration = configuration;
     private readonly IUserAuthorizationService _authorizationService = authorizationService;
+    private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
     private readonly ILogger<InviteUserHandler>? _logger = logger;
-    private readonly IUserRegionRepository? _userRegionRepository = userRegionRepository;
 
     public async Task<ApiResponse<UserDto>> Handle(InviteUserRequest request, CancellationToken cancellationToken)
     {
@@ -195,7 +195,7 @@ public class InviteUserHandler(
             _userRepository.Update(existingUser);
             await _userRepository.SaveChangesAsync(cancellationToken);
 
-            if (_userRegionRepository != null && request.User.Regions is { Count: > 0 })
+            if (request.User.Regions is { Count: > 0 })
             {
                 var existingUserRegionsQuery = _userRegionRepository.Query(ur => ur.UserId == existingUser.Id && !ur.IsDeleted);
                 var existingUserRegions = await _userRegionRepository.ToListAsync(existingUserRegionsQuery, cancellationToken);

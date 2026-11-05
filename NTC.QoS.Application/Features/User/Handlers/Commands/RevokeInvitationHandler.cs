@@ -11,14 +11,14 @@ namespace NTC.QoS.Application.Features.User.Handlers.Commands;
 
 public class RevokeInvitationHandler(
     IClerkUserService clerkUserService,
-    ILogger<RevokeInvitationHandler> logger,
-    IUserRepository? userRepository = null,
-    IUserRegionRepository? userRegionRepository = null) : IRequestHandler<RevokeInvitationRequest, ApiResponse<bool>>
+    IUserRepository userRepository,
+    IUserRegionRepository userRegionRepository,
+    ILogger<RevokeInvitationHandler> logger) : IRequestHandler<RevokeInvitationRequest, ApiResponse<bool>>
 {
     private readonly IClerkUserService _clerkUserService = clerkUserService;
+    private readonly IUserRepository _userRepository = userRepository;
+    private readonly IUserRegionRepository _userRegionRepository = userRegionRepository;
     private readonly ILogger<RevokeInvitationHandler> _logger = logger;
-    private readonly IUserRepository? _userRepository = userRepository;
-    private readonly IUserRegionRepository? _userRegionRepository = userRegionRepository;
 
     public async Task<ApiResponse<bool>> Handle(RevokeInvitationRequest request, CancellationToken cancellationToken)
     {
@@ -40,7 +40,7 @@ public class RevokeInvitationHandler(
             var response = await _clerkUserService.RevokeInvitationAsync(request.InvitationId);
 
             // Clean up any un-onboarded local database user created during incomplete sign-in
-            if (!string.IsNullOrEmpty(response?.EmailAddress) && _userRepository != null)
+            if (!string.IsNullOrEmpty(response?.EmailAddress))
             {
                 try
                 {
@@ -50,12 +50,8 @@ public class RevokeInvitationHandler(
                     if (existingUser != null)
                     {
                         var isDefaultRole = existingUser.Role == null || Roles.IsUser(existingUser.Role.Key);
-                        var hasRegions = false;
-                        if (_userRegionRepository != null)
-                        {
-                            var regQuery = _userRegionRepository.Query(ur => ur.UserId == existingUser.Id && !ur.IsDeleted);
-                            hasRegions = await _userRegionRepository.CountAsync(regQuery, cancellationToken) > 0;
-                        }
+                        var regQuery = _userRegionRepository.Query(ur => ur.UserId == existingUser.Id && !ur.IsDeleted);
+                        var hasRegions = await _userRegionRepository.CountAsync(regQuery, cancellationToken) > 0;
 
                         if (isDefaultRole && !hasRegions)
                         {
