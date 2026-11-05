@@ -162,11 +162,7 @@ public class UserProvisioningService : IUserProvisioningService
         {
             try
             {
-                var invitations = await _clerkUserService.GetInvitationsAsync();
-                var invite = invitations
-                    .Where(i => string.Equals(i.EmailAddress, clerkEmail, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
-                    .FirstOrDefault();
+                var invite = await FindInvitationByEmailAsync(clerkEmail);
 
                 if (invite?.PublicMetadata.HasValue == true)
                 {
@@ -368,11 +364,7 @@ public class UserProvisioningService : IUserProvisioningService
         {
             try
             {
-                var invitations = await _clerkUserService.GetInvitationsAsync();
-                var invite = invitations
-                    .Where(i => string.Equals(i.EmailAddress, webhookEmail, StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
-                    .FirstOrDefault();
+                var invite = await FindInvitationByEmailAsync(webhookEmail);
 
                 if (invite?.PublicMetadata.HasValue == true)
                 {
@@ -520,11 +512,7 @@ public class UserProvisioningService : IUserProvisioningService
 
         try
         {
-            var invitations = await _clerkUserService.GetInvitationsAsync();
-            var invite = invitations
-                .Where(i => string.Equals(i.EmailAddress, existingUser.Email, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
-                .FirstOrDefault();
+            var invite = await FindInvitationByEmailAsync(existingUser.Email);
 
             if (invite?.PublicMetadata.HasValue == true)
             {
@@ -589,6 +577,77 @@ public class UserProvisioningService : IUserProvisioningService
             _logger.LogWarning(ex, "Failed to reconcile invitation metadata for existing user {UserId} (AuthUserId: {AuthUserId}, Email: {Email}): {Message}",
                 existingUser.Id, existingUser.AuthUserId, StringHelper.MaskEmail(existingUser.Email), StringHelper.SanitizeLogMessage(ex.Message));
         }
+    }
+
+    private async Task<ClerkInvitationResponse?> FindInvitationByEmailAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        // 1. Try querying default/unspecified status first (for backwards compatibility and pending invites)
+        try
+        {
+            var defaultInvitations = await _clerkUserService.GetInvitationsAsync();
+            var invite = defaultInvitations?
+                .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
+                .FirstOrDefault();
+
+            if (invite != null)
+            {
+                return invite;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query default Clerk invitations for {Email}: {Message}",
+                StringHelper.MaskEmail(email), StringHelper.SanitizeLogMessage(ex.Message));
+        }
+
+        // 2. Once an invitation is accepted, Clerk changes its status to 'accepted'.
+        // Querying 'accepted' invitations recovers the role and region metadata when a user signs in.
+        try
+        {
+            var acceptedInvitations = await _clerkUserService.GetInvitationsAsync("accepted");
+            var invite = acceptedInvitations?
+                .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
+                .FirstOrDefault();
+
+            if (invite != null)
+            {
+                return invite;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query accepted Clerk invitations for {Email}: {Message}",
+                StringHelper.MaskEmail(email), StringHelper.SanitizeLogMessage(ex.Message));
+        }
+
+        // 3. Fallback: try explicitly querying 'pending' status
+        try
+        {
+            var pendingInvitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var invite = pendingInvitations?
+                .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
+                .FirstOrDefault();
+
+            if (invite != null)
+            {
+                return invite;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query pending Clerk invitations for {Email}: {Message}",
+                StringHelper.MaskEmail(email), StringHelper.SanitizeLogMessage(ex.Message));
+        }
+
+        return null;
     }
 
     private static (Guid RoleId, List<CreateUserRegionAssignmentDto> Regions) ParseMetadata(System.Text.Json.JsonElement? publicMetadata)
