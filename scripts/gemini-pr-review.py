@@ -30,7 +30,8 @@ def main():
     # Extract Git Diff
     try:
         subprocess.run(["git", "fetch", "origin", base_ref], check=True)
-        diff_output = subprocess.check_output(["git", "diff", f"origin/{base_ref}...HEAD"], text=True)
+        diff_bytes = subprocess.check_output(["git", "diff", f"origin/{base_ref}...HEAD"])
+        diff_output = diff_bytes.decode("utf-8", errors="replace")
     except Exception as e:
         print(f"::error::Failed to extract git diff: {e}")
         sys.exit(1)
