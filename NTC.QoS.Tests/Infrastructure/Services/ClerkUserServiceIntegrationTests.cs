@@ -341,4 +341,97 @@ public class ClerkUserServiceIntegrationTests
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*401*Unauthorized*");
     }
+
+    [Fact]
+    public async Task GetInvitationsAsync_WhenExplicitLimitAndOffset_QueriesExactPageUrl()
+    {
+        // Arrange
+        const string secretKey = "test_clerk_secret";
+        HttpRequestMessage? capturedRequest = null;
+
+        var handlerMock = new Mock<HttpMessageHandler>();
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent("[{\"id\":\"inv_page1\",\"email_address\":\"page@example.com\",\"status\":\"pending\"}]")
+            });
+
+        var httpClient = CreateMockHttpClient(secretKey, handlerMock.Object);
+        var service = new ClerkUserService(httpClient, _loggerMock.Object);
+
+        // Act
+        var result = await service.GetInvitationsAsync("pending", limit: 25, offset: 50);
+
+        // Assert
+        result.Should().HaveCount(1);
+        result[0].Id.Should().Be("inv_page1");
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.RequestUri!.Query.Should().Contain("limit=25");
+        capturedRequest.RequestUri!.Query.Should().Contain("offset=50");
+        capturedRequest.RequestUri!.Query.Should().Contain("status=pending");
+    }
+
+    [Fact]
+    public async Task GetInvitationsAsync_WhenNoLimitSpecified_AutoPaginatesUntilBatchBelowPageSize()
+    {
+        // Arrange
+        const string secretKey = "test_clerk_secret";
+        var requestedOffsets = new List<string>();
+
+        // Generate batch 1 (exactly 500 items)
+        var batch1Items = Enumerable.Range(1, 500)
+            .Select(i => $"{{\"id\":\"inv_b1_{i}\",\"email_address\":\"b1_{i}@example.com\",\"status\":\"pending\"}}");
+        var batch1Json = "[" + string.Join(",", batch1Items) + "]";
+
+        // Generate batch 2 (2 items, smaller than 500, signalling end of pagination)
+        var batch2Json = "[{\"id\":\"inv_b2_1\",\"email_address\":\"b2_1@example.com\",\"status\":\"pending\"}," +
+                         "{\"id\":\"inv_b2_2\",\"email_address\":\"b2_2@example.com\",\"status\":\"pending\"}]";
+
+        var handlerMock = new Mock<HttpMessageHandler>();
+        handlerMock.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Returns<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                var query = req.RequestUri?.Query ?? "";
+                requestedOffsets.Add(query);
+
+                if (query.Contains("offset=0"))
+                {
+                    return Task.FromResult(new HttpResponseMessage
+                    {
+                        StatusCode = HttpStatusCode.OK,
+                        Content = new StringContent(batch1Json)
+                    });
+                }
+                else
+                {
+                    return Task.FromResult(new HttpResponseMessage
+                    {
+                        StatusCode = HttpStatusCode.OK,
+                        Content = new StringContent(batch2Json)
+                    });
+                }
+            });
+
+        var httpClient = CreateMockHttpClient(secretKey, handlerMock.Object);
+        var service = new ClerkUserService(httpClient, _loggerMock.Object);
+
+        // Act
+        var result = await service.GetInvitationsAsync("pending");
+
+        // Assert
+        result.Should().HaveCount(502);
+        requestedOffsets.Should().HaveCount(2);
+        requestedOffsets[0].Should().Contain("offset=0");
+        requestedOffsets[1].Should().Contain("offset=500");
+    }
 }
