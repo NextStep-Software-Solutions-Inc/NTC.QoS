@@ -1,3 +1,4 @@
+using NTC.QoS.Domain.Constants;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
@@ -35,7 +36,7 @@ public class ResendInvitationHandler(
 
         try
         {
-            var invitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var invitations = await _clerkUserService.GetInvitationsAsync(ClerkInvitationStatus.Pending);
             var target = invitations.FirstOrDefault(i => string.Equals(i.Id, request.InvitationId, StringComparison.OrdinalIgnoreCase));
 
             if (target is null)
@@ -163,7 +164,7 @@ public class ResendInvitationHandler(
                 Regions = regionDtos
             };
 
-            var result = await _mediator.Send(new InviteUserRequest(inviteDto), cancellationToken);
+            var result = await _mediator.Send(new InviteUserRequest(inviteDto, allowReinvite: true), cancellationToken);
             if (!result.Succeeded)
             {
                 _logger.LogWarning("Resend creation failed for {Email}: {Message}. Original invitation was preserved.", StringHelper.MaskEmail(target.EmailAddress), StringHelper.SanitizeLogMessage(result.Message));
