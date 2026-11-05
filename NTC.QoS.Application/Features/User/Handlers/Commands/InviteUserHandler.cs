@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,8 @@ public class InviteUserHandler(
     IClerkUserService clerkUserService,
     IConfiguration configuration,
     IUserAuthorizationService authorizationService,
-    ILogger<InviteUserHandler>? logger = null) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
+    ILogger<InviteUserHandler>? logger = null,
+    IUserRegionRepository? userRegionRepository = null) : IRequestHandler<InviteUserRequest, ApiResponse<UserDto>>
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly IRepository<Domain.Entities.Role> _roleRepository = roleRepository;
@@ -27,23 +29,34 @@ public class InviteUserHandler(
     private readonly IConfiguration _configuration = configuration;
     private readonly IUserAuthorizationService _authorizationService = authorizationService;
     private readonly ILogger<InviteUserHandler>? _logger = logger;
+    private readonly IUserRegionRepository? _userRegionRepository = userRegionRepository;
 
     public async Task<ApiResponse<UserDto>> Handle(InviteUserRequest request, CancellationToken cancellationToken)
     {
         // Check if user already exists in DB with this email
-        var existingUserQuery = _userRepository.Query(u => u.Email.ToLower() == request.User.Email.ToLower() && !u.IsDeleted);
+        var existingUserQuery = _userRepository.Query(u => u.Email.ToLower() == request.User.Email.ToLower() && !u.IsDeleted)
+            .Include(u => u.Role);
         var existingUser = await _userRepository.FirstOrDefaultAsync(existingUserQuery, cancellationToken);
         if (existingUser is not null)
         {
-            return new ApiResponse<UserDto>
+            var isPendingInviteOnly = string.IsNullOrEmpty(existingUser.AuthUserId);
+            var canReinvite = request.AllowReinvite || isPendingInviteOnly;
+
+            if (!canReinvite)
             {
-                Succeeded = false,
-                Message = "A user with this email address already exists in the system.",
-                Errors = new Dictionary<string, string[]>
+                return new ApiResponse<UserDto>
                 {
-                    { "Duplicate", ["A user with this email address already exists in the system."] }
-                }
-            };
+                    Succeeded = false,
+                    Message = "A user with this email address already exists in the system.",
+                    Errors = new Dictionary<string, string[]>
+                    {
+                        { "Duplicate", ["A user with this email address already exists in the system."] }
+                    }
+                };
+            }
+
+            _logger?.LogInformation("User {UserId} ({Email}) is eligible for re-invitation. Updating role and regional assignments.",
+                existingUser.Id, StringHelper.MaskEmail(request.User.Email));
         }
 
         var roleQuery = _roleRepository.Query(r => r.Id == request.User.RoleId);
@@ -174,6 +187,60 @@ public class InviteUserHandler(
             IgnoreExisting = true
         };
 
+        // If an existing DB user is being reinvited or configured, update their database record with role and regions
+        if (existingUser != null)
+        {
+            existingUser.RoleId = role.Id;
+            _userRepository.Update(existingUser);
+            await _userRepository.SaveChangesAsync(cancellationToken);
+
+            if (_userRegionRepository != null && request.User.Regions is { Count: > 0 })
+            {
+                var existingUserRegionsQuery = _userRegionRepository.Query(ur => ur.UserId == existingUser.Id && !ur.IsDeleted);
+                var existingUserRegions = await _userRegionRepository.ToListAsync(existingUserRegionsQuery, cancellationToken);
+                var existingRegionIds = existingUserRegions.Select(ur => ur.RegionId).ToHashSet();
+
+                var newRegions = request.User.Regions
+                    .Where(r => !existingRegionIds.Contains(r.RegionId))
+                    .GroupBy(r => r.RegionId)
+                    .Select(g => g.First())
+                    .Select(r => new Domain.Aggregates.UserRegion
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = existingUser.Id,
+                        RegionId = r.RegionId,
+                        RoleId = r.RoleId ?? role.Id,
+                        Status = string.IsNullOrWhiteSpace(r.Status) ? Domain.Enums.UserRegionStatus.Active.ToString() : r.Status
+                    }).ToList();
+
+                if (newRegions.Count > 0)
+                {
+                    _userRegionRepository.AddRange(newRegions);
+                    await _userRegionRepository.SaveChangesAsync(cancellationToken);
+                }
+            }
+
+            // Sync metadata to Clerk profile if user has AuthUserId
+            if (!string.IsNullOrEmpty(existingUser.AuthUserId))
+            {
+                try
+                {
+                    await _clerkUserService.UpdateUserMetadataAsync(existingUser.AuthUserId, new UserMetadataPayload
+                    {
+                        PublicMetadata = new
+                        {
+                            role_id = role.Id.ToString(),
+                            regions = regionAssignments
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to update Clerk metadata for user {AuthUserId}", existingUser.AuthUserId);
+                }
+            }
+        }
+
         // Issue the new invitation via Clerk first (with IgnoreExisting = true)
         // This ensures that if Clerk API fails, existing invitations are NOT prematurely revoked
         ClerkInvitationResponse newInvitation;
@@ -183,6 +250,30 @@ public class InviteUserHandler(
         }
         catch (Exception ex)
         {
+            // If the user already completed registration in Clerk (e.g. email address already taken), and their local DB record was updated:
+            if (existingUser != null && !string.IsNullOrEmpty(existingUser.AuthUserId))
+            {
+                _logger?.LogInformation("User {Email} already exists in Clerk; regional role assignments were successfully updated.", StringHelper.MaskEmail(request.User.Email));
+                return new ApiResponse<UserDto>
+                {
+                    Data = new UserDto
+                    {
+                        Id = existingUser.Id,
+                        AuthUserId = existingUser.AuthUserId,
+                        Email = existingUser.Email,
+                        Role = new()
+                        {
+                            Id = role.Id,
+                            Name = role.Name,
+                            Key = role.Key,
+                            Description = role.Description
+                        }
+                    },
+                    Message = "Personnel role and regional access updated successfully.",
+                    Succeeded = true
+                };
+            }
+
             _logger?.LogError(ex, "Failed to send invitation via Clerk for {Email}: {Message}", StringHelper.MaskEmail(request.User.Email), StringHelper.SanitizeLogMessage(ex.Message));
             return new ApiResponse<UserDto>
             {
@@ -243,4 +334,4 @@ public class InviteUserHandler(
         };
     }
 }
-
+

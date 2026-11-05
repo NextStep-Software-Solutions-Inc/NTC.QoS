@@ -71,6 +71,20 @@ public class UserAuthorizationService : IUserAuthorizationService
                     user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
                 }
             }
+            else
+            {
+                // Self-healing check: if the user exists but has the default role,
+                // trigger reconciliation to recover any assigned invitation metadata
+                var isDefaultRole = user.Role == null || Roles.IsUser(user.Role.Key);
+                if (isDefaultRole)
+                {
+                    var reconcileResult = await _userProvisioningService.EnsureUserExistsAsync(authUserId, cancellationToken);
+                    if (reconcileResult.Succeeded)
+                    {
+                        user = await _userRepository.FirstOrDefaultAsync(userQuery, cancellationToken);
+                    }
+                }
+            }
 
             if (user == null)
             {

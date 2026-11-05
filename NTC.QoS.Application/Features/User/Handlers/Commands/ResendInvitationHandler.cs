@@ -163,7 +163,7 @@ public class ResendInvitationHandler(
                 Regions = regionDtos
             };
 
-            var result = await _mediator.Send(new InviteUserRequest(inviteDto), cancellationToken);
+            var result = await _mediator.Send(new InviteUserRequest(inviteDto, allowReinvite: true), cancellationToken);
             if (!result.Succeeded)
             {
                 _logger.LogWarning("Resend creation failed for {Email}: {Message}. Original invitation was preserved.", StringHelper.MaskEmail(target.EmailAddress), StringHelper.SanitizeLogMessage(result.Message));

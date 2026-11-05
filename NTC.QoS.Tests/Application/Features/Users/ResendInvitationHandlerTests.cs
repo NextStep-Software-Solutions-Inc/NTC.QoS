@@ -74,6 +74,7 @@ public class ResendInvitationHandlerTests
         result.Message.Should().Contain("resent successfully");
         _mediatorMock.Verify(m => m.Send(It.Is<InviteUserRequest>(req =>
             req.User.Email == "resend_test@example.com" &&
+            req.AllowReinvite &&
             req.User.RoleId == roleId &&
             req.User.Regions != null &&
             req.User.Regions.Count == 1 &&

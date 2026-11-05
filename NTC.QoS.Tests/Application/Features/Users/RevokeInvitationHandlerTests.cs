@@ -1,3 +1,4 @@
+using NTC.QoS.Domain.Authorization;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -118,5 +119,54 @@ public class RevokeInvitationHandlerTests
         result.Data.Should().BeFalse();
         result.Message.Should().Contain("already been accepted");
         result.Errors.Should().ContainKey("Revoke");
+    }
+
+    [Fact]
+    public async Task Handle_WhenRevoking_CleansUpUnonboardedUserFromDatabase()
+    {
+        // Arrange
+        var invitationId = "inv_clean_test";
+        var email = "clean_test@example.com";
+
+        _clerkUserServiceMock.Setup(c => c.RevokeInvitationAsync(invitationId))
+            .ReturnsAsync(new ClerkInvitationResponse
+            {
+                Id = invitationId,
+                EmailAddress = email,
+                Status = "revoked"
+            });
+
+        var userRepositoryMock = new Mock<IUserRepository>();
+        var userRegionRepositoryMock = new Mock<IUserRegionRepository>();
+
+        var unonboardedUser = new global::NTC.QoS.Domain.Entities.User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            AuthUserId = "user_unonboarded",
+            Role = new global::NTC.QoS.Domain.Entities.Role { Key = Roles.User, Name = "User" }
+        };
+
+        userRepositoryMock.Setup(r => r.Query(It.IsAny<System.Linq.Expressions.Expression<Func<global::NTC.QoS.Domain.Entities.User, bool>>>()))
+            .Returns(new List<global::NTC.QoS.Domain.Entities.User> { unonboardedUser }.AsQueryable());
+        userRepositoryMock.Setup(r => r.FirstOrDefaultAsync(It.IsAny<IQueryable<global::NTC.QoS.Domain.Entities.User>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(unonboardedUser);
+
+        userRegionRepositoryMock.Setup(r => r.CountAsync(It.IsAny<IQueryable<global::NTC.QoS.Domain.Aggregates.UserRegion>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        var handlerWithRepos = new RevokeInvitationHandler(
+            _clerkUserServiceMock.Object,
+            _loggerMock.Object,
+            userRepositoryMock.Object,
+            userRegionRepositoryMock.Object);
+
+        // Act
+        var result = await handlerWithRepos.Handle(new RevokeInvitationRequest(invitationId), CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        userRepositoryMock.Verify(r => r.Delete(unonboardedUser), Times.Once);
+        userRepositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }
