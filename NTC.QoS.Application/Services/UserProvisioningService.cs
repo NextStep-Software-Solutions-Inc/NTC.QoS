@@ -1,3 +1,4 @@
+using NTC.QoS.Domain.Constants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -610,7 +611,7 @@ public class UserProvisioningService : IUserProvisioningService
         // Querying 'accepted' invitations recovers the role and region metadata when a user signs in.
         try
         {
-            var acceptedInvitations = await _clerkUserService.GetInvitationsAsync("accepted");
+            var acceptedInvitations = await _clerkUserService.GetInvitationsAsync(ClerkInvitationStatus.Accepted);
             var invite = acceptedInvitations?
                 .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)
@@ -630,7 +631,7 @@ public class UserProvisioningService : IUserProvisioningService
         // 3. Fallback: try explicitly querying 'pending' status
         try
         {
-            var pendingInvitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var pendingInvitations = await _clerkUserService.GetInvitationsAsync(ClerkInvitationStatus.Pending);
             var invite = pendingInvitations?
                 .Where(i => string.Equals(i.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(i => i.UpdatedAt ?? i.CreatedAt ?? 0)

@@ -1,3 +1,4 @@
+using NTC.QoS.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 using MediatR;
 using Microsoft.Extensions.Configuration;
@@ -289,7 +290,7 @@ public class InviteUserHandler(
         // Only after the new invitation is successfully created, clean up prior older pending invitations for this email
         try
         {
-            var existingInvitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var existingInvitations = await _clerkUserService.GetInvitationsAsync(ClerkInvitationStatus.Pending);
             var newInvitationId = newInvitation?.Id;
             var priorInvites = existingInvitations
                 .Where(i => string.Equals(i.EmailAddress, request.User.Email, StringComparison.OrdinalIgnoreCase) &&

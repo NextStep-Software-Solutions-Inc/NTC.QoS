@@ -1,3 +1,4 @@
+using NTC.QoS.Domain.Constants;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NTC.QoS.Application.Features.User.Requests;
@@ -35,7 +36,7 @@ public class ResendInvitationHandler(
 
         try
         {
-            var invitations = await _clerkUserService.GetInvitationsAsync("pending");
+            var invitations = await _clerkUserService.GetInvitationsAsync(ClerkInvitationStatus.Pending);
             var target = invitations.FirstOrDefault(i => string.Equals(i.Id, request.InvitationId, StringComparison.OrdinalIgnoreCase));
 
             if (target is null)
