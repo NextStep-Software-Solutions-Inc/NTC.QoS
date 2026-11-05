@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NTC.QoS.Application.Features.User.Requests;
+using NTC.QoS.Domain.Authorization;
 using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs;
 using NTC.QoS.Domain.Models.DTOs.User;
@@ -17,7 +18,9 @@ public class GetUserByAuthUserIdHandler(IUserRepository repository, IUserProvisi
         var userQuery = _repository.Query(u => u.AuthUserId.Equals(request.AuthUserId))
             .Include(u => u.Role);
         var user = await _repository.FirstOrDefaultAsync(userQuery, cancellationToken);
-        if (user is null && request.AllowProvisioning)
+
+        var needsReconciliation = user is not null && (user.Role == null || Roles.IsUser(user.Role.Key));
+        if ((user is null || needsReconciliation) && request.AllowProvisioning)
         {
             var provisionResult = await _userProvisioningService.EnsureUserExistsAsync(request.AuthUserId, cancellationToken);
             if (provisionResult.Succeeded)

@@ -17,6 +17,7 @@ namespace NTC.QoS.Application.Services;
 /// </summary>
 public class UserProvisioningService : IUserProvisioningService
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> _provisioningLocks = new();
     private readonly IMediator _mediator;
     private readonly IClerkUserService _clerkUserService;
     private readonly IUserRepository? _userRepository;
@@ -48,6 +49,20 @@ public class UserProvisioningService : IUserProvisioningService
             };
         }
 
+        var semaphore = _provisioningLocks.GetOrAdd(authUserId, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync(cancellationToken);
+        try
+        {
+            return await EnsureUserExistsInternalAsync(authUserId, cancellationToken);
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+    private async Task<ApiResponse<UserDto>> EnsureUserExistsInternalAsync(string authUserId, CancellationToken cancellationToken)
+    {
         // Check if user already exists in DB by AuthUserId
         UserDto? existingUser = null;
         if (_userRepository != null)
@@ -123,22 +138,50 @@ public class UserProvisioningService : IUserProvisioningService
         // Check if an invited user exists with this email but without AuthUserId
         if (!string.IsNullOrEmpty(clerkEmail))
         {
-            var emailUsers = await _mediator.Send(new GetAllUsersRequest(pageSize: 1, pageNumber: 1, email: clerkEmail), cancellationToken);
-            var invitedUser = emailUsers?.Data?.FirstOrDefault();
-            if (invitedUser != null && (string.IsNullOrEmpty(invitedUser.AuthUserId) || invitedUser.AuthUserId == clerkUser.Id))
+            Domain.Entities.User? dbInvitedUser = null;
+            if (_userRepository != null)
             {
-                _logger.LogInformation("Found invited user {UserId} with email {Email}. Linking AuthUserId {AuthUserId}...", invitedUser.Id, StringHelper.MaskEmail(clerkEmail), authUserId);
-                var linkRequest = new UpdateUserByIdRequest(invitedUser.Id, new UpdateUserDto
+                var query = _userRepository.Query(u => u.Email.ToLower() == clerkEmail.ToLower() && !u.IsDeleted);
+                dbInvitedUser = await _userRepository.FirstOrDefaultAsync(query, cancellationToken);
+            }
+
+            var invitedUserId = dbInvitedUser?.Id;
+            var invitedAuthUserId = dbInvitedUser?.AuthUserId;
+            var invitedFirstName = dbInvitedUser?.FirstName;
+            var invitedLastName = dbInvitedUser?.LastName;
+
+            if (invitedUserId == null)
+            {
+                var emailUsers = await _mediator.Send(new GetAllUsersRequest(pageSize: 1, pageNumber: 1, email: clerkEmail), cancellationToken);
+                var invitedUser = emailUsers?.Data?.FirstOrDefault();
+                if (invitedUser != null)
+                {
+                    invitedUserId = invitedUser.Id;
+                    invitedAuthUserId = invitedUser.AuthUserId;
+                    invitedFirstName = invitedUser.FirstName;
+                    invitedLastName = invitedUser.LastName;
+                }
+            }
+
+            if (invitedUserId.HasValue && (string.IsNullOrEmpty(invitedAuthUserId) || invitedAuthUserId == clerkUser.Id))
+            {
+                _logger.LogInformation("Found invited user {UserId} with email {Email}. Linking AuthUserId {AuthUserId}...", invitedUserId.Value, StringHelper.MaskEmail(clerkEmail), authUserId);
+                var linkRequest = new UpdateUserByIdRequest(invitedUserId.Value, new UpdateUserDto
                 {
                     AuthUserId = clerkUser.Id,
-                    FirstName = string.IsNullOrEmpty(invitedUser.FirstName) ? clerkUser.FirstName : invitedUser.FirstName,
-                    LastName = string.IsNullOrEmpty(invitedUser.LastName) ? clerkUser.LastName : invitedUser.LastName,
+                    FirstName = string.IsNullOrEmpty(invitedFirstName) ? clerkUser.FirstName : invitedFirstName,
+                    LastName = string.IsNullOrEmpty(invitedLastName) ? clerkUser.LastName : invitedLastName,
                     Email = clerkEmail
                 });
 
                 var linkResponse = await _mediator.Send(linkRequest, cancellationToken);
                 if (linkResponse.Succeeded)
                 {
+                    if (linkResponse.Data != null)
+                    {
+                        await ReconcileUserInvitationAsync(linkResponse.Data, cancellationToken);
+                    }
+
                     try
                     {
                         await _mediator.Send(new CreateSessionRequest { AuthUserId = authUserId }, cancellationToken);
@@ -151,7 +194,7 @@ public class UserProvisioningService : IUserProvisioningService
                 }
 
                 _logger.LogError("Failed to link invited user {UserId} (Email: {Email}) with AuthUserId {AuthUserId}: {ErrorMessage}",
-                    invitedUser.Id, StringHelper.MaskEmail(clerkEmail), authUserId, StringHelper.SanitizeLogMessage(linkResponse.Message));
+                    invitedUserId.Value, StringHelper.MaskEmail(clerkEmail), authUserId, StringHelper.SanitizeLogMessage(linkResponse.Message));
             }
         }
 
@@ -332,15 +375,38 @@ public class UserProvisioningService : IUserProvisioningService
         var webhookEmail = userData.EmailAddresses?.FirstOrDefault()?.EmailAddress;
         if (!string.IsNullOrEmpty(webhookEmail))
         {
-            var emailUsers = await _mediator.Send(new GetAllUsersRequest(pageSize: 1, pageNumber: 1, email: webhookEmail), cancellationToken);
-            var invitedUser = emailUsers?.Data?.FirstOrDefault();
-            if (invitedUser != null && (string.IsNullOrEmpty(invitedUser.AuthUserId) || invitedUser.AuthUserId == userData.Id))
+            Domain.Entities.User? dbInvitedUser = null;
+            if (_userRepository != null)
             {
-                var updateRequest = new UpdateUserByIdRequest(invitedUser.Id, new UpdateUserDto
+                var query = _userRepository.Query(u => u.Email.ToLower() == webhookEmail.ToLower() && !u.IsDeleted);
+                dbInvitedUser = await _userRepository.FirstOrDefaultAsync(query, cancellationToken);
+            }
+
+            var invitedUserId = dbInvitedUser?.Id;
+            var invitedAuthUserId = dbInvitedUser?.AuthUserId;
+            var invitedFirstName = dbInvitedUser?.FirstName;
+            var invitedLastName = dbInvitedUser?.LastName;
+
+            if (invitedUserId == null)
+            {
+                var emailUsers = await _mediator.Send(new GetAllUsersRequest(pageSize: 1, pageNumber: 1, email: webhookEmail), cancellationToken);
+                var invitedUser = emailUsers?.Data?.FirstOrDefault();
+                if (invitedUser != null)
+                {
+                    invitedUserId = invitedUser.Id;
+                    invitedAuthUserId = invitedUser.AuthUserId;
+                    invitedFirstName = invitedUser.FirstName;
+                    invitedLastName = invitedUser.LastName;
+                }
+            }
+
+            if (invitedUserId.HasValue && (string.IsNullOrEmpty(invitedAuthUserId) || invitedAuthUserId == userData.Id))
+            {
+                var updateRequest = new UpdateUserByIdRequest(invitedUserId.Value, new UpdateUserDto
                 {
                     AuthUserId = userData.Id,
-                    FirstName = userData.FirstName ?? invitedUser.FirstName ?? "",
-                    LastName = userData.LastName ?? invitedUser.LastName ?? "",
+                    FirstName = userData.FirstName ?? invitedFirstName ?? "",
+                    LastName = userData.LastName ?? invitedLastName ?? "",
                     Email = webhookEmail
                 });
 
@@ -348,12 +414,16 @@ public class UserProvisioningService : IUserProvisioningService
                 if (!updateResponse.Succeeded)
                 {
                     _logger.LogError("Failed to link invited user {UserId} with AuthUserId {AuthUserId} (Email: {Email}) during webhook upsert: {ErrorMessage}",
-                        invitedUser.Id, userData.Id, StringHelper.MaskEmail(webhookEmail), StringHelper.SanitizeLogMessage(updateResponse.Message));
+                        invitedUserId.Value, userData.Id, StringHelper.MaskEmail(webhookEmail), StringHelper.SanitizeLogMessage(updateResponse.Message));
                 }
                 else
                 {
+                    if (updateResponse.Data != null)
+                    {
+                        await ReconcileUserInvitationAsync(updateResponse.Data, cancellationToken);
+                    }
                     _logger.LogInformation("Successfully linked invited user {UserId} (Email: {Email}) with AuthUserId {AuthUserId} during webhook upsert.",
-                        invitedUser.Id, StringHelper.MaskEmail(webhookEmail), userData.Id);
+                        invitedUserId.Value, StringHelper.MaskEmail(webhookEmail), userData.Id);
                 }
                 return updateResponse;
             }

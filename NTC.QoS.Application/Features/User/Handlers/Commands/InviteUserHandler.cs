@@ -41,7 +41,8 @@ public class InviteUserHandler(
         if (existingUser is not null)
         {
             var isPendingInviteOnly = string.IsNullOrEmpty(existingUser.AuthUserId);
-            var canReinvite = request.AllowReinvite || isPendingInviteOnly;
+            var isDefaultUserRole = existingUser.Role == null || Roles.IsUser(existingUser.Role.Key);
+            var canReinvite = request.AllowReinvite || isPendingInviteOnly || isDefaultUserRole;
 
             if (!canReinvite)
             {
