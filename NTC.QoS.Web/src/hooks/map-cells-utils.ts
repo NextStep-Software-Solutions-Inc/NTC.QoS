@@ -294,6 +294,7 @@ export function createSignalCoveragePopupHTML(
     source_file?: string;
     duplex_mode?: string;
     areaStudy?: string;
+    area_study?: string;
     interpolation_note?: string;
   },
   configuredLevels?: Array<{

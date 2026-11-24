@@ -401,7 +401,7 @@ const parseSignalCoverageGeoJSON = (
     const address = toNonEmptyString(properties.address);
     const location = toNonEmptyString(properties.location);
     const cellId = toNonEmptyString(properties.cell_id);
-    const areaStudy = toNonEmptyString(properties.areaStudy);
+    const areaStudy = toNonEmptyString(properties.areaStudy ?? properties.area_study);
     const azimuthValue = parseAzimuthToDecimal(properties.azimuth);
     const normalizedNetwork = normalizeSearchToken(network);
     const normalizedTechnology = normalizeSearchToken(technology);
@@ -471,7 +471,7 @@ const parseSignalCoverageFlatData = (
 
     const azimuthValue = parseAzimuthToDecimal(point.azimuth);
     const location = toNonEmptyString(point.location) ?? toNonEmptyString(point.barangay);
-    const areaStudy = toNonEmptyString(point.areaStudy);
+    const areaStudy = toNonEmptyString(point.areaStudy ?? point.area_study);
     const searchText = [network, providerName, technology, location, toNonEmptyString(point.cell_id), areaStudy]
       .filter((token): token is string => Boolean(token))
       .join(" ")
@@ -1809,7 +1809,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     if (signalCoverageAreaStudyName) {
       filterExpression.push([
         "==",
-        ["downcase", ["coalesce", ["get", "areaStudy"], ["get", "source_file"], ""]],
+        ["downcase", ["coalesce", ["get", "areaStudy"], ["get", "area_study"], ["get", "source_file"], ""]],
         signalCoverageAreaStudyName,
       ]);
     }
@@ -1864,6 +1864,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
           ["downcase", ["to-string", ["coalesce", ["get", "cell_id"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "cellId"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "areaStudy"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "area_study"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "source_file"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "city"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "municipality"], ""]]], " ",
