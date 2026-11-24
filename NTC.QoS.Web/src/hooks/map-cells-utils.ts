@@ -288,6 +288,7 @@ export function createSignalCoveragePopupHTML(
     location?: string;
     azimuth?: string | number;
     network?: string;
+    generation?: string;
     technology?: string;
     band?: string;
     frequency?: string;
@@ -346,7 +347,7 @@ export function createSignalCoveragePopupHTML(
   const band = properties.band || "N/A";
   const frequency = properties.frequency || "N/A";
   const address = properties.address || "N/A";
-  const techBandText = [properties.technology, properties.band].filter(Boolean).join(" - ");
+  const techBandText = [properties.generation, properties.technology, properties.band].filter(Boolean).join(" - ");
   const interpolationNote = properties.interpolation_note ? String(properties.interpolation_note) : "";
 
   // Enhanced styled popup with gradient background - matches CellsiteMapView

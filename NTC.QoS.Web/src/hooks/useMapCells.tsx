@@ -395,6 +395,7 @@ const parseSignalCoverageGeoJSON = (
     if (!Number.isFinite(strength)) continue;
 
     const network = toNonEmptyString(properties.network) ?? "Unknown";
+    const generation = toNonEmptyString(properties.generation);
     const technology = toNonEmptyString(properties.technology) ?? "Unknown";
     const band = toNonEmptyString(properties.band);
     const frequency = toNonEmptyString(properties.frequency);
@@ -404,14 +405,14 @@ const parseSignalCoverageGeoJSON = (
     const areaStudy = toNonEmptyString(properties.areaStudy ?? properties.area_study);
     const azimuthValue = parseAzimuthToDecimal(properties.azimuth);
     const normalizedNetwork = normalizeSearchToken(network);
-    const normalizedTechnology = normalizeSearchToken(technology);
+    const normalizedGeneration = normalizeSearchToken(generation ?? technology);
     const providerId = getProviderLookupTokens(normalizedNetwork)
       .map((token) => providerIdByName.get(token))
       .find((value): value is string => Boolean(value));
     const providerName = providerId ? providerNameById.get(providerId) : undefined;
-    const generationId = generationIdByName.get(normalizedTechnology);
+    const generationId = generationIdByName.get(normalizedGeneration);
 
-    const searchText = [network, providerName, technology, band, frequency, address, location, cellId, areaStudy]
+    const searchText = [network, providerName, generation, technology, band, frequency, address, location, cellId, areaStudy]
       .filter((token): token is string => Boolean(token))
       .join(" ")
       .toLowerCase();
@@ -426,6 +427,7 @@ const parseSignalCoverageGeoJSON = (
         azimuthValue,
         network,
         networkProviderId: providerId,
+        generation,
         technology,
         generationId,
         band,
@@ -461,9 +463,10 @@ const parseSignalCoverageFlatData = (
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(strength)) continue;
 
     const network = toNonEmptyString(point.network) ?? "Unknown";
+    const generation = toNonEmptyString(point.generation);
     const technology = toNonEmptyString(point.technology) ?? "Unknown";
     const normalizedNetwork = normalizeSearchToken(network);
-    const normalizedTechnology = normalizeSearchToken(technology);
+    const normalizedGeneration = normalizeSearchToken(generation ?? technology);
     const providerId = getProviderLookupTokens(normalizedNetwork)
       .map((token) => providerIdByName.get(token))
       .find((value): value is string => Boolean(value));
@@ -472,7 +475,7 @@ const parseSignalCoverageFlatData = (
     const azimuthValue = parseAzimuthToDecimal(point.azimuth);
     const location = toNonEmptyString(point.location) ?? toNonEmptyString(point.barangay);
     const areaStudy = toNonEmptyString(point.areaStudy ?? point.area_study);
-    const searchText = [network, providerName, technology, location, toNonEmptyString(point.cell_id), areaStudy]
+    const searchText = [network, providerName, generation, technology, location, toNonEmptyString(point.cell_id), areaStudy]
       .filter((token): token is string => Boolean(token))
       .join(" ")
       .toLowerCase();
@@ -487,8 +490,9 @@ const parseSignalCoverageFlatData = (
         azimuthValue,
         network,
         networkProviderId: providerId,
+        generation,
         technology,
-        generationId: generationIdByName.get(normalizedTechnology),
+        generationId: generationIdByName.get(normalizedGeneration),
         cell_id: toNonEmptyString(point.cell_id),
         areaStudy,
         search_text: searchText,
@@ -1839,7 +1843,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         filterExpression.push([
           "any",
           ["in", ["coalesce", ["get", "generationId"], ""], ["literal", options.generationIds]],
-          ["in", ["downcase", ["coalesce", ["get", "technology"], ""]], ["literal", selectedGenNames]],
+          ["in", ["downcase", ["coalesce", ["get", "generation"], ["get", "technology"], ""]], ["literal", selectedGenNames]],
         ]);
       } else {
         filterExpression.push(["in", ["coalesce", ["get", "generationId"], ""], ["literal", options.generationIds]]);
@@ -1854,6 +1858,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
           ["downcase", ["to-string", ["coalesce", ["get", "search_text"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "band"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "network"], ""]]], " ",
+          ["downcase", ["to-string", ["coalesce", ["get", "generation"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "technology"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "provider"], ""]]], " ",
           ["downcase", ["to-string", ["coalesce", ["get", "duplex_mode"], ""]]], " ",
