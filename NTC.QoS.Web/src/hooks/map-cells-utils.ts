@@ -283,6 +283,10 @@ export function createSignalCoveragePopupHTML(
   properties: {
     strength?: number;
     signal_strength_dbm?: number;
+    cell_id?: string;
+    cellId?: string;
+    cell_guid?: string;
+    cellGuid?: string;
     barangay?: string;
     address?: string;
     location?: string;
@@ -339,175 +343,122 @@ export function createSignalCoveragePopupHTML(
     }
   }
 
-  const locationText = properties.address || properties.location || properties.barangay || "Unknown location";
-  const azimuthText = properties.azimuth !== undefined && properties.azimuth !== null ? `${properties.azimuth}°` : "N/A";
+  const cellGuid = properties.cell_id || properties.cellId || properties.cell_guid || properties.cellGuid || "N/A";
+  const areaStudyText = properties.area_study || properties.areaStudy || properties.source_file || "N/A";
+  const locationText = properties.location || properties.barangay || properties.address || "Unknown location";
+  const addressText = properties.address && properties.address !== locationText ? properties.address : "";
+  const rawAzimuth =
+    properties.azimuth !== undefined && properties.azimuth !== null && String(properties.azimuth).trim() !== ""
+      ? String(properties.azimuth).replace(/[\uFFFD°\s]+$/g, "").trim()
+      : "";
+  const azimuthText = rawAzimuth ? `${rawAzimuth}°` : "N/A";
   const network = properties.network || "Unknown";
-  const networkText = properties.network || "";
+  const generation = properties.generation || "";
   const technology = properties.technology || "Unknown";
   const band = properties.band || "N/A";
   const frequency = properties.frequency || "N/A";
-  const address = properties.address || "N/A";
-  const techBandText = [properties.generation, properties.technology, properties.band].filter(Boolean).join(" - ");
+  const techBandText = [technology, band !== "N/A" ? band : ""].filter(Boolean).join(" · ") || "N/A";
+  const networkDisplay = generation ? `${network} (${generation})` : network;
   const interpolationNote = properties.interpolation_note ? String(properties.interpolation_note) : "";
 
-  // Enhanced styled popup with gradient background - matches CellsiteMapView
   return `
     <div style="
-      min-width: 220px; 
+      width: 260px;
       font-family: system-ui, -apple-system, sans-serif;
-      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-      border-radius: 12px;
+      background: #ffffff;
+      border-radius: 10px;
       overflow: hidden;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.14);
     ">
-      <!-- Header with signal strength bar -->
+      <!-- Compact Header -->
       <div style="
         background: linear-gradient(135deg, ${signalColor}ee, ${signalColor}cc);
-        padding: 14px 16px;
+        padding: 8px 24px 8px 10px;
         color: white;
       ">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
           <div style="
-            width: 44px; 
-            height: 44px; 
-            border-radius: 12px; 
-            background: rgba(255,255,255,0.25);
-            backdrop-filter: blur(4px);
-            display: flex; 
-            align-items: center; 
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.22);
+            display: flex;
+            align-items: center;
             justify-content: center;
+            flex-shrink: 0;
           ">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="none">
-              <rect x="2" y="18" width="3" height="4" rx="1" opacity="0.3"/>
-              <rect x="7" y="14" width="3" height="8" rx="1" opacity="${strength >= -90 ? "1" : "0.3"}"/>
-              <rect x="12" y="10" width="3" height="12" rx="1" opacity="${strength >= -80 ? "1" : "0.3"}"/>
-              <rect x="17" y="6" width="3" height="16" rx="1" opacity="${strength >= -70 ? "1" : "0.3"}"/>
-              <rect x="22" y="2" width="0" height="0" rx="1" opacity="${strength >= -60 ? "1" : "0.3"}"/>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="white" stroke="none">
+              <rect x="2" y="18" width="3" height="4" rx="1" opacity="0.35"/>
+              <rect x="7" y="14" width="3" height="8" rx="1" opacity="${strength >= -100 ? "1" : "0.35"}"/>
+              <rect x="12" y="10" width="3" height="12" rx="1" opacity="${strength >= -90 ? "1" : "0.35"}"/>
+              <rect x="17" y="6" width="3" height="16" rx="1" opacity="${strength >= -80 ? "1" : "0.35"}"/>
             </svg>
           </div>
-          <div>
-            <div style="font-weight: 700; font-size: 16px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
-              ${signalLabel}
+          <div style="min-width: 0; line-height: 1.2;">
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 15px; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                ${strength.toFixed(1)} dBm
+              </span>
+              <span style="font-size: 11px; font-weight: 600; opacity: 0.95; text-shadow: 0 1px 2px rgba(0,0,0,0.18);">
+                ${signalLabel}
+              </span>
             </div>
-            ${interpolationNote ? `<div style="font-size: 11px; opacity: 0.9; margin-top: 1px;">(${interpolationNote})</div>` : ""}
-            <div style="font-size: 20px; font-weight: 800; margin-top: 2px;">
-              ${strength.toFixed(1)} dBm
-            </div>
+            ${interpolationNote ? `<div style="font-size: 10px; opacity: 0.9;">(${interpolationNote})</div>` : ""}
           </div>
         </div>
       </div>
-      
-      <!-- Details section -->
-      <div style="padding: 14px 16px;">
-        <div style="
-          display: flex; 
-          flex-direction: column; 
-          gap: 10px; 
-          font-size: 13px;
-        ">
-          ${networkText || techBandText ? `
-          <div style="
-            display: flex; 
-            align-items: center; 
-            gap: 10px;
-            padding: 8px 10px;
-            background: #f1f5f9;
-            border-radius: 8px;
-          ">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2">
-              <path d="M2 20h20"/>
-              <path d="M5 20v-4"/>
-              <path d="M9 20v-8"/>
-              <path d="M13 20V8"/>
-              <path d="M17 20V4"/>
-            </svg>
-            <div style="flex: 1; min-width: 0;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Network</div>
-              <div style="color: #1e293b; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                ${networkText ? `<span style="color: #2563eb;">${networkText}</span>` : ""} ${techBandText ? `(${techBandText})` : ""}
-              </div>
-            </div>
-          </div>` : ""}
 
-          <div style="
-            display: flex; 
-            align-items: center; 
-            gap: 10px;
-            padding: 8px 10px;
-            background: #f1f5f9;
-            border-radius: 8px;
-          ">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-            <div style="flex: 1; min-width: 0;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Location</div>
-              <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${locationText}</div>
-            </div>
-          </div>
-
-          <div style="
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-          ">
-            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Provider</div>
-              <div style="color: #1e293b; font-weight: 500;">${network}</div>
-            </div>
-            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Technology</div>
-              <div style="color: #1e293b; font-weight: 500;">${technology}</div>
-            </div>
-            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Band</div>
-              <div style="color: #1e293b; font-weight: 500;">${band}</div>
-            </div>
-            <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Frequency</div>
-              <div style="color: #1e293b; font-weight: 500;">${frequency}</div>
-            </div>
-          </div>
-
-          <div style="padding: 8px 10px; background: #f8fafc; border-radius: 8px;">
-            <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Address</div>
-            <div style="color: #1e293b; font-weight: 500;">${address}</div>
-          </div>
-          
-          <div style="
-            display: flex; 
-            align-items: center; 
-            gap: 10px;
-            padding: 8px 10px;
-            background: #f1f5f9;
-            border-radius: 8px;
-          ">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="12" x2="16" y2="14"/>
-            </svg>
-            <div style="flex: 1;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Azimuth</div>
-              <div style="color: #1e293b; font-weight: 500;">${azimuthText}</div>
-            </div>
+      <!-- Compact Details -->
+      <div style="padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 11.5px;">
+        <div style="padding: 5px 8px; background: #f1f5f9; border-radius: 6px;">
+          <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Cell GUID</div>
+          <div style="color: #0f172a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; font-weight: 600; word-break: break-all; margin-top: 1px;">
+            ${cellGuid}
           </div>
         </div>
-        
-        <!-- Signal strength bar -->
-        <div style="margin-top: 12px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="font-size: 10px; color: #94a3b8;">Signal Quality</span>
-            <span style="font-size: 10px; color: ${signalColor}; font-weight: 600;">${signalLabel}</span>
+
+        <div style="padding: 5px 8px; background: #f1f5f9; border-radius: 6px;">
+          <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Area Study</div>
+          <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${areaStudyText}">
+            ${areaStudyText}
           </div>
-          <div style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+        </div>
+
+        <div style="padding: 5px 8px; background: #f1f5f9; border-radius: 6px;">
+          <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Location</div>
+          <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${locationText}">
+            ${locationText}
+          </div>
+          ${addressText ? `<div style="color: #64748b; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;" title="${addressText}">${addressText}</div>` : ""}
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Network</div>
+            <div style="color: #2563eb; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${networkDisplay}</div>
+          </div>
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Tech / Band</div>
+            <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${techBandText}</div>
+          </div>
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Frequency</div>
+            <div style="color: #1e293b; font-weight: 500;">${frequency}</div>
+          </div>
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Azimuth</div>
+            <div style="color: #1e293b; font-weight: 500;">${azimuthText}</div>
+          </div>
+        </div>
+
+        <!-- Signal strength bar -->
+        <div style="margin-top: 2px;">
+          <div style="height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
             <div style="
-              height: 100%; 
+              height: 100%;
               width: ${Math.max(0, Math.min(100, ((strength + 120) / 60) * 100))}%;
               background: linear-gradient(90deg, ${signalColor}, ${signalColor}aa);
-              border-radius: 3px;
-              transition: width 0.3s;
+              border-radius: 2px;
             "></div>
           </div>
         </div>

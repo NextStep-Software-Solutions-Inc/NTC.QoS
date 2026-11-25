@@ -1051,8 +1051,15 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     // Reset cleanup flag at the start of the effect lifecycle
     isCleaningUpRef.current = false;
 
-    // Create popup instance for signal coverage
-    const popup = new Popup({ closeButton: true, closeOnClick: true, maxWidth: "320px" });
+    // Create popup instance for signal coverage (closeOnClick: false so pinned popups stay open until manually closed)
+    const popup = new Popup({ closeButton: true, closeOnClick: false, maxWidth: "320px" });
+    let isPopupPinned = false;
+    let isUpdatingPopup = false;
+    popup.on("close", () => {
+      if (!isUpdatingPopup) {
+        isPopupPinned = false;
+      }
+    });
 
     // Add or update cells source (clustered)
     const addCellsSource = () => {
@@ -1405,6 +1412,30 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     };
 
     // Hover & click handlers for signal coverage points (admin-only)
+    const renderSignalCoverageFeaturePopup = (e: any, feature: any) => {
+      const properties = feature.properties as any;
+      if (!properties) return;
+
+      const coordinates = (feature.geometry as any).coordinates.slice();
+
+      // Ensure the popup appears over the correct feature
+      while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+        coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+      }
+
+      isUpdatingPopup = true;
+      try {
+        popup
+          .setLngLat(coordinates)
+          .setHTML(createSignalCoveragePopupHTML(properties, configuredSignalLevelsRef.current));
+        if (!popup.isOpen()) {
+          popup.addTo(map);
+        }
+      } finally {
+        isUpdatingPopup = false;
+      }
+    };
+
     const handleSignalCoverageMouseMove = (e: any) => {
       if (!options?.isAdminMode) return;
       const features = map.queryRenderedFeatures(e.point, { layers: ["signal-coverage-circles"] });
@@ -1412,21 +1443,19 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         const feature = features[0];
         if (!feature) return;
         map.getCanvas().style.cursor = "pointer";
-        const properties = feature.properties as any;
+        if (isPopupPinned) return;
+        renderSignalCoverageFeaturePopup(e, feature);
+      }
+    };
 
-        if (properties) {
-          const coordinates = (feature.geometry as any).coordinates.slice();
-
-          // Ensure the popup appears over the correct feature
-          while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
-          }
-
-          popup
-            .setLngLat(coordinates)
-            .setHTML(createSignalCoveragePopupHTML(properties, configuredSignalLevelsRef.current))
-            .addTo(map);
-        }
+    const handleSignalCoverageClick = (e: any) => {
+      if (!options?.isAdminMode) return;
+      const features = map.queryRenderedFeatures(e.point, { layers: ["signal-coverage-circles"] });
+      if (features && features.length > 0) {
+        const feature = features[0];
+        if (!feature) return;
+        renderSignalCoverageFeaturePopup(e, feature);
+        isPopupPinned = true;
       }
     };
 
@@ -1494,7 +1523,9 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     const handleSignalCoverageLeave = () => {
       if (options?.isAdminMode) {
         map.getCanvas().style.cursor = "";
-        popup.remove();
+        if (!isPopupPinned) {
+          popup.remove();
+        }
       }
     };
 
@@ -1587,7 +1618,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
 
     // Attach signal coverage handlers (admin-only)
     if (options?.isAdminMode) {
-      map.on("click", "signal-coverage-circles", handleSignalCoverageMouseMove);
+      map.on("click", "signal-coverage-circles", handleSignalCoverageClick);
       map.on("mousemove", "signal-coverage-circles", handleSignalCoverageMouseMove);
       map.on("click", "signal-coverage-grid-fill", handleSignalCoverageGridClick);
       map.on("click", handleSignalCoverageInterpolatedMapClick);
@@ -1662,7 +1693,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       map.off("click", "cells-symbols", handleCellClick);
 
       if (options?.isAdminMode) {
-        map.off("click", "signal-coverage-circles", handleSignalCoverageMouseMove);
+        map.off("click", "signal-coverage-circles", handleSignalCoverageClick);
         map.off("mousemove", "signal-coverage-circles", handleSignalCoverageMouseMove);
         map.off("click", "signal-coverage-grid-fill", handleSignalCoverageGridClick);
         map.off("click", handleSignalCoverageInterpolatedMapClick);
@@ -1819,15 +1850,22 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     }
 
     if (options.serviceProviderIds && options.serviceProviderIds.length > 0) {
-      const selectedNames = options.serviceProviderIds
-        .map((id) => providerNameById.get(id)?.toLowerCase())
-        .filter((n): n is string => Boolean(n));
+      const selectedTokens = Array.from(
+        new Set(
+          options.serviceProviderIds
+            .map((id) => providerNameById.get(id))
+            .filter((n): n is string => Boolean(n))
+            .flatMap((name) => getProviderLookupTokens(name)),
+        ),
+      );
 
-      if (selectedNames.length > 0) {
+      if (selectedTokens.length > 0) {
+        const tileProviderExpr: any = ["downcase", ["coalesce", ["get", "network"], ["get", "provider"], ""]];
         filterExpression.push([
           "any",
           ["in", ["coalesce", ["get", "networkProviderId"], ""], ["literal", options.serviceProviderIds]],
-          ["in", ["downcase", ["coalesce", ["get", "network"], ["get", "provider"], ""]], ["literal", selectedNames]],
+          ["in", tileProviderExpr, ["literal", selectedTokens]],
+          ...selectedTokens.map((token) => [">=", ["index-of", token, tileProviderExpr], 0]),
         ]);
       } else {
         filterExpression.push(["in", ["coalesce", ["get", "networkProviderId"], ""], ["literal", options.serviceProviderIds]]);
