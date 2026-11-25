@@ -1099,10 +1099,21 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
         const maptilerCoverageUrl = dynamicCoverageUrl || process.env.NEXT_PUBLIC_MAPTILER_COVERAGE_URL;
         if (coverageSourceType === "maptiler" && maptilerCoverageUrl) {
           if (!map.getSource("signal-coverage-source")) {
-            map.addSource("signal-coverage-source", {
-              type: "vector",
-              url: maptilerCoverageUrl,
-            });
+            const isXyzTemplate = /\{z\}|\{x\}|\{y\}/i.test(maptilerCoverageUrl);
+            map.addSource(
+              "signal-coverage-source",
+              isXyzTemplate
+                ? {
+                    type: "vector",
+                    tiles: [maptilerCoverageUrl],
+                    minzoom: 0,
+                    maxzoom: 14,
+                  }
+                : {
+                    type: "vector",
+                    url: maptilerCoverageUrl,
+                  },
+            );
           }
         } else if (signalCoverageData) {
           if (!map.getSource("signal-coverage-source")) {

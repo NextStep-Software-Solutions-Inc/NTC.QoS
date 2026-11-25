@@ -243,32 +243,6 @@ export const FilterPanel = memo(function FilterPanel({ className }: FilterPanelP
     }
   }, [allConfiguredSignalLevels, updatePending]);
 
-  useEffect(() => {
-    if (!selectedAreaStudy || signalLevelEntries.length === 0) return;
-
-    if (selectedSignalLevelEntryIds.length > 0) return;
-
-    const nextEntry = signalLevelEntries[0];
-    if (!nextEntry) return;
-
-    const nextSelectedIds = [nextEntry.id];
-    const ranges = deriveRangesFromSelectedEntries(nextSelectedIds);
-
-    updatePending({
-      signalCoverageSignalLevelEntryIds: nextSelectedIds,
-      signalCoverageSignalLevelRanges: ranges,
-      configuredSignalLevels: allConfiguredSignalLevels,
-      signalStrength: deriveEnvelopeFromRanges(ranges),
-    });
-  }, [
-    allConfiguredSignalLevels,
-    deriveEnvelopeFromRanges,
-    deriveRangesFromSelectedEntries,
-    selectedAreaStudy,
-    selectedSignalLevelEntryIds,
-    signalLevelEntries,
-  ]);
-
   // Transform wireless service providers to options (for cellular & speedtest tabs)
   const wirelessServiceProviders = useMemo<Array<{ id: string; name: string; color?: string }>>(() => {
     if (!wirelessServiceProvidersData?.data) return [];
