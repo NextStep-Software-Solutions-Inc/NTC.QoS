@@ -34,8 +34,14 @@ public class Program
 
         builder.Configuration
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
-            .AddEnvironmentVariables();
+            .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true);
+
+        if (env.IsDevelopment())
+        {
+            builder.Configuration.AddUserSecrets<Program>(optional: true);
+        }
+
+        builder.Configuration.AddEnvironmentVariables();
 
         // Fail-fast configuration validation at startup for Clerk authentication, webhooks, and routing
         builder.Configuration.ValidateClerkConfiguration(env);

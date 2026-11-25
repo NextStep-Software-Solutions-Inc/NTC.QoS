@@ -10,7 +10,8 @@ using NTC.QoS.Domain.Models.DTOs.MapTiler;
 namespace NTC.QoS.Application.Features.CellularCoverage.Handlers.Queries;
 
 public class GetActiveTilesetsHandler(
-    IRepository<CellularCoverageTileset> tilesetRepository)
+    IRepository<CellularCoverageTileset> tilesetRepository,
+    IMapTilerIngestService mapTilerService)
     : IRequestHandler<GetActiveTilesetsQuery, ApiResponse<List<CellularCoverageTilesetDto>>>
 {
     public async Task<ApiResponse<List<CellularCoverageTilesetDto>>> Handle(
@@ -36,7 +37,26 @@ public class GetActiveTilesetsHandler(
             query = query.Where(t => t.ServiceProviderId == request.ServiceProviderId);
         }
 
-        var tilesets = await query.ToListAsync(cancellationToken);
+        var tilesets = await query
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        // In single-tileset mode (DefaultDocumentId configured), a merged tileset covers all regions.
+        // If no region-specific DB record matched, fall back to the latest active Ready tileset overall.
+        if (tilesets.Count == 0 && !string.IsNullOrWhiteSpace(mapTilerService.DefaultDocumentId))
+        {
+            tilesets = await tilesetRepository
+                .Query(t => t.IsActive && t.Status == TilesetStatusEnum.Ready && !string.IsNullOrEmpty(t.TileJsonUrl))
+                .Include(t => t.Region)
+                .Include(t => t.ServiceProvider)
+                    .ThenInclude(sp => sp!.Provider)
+                .Include(t => t.Band)
+                .Include(t => t.Technology)
+                .AsNoTracking()
+                .OrderByDescending(t => t.CreatedAt)
+                .Take(1)
+                .ToListAsync(cancellationToken);
+        }
 
         var dtos = tilesets.Select(t => new CellularCoverageTilesetDto
         {
@@ -60,6 +80,24 @@ public class GetActiveTilesetsHandler(
             IsActive = t.IsActive,
             CreatedAt = t.CreatedAt
         }).ToList();
+
+        // If no Ready tileset exists in the database yet, serve the configured default MapTiler tileset
+        // so MapTiler MBTiles is always the default source rather than falling back to GeoJSON.
+        if (dtos.Count == 0 && !string.IsNullOrWhiteSpace(mapTilerService.DefaultDocumentId))
+        {
+            var defaultDocId = mapTilerService.DefaultDocumentId;
+            dtos.Add(new CellularCoverageTilesetDto
+            {
+                Id = Guid.Empty,
+                Name = "Default Cellular Coverage Tileset",
+                FileName = $"{defaultDocId}.mbtiles",
+                DocumentId = defaultDocId,
+                TileJsonUrl = mapTilerService.GetTileJsonUrl(defaultDocId),
+                Status = TilesetStatusEnum.Ready,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
 
         return new ApiResponse<List<CellularCoverageTilesetDto>>
         {

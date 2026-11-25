@@ -14,7 +14,7 @@ public class MapTilerIngestRequestDto
     public long Size { get; set; }
 
     [JsonPropertyName("supported_upload_types")]
-    public List<string> SupportedUploadTypes { get; set; } = ["google_drive_resumable", "s3_multipart"];
+    public List<string> SupportedUploadTypes { get; set; } = ["google_drive_resumable"];
 
     [JsonPropertyName("output")]
     public MapTilerIngestOutputDto? Output { get; set; } = new();

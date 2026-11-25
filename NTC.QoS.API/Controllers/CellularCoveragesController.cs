@@ -10,6 +10,7 @@ using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json.Serialization;
 using NTC.QoS.API.Authorization;
 using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Interfaces;
 using NTC.QoS.Domain.Models.DTOs.MapTiler;
 
 namespace NTC.QoS.API.Controllers;
@@ -17,7 +18,10 @@ namespace NTC.QoS.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("cellular-coverages", Name = "cellular-coverages")]
-public class CellularCoveragesController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
+public class CellularCoveragesController(
+    IMediator mediator,
+    IMemoryCache memoryCache,
+    IMapTilerIngestService mapTilerIngestService) : ControllerBase
 {
     private const int BrowserCacheDuration = 21600;
     private const string CellularCoverageCachePrefix = "cellularCoverage_";
@@ -136,6 +140,57 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
     }
 
     /// <summary>
+    /// Streams the binary MBTiles payload server-to-server to MapTiler's presigned upload URL,
+    /// avoiding browser CORS restrictions on Google Drive / S3 resumable upload endpoints.
+    /// </summary>
+    [HttpPut("tilesets/{id}/upload")]
+    [RequirePermission(Permissions.UploadFiles)]
+    [DisableRequestSizeLimit]
+    public async Task<ActionResult<ApiResponse<bool>>> UploadTilesetBinary(
+        Guid id,
+        [FromQuery][Required] string uploadUrl,
+        CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(uploadUrl, UriKind.Absolute, out var targetUri) ||
+            targetUri.Scheme != Uri.UriSchemeHttps ||
+            !(targetUri.Host.EndsWith(".googleapis.com", StringComparison.OrdinalIgnoreCase) ||
+              targetUri.Host.EndsWith(".maptiler.com", StringComparison.OrdinalIgnoreCase) ||
+              targetUri.Host.EndsWith(".ovh.net", StringComparison.OrdinalIgnoreCase) ||
+              targetUri.Host.EndsWith(".amazonaws.com", StringComparison.OrdinalIgnoreCase)))
+        {
+            return BadRequest(new ApiResponse<bool>
+            {
+                Succeeded = false,
+                Message = "Invalid MapTiler upload URL.",
+                Data = false
+            });
+        }
+
+        var uploaded = await mapTilerIngestService.UploadBinaryAsync(
+            uploadUrl,
+            Request.Body,
+            Request.ContentLength,
+            cancellationToken);
+
+        if (!uploaded)
+        {
+            return StatusCode(502, new ApiResponse<bool>
+            {
+                Succeeded = false,
+                Message = "Failed to upload binary file to MapTiler storage.",
+                Data = false
+            });
+        }
+
+        return Ok(new ApiResponse<bool>
+        {
+            Succeeded = true,
+            Message = "Binary file uploaded to MapTiler storage.",
+            Data = true
+        });
+    }
+
+    /// <summary>
     /// Notifies the system that client has uploaded binary chunks to MapTiler, triggering processing.
     /// </summary>
     [HttpPost("tilesets/{id}/process")]
@@ -151,6 +206,17 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         };
 
         var result = await mediator.Send(command);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Returns all Cellular Coverage tilesets (all statuses: Uploading, Processing, Ready, Failed) for the Imports table.
+    /// </summary>
+    [HttpGet("tilesets")]
+    public async Task<ActionResult<ApiResponse<List<CellularCoverageTilesetDto>>>> GetTilesets(
+        [FromQuery] Guid? regionId = null)
+    {
+        var result = await mediator.Send(new GetTilesetsQuery { RegionId = regionId });
         return result.Succeeded ? Ok(result) : BadRequest(result);
     }
 

@@ -24,8 +24,12 @@ public class InitTilesetIngestHandler(
         {
             logger.LogInformation("Initiating MapTiler ingest session for file {FileName} ({Size} bytes)", request.FileName, request.FileSize);
 
-            var ingestRes = await mapTilerService.InitIngestAsync(request.FileName, request.FileSize, cancellationToken);
-            if (ingestRes == null || string.IsNullOrWhiteSpace(ingestRes.UploadUrl))
+            var ingestRes = await mapTilerService.InitIngestAsync(
+                request.FileName,
+                request.FileSize,
+                cancellationToken: cancellationToken);
+            var uploadUrl = ingestRes?.EffectiveUploadUrl;
+            if (ingestRes == null || string.IsNullOrWhiteSpace(uploadUrl))
             {
                 return new ApiResponse<InitTilesetIngestResultDto>
                 {
@@ -35,6 +39,10 @@ public class InitTilesetIngestHandler(
                 };
             }
 
+            var resolvedDocumentId = !string.IsNullOrWhiteSpace(ingestRes.DocumentId) && ingestRes.DocumentId != Guid.Empty.ToString()
+                ? ingestRes.DocumentId
+                : mapTilerService.DefaultDocumentId;
+
             var tileset = new CellularCoverageTileset
             {
                 Name = !string.IsNullOrWhiteSpace(request.DisplayName)
@@ -43,6 +51,7 @@ public class InitTilesetIngestHandler(
                 FileName = request.FileName,
                 FileSize = request.FileSize,
                 IngestId = ingestRes.Id,
+                DocumentId = resolvedDocumentId,
                 Status = TilesetStatusEnum.Uploading,
                 RegionId = request.RegionId,
                 ServiceProviderId = request.ServiceProviderId,
@@ -66,7 +75,7 @@ public class InitTilesetIngestHandler(
                 {
                     TilesetId = tileset.Id,
                     IngestId = ingestRes.Id,
-                    UploadUrl = ingestRes.UploadUrl,
+                    UploadUrl = uploadUrl,
                     State = ingestRes.State
                 }
             };

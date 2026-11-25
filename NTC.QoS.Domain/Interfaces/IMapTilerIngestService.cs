@@ -8,9 +8,29 @@ namespace NTC.QoS.Domain.Interfaces;
 public interface IMapTilerIngestService
 {
     /// <summary>
-    /// Initializes a dataset ingestion task on MapTiler Cloud
+    /// Optional configured default MapTiler document_id used for single-tileset replace mode.
+    /// Null when running in multi-tileset mode.
     /// </summary>
-    Task<MapTilerIngestResponseDto?> InitIngestAsync(string fileName, long fileSize, CancellationToken cancellationToken = default);
+    string? DefaultDocumentId { get; }
+
+    /// <summary>
+    /// Initializes a dataset ingestion task on MapTiler Cloud.
+    /// When targetDocumentId (or DefaultDocumentId) is provided, replaces that existing tileset in place.
+    /// </summary>
+    Task<MapTilerIngestResponseDto?> InitIngestAsync(
+        string fileName,
+        long fileSize,
+        string? targetDocumentId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Streams binary file content to the MapTiler presigned upload URL server-to-server (avoids browser CORS issues)
+    /// </summary>
+    Task<bool> UploadBinaryAsync(
+        string uploadUrl,
+        Stream content,
+        long? contentLength,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Triggers processing on MapTiler Cloud after file upload completes
@@ -28,7 +48,7 @@ public interface IMapTilerIngestService
     Task<bool> CancelIngestAsync(string ingestId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Constructs the TileJSON URL for a published MapTiler tileset
+    /// Constructs the TileJSON URL for a published MapTiler tileset, with optional cache-busting token
     /// </summary>
-    string GetTileJsonUrl(string documentId);
+    string GetTileJsonUrl(string documentId, string? cacheBuster = null);
 }

@@ -21,4 +21,11 @@ public class MapTilerOptions
     /// Base URL for MapTiler Admin/Service API (default: https://service.maptiler.com/v1)
     /// </summary>
     public string BaseUrl { get; set; } = "https://service.maptiler.com/v1";
+
+    /// <summary>
+    /// Optional existing MapTiler tileset UUID (document_id) to overwrite on every upload.
+    /// Set this on single-tileset plans to replace the existing custom tileset in place;
+    /// leave empty on higher-tier plans to create a new tileset per upload.
+    /// </summary>
+    public string? DefaultDocumentId { get; set; }
 }

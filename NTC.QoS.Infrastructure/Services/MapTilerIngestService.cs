@@ -32,28 +32,50 @@ public class MapTilerIngestService : IMapTilerIngestService
         _logger = logger;
     }
 
+    public string? DefaultDocumentId =>
+        string.IsNullOrWhiteSpace(_options.DefaultDocumentId) ? null : _options.DefaultDocumentId.Trim();
+
     public async Task<MapTilerIngestResponseDto?> InitIngestAsync(
         string fileName,
         long fileSize,
+        string? targetDocumentId = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
+            var effectiveDocumentId = !string.IsNullOrWhiteSpace(targetDocumentId)
+                ? targetDocumentId.Trim()
+                : DefaultDocumentId;
+
+            var endpoint = !string.IsNullOrWhiteSpace(effectiveDocumentId)
+                ? $"datasets/{Uri.EscapeDataString(effectiveDocumentId)}/ingest"
+                : "datasets/ingest";
+
             var payload = new MapTilerIngestRequestDto
             {
                 Filename = fileName,
                 Size = fileSize,
-                SupportedUploadTypes = ["google_drive_resumable", "s3_multipart"],
+                SupportedUploadTypes = ["google_drive_resumable"],
                 Output = new MapTilerIngestOutputDto { Type = "vector_tileset" }
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "datasets/ingest")
+            var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
             {
                 Content = JsonContent.Create(payload)
             };
             ApplyAuthorization(request);
 
-            _logger.LogInformation("Initiating MapTiler ingest for file {FileName} ({Size} bytes)", fileName, fileSize);
+            if (!string.IsNullOrWhiteSpace(effectiveDocumentId))
+            {
+                _logger.LogInformation(
+                    "Initiating MapTiler replace ingest for file {FileName} ({Size} bytes) targeting DocumentId {DocumentId}",
+                    fileName, fileSize, effectiveDocumentId);
+            }
+            else
+            {
+                _logger.LogInformation("Initiating MapTiler ingest for file {FileName} ({Size} bytes)", fileName, fileSize);
+            }
+
             var response = await _httpClient.SendAsync(request, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -64,13 +86,76 @@ public class MapTilerIngestService : IMapTilerIngestService
             }
 
             var result = await response.Content.ReadFromJsonAsync<MapTilerIngestResponseDto>(JsonOptions, cancellationToken);
-            _logger.LogInformation("MapTiler Ingest initiated successfully. IngestId: {IngestId}", result?.Id);
+            if (result != null)
+            {
+                if (string.IsNullOrWhiteSpace(result.UploadUrl) && !string.IsNullOrWhiteSpace(result.Upload?.Url))
+                {
+                    result.UploadUrl = result.Upload.Url;
+                }
+
+                var isZeroGuid = result.DocumentId == Guid.Empty.ToString();
+                if ((string.IsNullOrWhiteSpace(result.DocumentId) || isZeroGuid) && !string.IsNullOrWhiteSpace(effectiveDocumentId))
+                {
+                    result.DocumentId = effectiveDocumentId;
+                }
+            }
+
+            _logger.LogInformation(
+                "MapTiler Ingest initiated successfully. IngestId: {IngestId}, DocumentId: {DocumentId}",
+                result?.Id, result?.DocumentId);
             return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception while initiating MapTiler ingest for {FileName}", fileName);
             return null;
+        }
+    }
+
+    public async Task<bool> UploadBinaryAsync(
+        string uploadUrl,
+        Stream content,
+        long? contentLength,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var uploadClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromMinutes(30)
+            };
+
+            using var streamContent = new StreamContent(content);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            if (contentLength.HasValue && contentLength.Value > 0)
+            {
+                streamContent.Headers.ContentLength = contentLength.Value;
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Put, uploadUrl)
+            {
+                Content = streamContent
+            };
+
+            _logger.LogInformation("Streaming {Bytes} bytes to MapTiler upload storage", contentLength);
+            using var response = await uploadClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "MapTiler binary upload failed with status {StatusCode}: {Error}",
+                    response.StatusCode, errorContent);
+                return false;
+            }
+
+            _logger.LogInformation("MapTiler binary upload succeeded with status {StatusCode}", response.StatusCode);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception while streaming binary content to MapTiler upload storage");
+            return false;
         }
     }
 
@@ -81,14 +166,13 @@ public class MapTilerIngestService : IMapTilerIngestService
     {
         try
         {
-            object payload = uploadResult != null
-                ? new { upload_result = uploadResult }
-                : new { upload_result = (object)new { type = "google_drive_resumable" } };
-
-            var request = new HttpRequestMessage(HttpMethod.Post, $"datasets/ingest/{ingestId}/process")
+            // For google_drive_resumable uploads, MapTiler expects an empty POST body.
+            // Only send a JSON body when an explicit uploadResult (e.g. s3_multipart ETags) is provided.
+            var request = new HttpRequestMessage(HttpMethod.Post, $"datasets/ingest/{ingestId}/process");
+            if (uploadResult != null)
             {
-                Content = JsonContent.Create(payload)
-            };
+                request.Content = JsonContent.Create(new { upload_result = uploadResult });
+            }
             ApplyAuthorization(request);
 
             _logger.LogInformation("Triggering MapTiler ingest processing for IngestId {IngestId}", ingestId);
@@ -158,10 +242,13 @@ public class MapTilerIngestService : IMapTilerIngestService
         }
     }
 
-    public string GetTileJsonUrl(string documentId)
+    public string GetTileJsonUrl(string documentId, string? cacheBuster = null)
     {
         var apiKey = !string.IsNullOrWhiteSpace(_options.ApiKey) ? _options.ApiKey : "YOUR_MAPTILER_API_KEY";
-        return $"https://api.maptiler.com/tiles/{documentId}/tiles.json?key={apiKey}";
+        var baseUrl = $"https://api.maptiler.com/tiles/{documentId}/tiles.json?key={apiKey}";
+        return !string.IsNullOrWhiteSpace(cacheBuster)
+            ? $"{baseUrl}&v={Uri.EscapeDataString(cacheBuster)}"
+            : baseUrl;
     }
 
     private void ApplyAuthorization(HttpRequestMessage request)

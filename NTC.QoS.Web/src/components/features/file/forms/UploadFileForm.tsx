@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ArrowRight, ChevronDown, Download, FileText, HelpCircle, Layers, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronDown, Download, ExternalLink, FileText, HelpCircle, Layers, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,6 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
   const { region } = useParams<{ region: string }>();
   const [files, setFiles] = useState<File[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isDownloadingTool, setIsDownloadingTool] = useState(false);
   const [selectedProvinceId, setSelectedProvinceId] = useState<string>("");
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState<string>("");
 
@@ -86,7 +85,9 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
 
   const onSuccessHandler = () => {
     void queryClient.invalidateQueries({
-      predicate: (query) => typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("/files"),
+      predicate: (query) =>
+        typeof query.queryKey[0] === "string" &&
+        (query.queryKey[0].startsWith("/files") || query.queryKey[0].startsWith("/cellular-coverages/tilesets")),
     });
     onSuccess?.();
     onClose?.();
@@ -122,14 +123,20 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
 
             const { tilesetId, uploadUrl } = initRes.data;
 
-            // 2. Direct binary upload to MapTiler storage
-            const uploadRes = await fetch(uploadUrl, {
-              method: "PUT",
-              body: file,
-              headers: {
-                "Content-Type": "application/octet-stream",
-              },
-            });
+            // 2. Stream binary upload through backend proxy to MapTiler storage (avoids browser CORS issues)
+            const backendUrl = getBackendUrl();
+            const authHeaders = await getAuthHeadersAsync();
+            const uploadRes = await fetch(
+              `${backendUrl}/cellular-coverages/tilesets/${tilesetId}/upload?uploadUrl=${encodeURIComponent(uploadUrl)}`,
+              {
+                method: "PUT",
+                body: file,
+                headers: {
+                  "Content-Type": "application/octet-stream",
+                  ...authHeaders,
+                },
+              }
+            );
 
             if (!uploadRes.ok) {
               throw new Error(`Failed to upload to MapTiler storage (Status ${uploadRes.status})`);
@@ -243,48 +250,7 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     }
   };
 
-  const handleDownloadConversionTool = async () => {
-    setIsDownloadingTool(true);
-    try {
-      const backendUrl = getBackendUrl();
-      const endpoint = `${backendUrl}/files/download/converter-tool`;
-      const authHeaders = await getAuthHeadersAsync();
-      const response = await fetch(endpoint, {
-        method: "GET",
-        headers: {
-          ...authHeaders,
-        },
-      });
-
-      if (!response.ok) {
-        toast.info("Conversion Tool executable will be downloadable here once finalized by the tools team.", {
-          description: "Supported formats right now: .mbtiles, .geojson, .gpkg",
-          duration: 5000,
-        });
-        return;
-      }
-
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = "ntc-rp3-converter.zip";
-      document.body.appendChild(link);
-      link.click();
-      if (link.parentNode) {
-        link.parentNode.removeChild(link);
-      }
-      window.URL.revokeObjectURL(blobUrl);
-      toast.success("Converter tool downloaded successfully");
-    } catch {
-      toast.info("Conversion Tool will be available once the converter build is completed by the tools team.", {
-        description: "You can upload existing .mbtiles or .geojson files directly.",
-        duration: 5000,
-      });
-    } finally {
-      setIsDownloadingTool(false);
-    }
-  };
+  const TILEANVIL_URL = "https://tileanvil.vercel.app/";
 
   const handleRemoveFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -511,22 +477,14 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
               </div>
 
               <Button
-                type="button"
+                asChild
                 size="sm"
-                onClick={handleDownloadConversionTool}
-                disabled={isDownloadingTool}
                 className="bg-violet-600 hover:bg-violet-700 text-white shadow-sm font-medium h-8 px-3 text-xs gap-1.5 transition-all">
-                {isDownloadingTool ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Downloading...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-3.5 w-3.5" />
-                    Download Converter Tool
-                  </>
-                )}
+                <a href={TILEANVIL_URL} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3.5 w-3.5" />
+                  Download Converter Tool
+                  <ExternalLink className="h-3 w-3 opacity-80" />
+                </a>
               </Button>
             </div>
 
@@ -534,18 +492,29 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-violet-100 dark:border-violet-900/40 text-[11px]">
               <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">1</span>
-                <span>Convert CSV locally</span>
+                <span>Merge &amp; convert locally</span>
               </div>
               <ArrowRight className="h-3 w-3 text-violet-400 shrink-0" />
               <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">2</span>
-                <span>Upload .mbtiles here</span>
+                <span>Upload 1 .mbtiles here</span>
               </div>
               <ArrowRight className="h-3 w-3 text-violet-400 shrink-0" />
               <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">3</span>
                 <span>Render on Map</span>
               </div>
+            </div>
+
+            {/* Single-tileset replace notice */}
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200/80 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-2.5 py-2 text-[11px] text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <p className="leading-snug">
+                <span className="font-semibold">Single custom tileset active:</span> Uploading a new{" "}
+                <code className="font-mono text-[10px]">.mbtiles</code> file replaces the existing coverage tileset.
+                Use TileAnvil&apos;s <span className="font-semibold">Merge into Single File</span> mode to combine all
+                coverage datasets into one <code className="font-mono text-[10px]">.mbtiles</code> before uploading.
+              </p>
             </div>
 
           </div>

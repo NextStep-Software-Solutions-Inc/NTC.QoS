@@ -66,16 +66,36 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
             "MapTiler Ingest {IngestId} state: {State}, Progress: {Progress}%",
             ingestId, state, details.Progress);
 
-        if (state == "completed" || !string.IsNullOrWhiteSpace(details.DocumentId))
+        var validDetailsDocumentId = !string.IsNullOrWhiteSpace(details.DocumentId) && details.DocumentId != Guid.Empty.ToString()
+            ? details.DocumentId
+            : null;
+        var isInProgress = state is "upload" or "processing" or "queued";
+        var isCompleted = state == "completed" || (!isInProgress && string.IsNullOrWhiteSpace(state) && validDetailsDocumentId != null);
+
+        if (isCompleted)
         {
-            var documentId = details.DocumentId ?? tileset.DocumentId;
+            var documentId = validDetailsDocumentId ?? tileset.DocumentId ?? _mapTilerService.DefaultDocumentId;
             tileset.DocumentId = documentId;
             tileset.Status = TilesetStatusEnum.Ready;
             tileset.ErrorMessage = null;
 
             if (!string.IsNullOrWhiteSpace(documentId))
             {
-                tileset.TileJsonUrl = _mapTilerService.GetTileJsonUrl(documentId);
+                var cacheBuster = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+                tileset.TileJsonUrl = _mapTilerService.GetTileJsonUrl(documentId, cacheBuster);
+
+                // In single-tileset replace mode (or when overwriting the same DocumentId),
+                // deactivate superseded active tileset records so /tilesets/active returns only the latest one.
+                var isReplaceMode = !string.IsNullOrWhiteSpace(_mapTilerService.DefaultDocumentId);
+                var supersededTilesets = await _tilesetRepository
+                    .Query(t => t.Id != tileset.Id && t.IsActive && (isReplaceMode || t.DocumentId == documentId))
+                    .ToListAsync(cancellationToken);
+
+                foreach (var oldTileset in supersededTilesets)
+                {
+                    oldTileset.IsActive = false;
+                    _tilesetRepository.Update(oldTileset);
+                }
             }
 
             _tilesetRepository.Update(tileset);
@@ -87,7 +107,7 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
             return;
         }
 
-        if (state == "error" || state == "canceled")
+        if (state == "error" || state == "failed" || state == "canceled")
         {
             tileset.Status = TilesetStatusEnum.Failed;
             tileset.ErrorMessage = details.Errors?.ToString() ?? $"MapTiler ingestion ended with state: {state}";
