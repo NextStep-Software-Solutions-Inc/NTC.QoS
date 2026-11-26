@@ -1331,7 +1331,13 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     isCleaningUpRef.current = false;
 
     // Create popup instance for signal coverage (closeOnClick: false so pinned popups stay open until manually closed)
-    const popup = new Popup({ closeButton: true, closeOnClick: false, maxWidth: "320px" });
+    const popup = new Popup({
+      closeButton: true,
+      closeOnClick: false,
+      focusAfterOpen: false,
+      maxWidth: "320px",
+      className: "signal-coverage-popup",
+    });
     let isPopupPinned = false;
     let isUpdatingPopup = false;
     popup.on("close", () => {

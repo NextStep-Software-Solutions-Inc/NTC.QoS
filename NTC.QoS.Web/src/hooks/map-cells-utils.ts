@@ -373,7 +373,7 @@ export function createSignalCoveragePopupHTML(
       <!-- Compact Header -->
       <div style="
         background: linear-gradient(135deg, ${signalColor}ee, ${signalColor}cc);
-        padding: 8px 24px 8px 10px;
+        padding: 10px 42px 10px 10px;
         color: white;
       ">
         <div style="display: flex; align-items: center; gap: 8px;">
