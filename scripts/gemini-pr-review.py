@@ -7,7 +7,12 @@ from google import genai
 
 def main():
     gemini_api_key = os.getenv("GEMINI_API_KEY")
-    github_token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    gh_token = os.getenv("GH_TOKEN") or ""
+    default_github_token = os.getenv("GITHUB_TOKEN") or ""
+    candidate_tokens = []
+    for token in (gh_token, default_github_token):
+        if token and token not in candidate_tokens:
+            candidate_tokens.append(token)
     pr_number = os.getenv("PR_NUMBER")
     pr_title = os.getenv("PR_TITLE", "N/A")
     pr_body = os.getenv("PR_BODY", "N/A")
@@ -19,8 +24,8 @@ def main():
         print("::error::GEMINI_API_KEY secret is missing. Please add GEMINI_API_KEY to repository secrets.")
         sys.exit(1)
 
-    if not github_token:
-        print("::error::GH_TOKEN secret is missing. Please add GH_TOKEN to repository secrets.")
+    if not candidate_tokens:
+        print("::error::GH_TOKEN and GITHUB_TOKEN are both missing.")
         sys.exit(1)
 
     if not pr_number or not repo:
@@ -115,24 +120,35 @@ def main():
 
     # Submit Official PR Review (APPROVE, REQUEST_CHANGES, or COMMENT) via GitHub REST API
     reviews_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
-    headers = {
-        "Authorization": f"Bearer {github_token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    payload = {
-        "body": review_markdown,
-        "event": event_decision
-    }
 
-    res = requests.post(reviews_url, headers=headers, json=payload)
-    if res.status_code not in (200, 201) and payload["event"] != "COMMENT":
-        print(f"::warning::Submitting PR review with event '{payload['event']}' failed ({res.status_code}): {res.text}. Retrying with 'COMMENT' event...")
-        payload["event"] = "COMMENT"
-        res = requests.post(reviews_url, headers=headers, json=payload)
+    def post_review(token: str, event: str):
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        return requests.post(
+            reviews_url,
+            headers=headers,
+            json={"body": review_markdown, "event": event},
+        )
+
+    active_token = candidate_tokens[0]
+    active_event = event_decision
+    res = post_review(active_token, active_event)
+
+    if res.status_code == 401 and len(candidate_tokens) > 1:
+        print("::warning::GH_TOKEN returned 401 Bad credentials. Falling back to GITHUB_TOKEN...")
+        active_token = candidate_tokens[1]
+        res = post_review(active_token, active_event)
+
+    if res.status_code not in (200, 201) and active_event != "COMMENT":
+        print(f"::warning::Submitting PR review with event '{active_event}' failed ({res.status_code}): {res.text}. Retrying with 'COMMENT' event...")
+        active_event = "COMMENT"
+        res = post_review(active_token, active_event)
 
     if res.status_code in (200, 201):
-        print(f"Successfully submitted PR Review ({payload['event']}) to PR #{pr_number}!")
+        print(f"Successfully submitted PR Review ({active_event}) to PR #{pr_number}!")
     else:
         print(f"::error::Failed to submit PR review ({res.status_code}): {res.text}")
         sys.exit(1)
