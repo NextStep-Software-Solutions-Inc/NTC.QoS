@@ -301,8 +301,10 @@ const estimateNativeGridSpacing = (
   const sampled: Array<[number, number]> = [];
   for (let i = 0; i < features.length; i += sampleStride) {
     const coords = features[i]?.geometry.coordinates;
-    if (coords && Number.isFinite(coords[0]) && Number.isFinite(coords[1])) {
-      sampled.push([coords[0], coords[1]]);
+    const lng = coords?.[0];
+    const lat = coords?.[1];
+    if (typeof lng === "number" && typeof lat === "number" && Number.isFinite(lng) && Number.isFinite(lat)) {
+      sampled.push([lng, lat]);
     }
   }
 
