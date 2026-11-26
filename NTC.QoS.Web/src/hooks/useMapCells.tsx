@@ -135,8 +135,11 @@ const EMPTY_POLYGON_COLLECTION: SignalCoveragePolygonCollection = { type: "Featu
 const EMPTY_GRID_COLLECTION: SignalCoverageGridCollection = { type: "FeatureCollection", features: [] };
 const INTERPOLATION_SEARCH_RADIUS_PX = 120;
 const MAX_INTERPOLATION_DISTANCE_KM = 5;
-const MAX_VIEWPORT_SHAPER_POINTS = 4000;
-const GRID_MIN_ZOOM = 11;
+const MAX_VIEWPORT_SHAPER_POINTS = 25000;
+const GRID_MIN_ZOOM = 6;
+const MIN_GRID_CELL_PX = 20;
+const MIN_GRID_CELL_DEG = 0.0002;
+const MAX_GRID_CELL_DEG = 0.05;
 
 const getFeatureSignalStrength = (properties: Record<string, unknown> | null | undefined): number | undefined => {
   if (!properties) return undefined;
@@ -168,8 +171,7 @@ const extractRenderedSignalPoints = (
 
   if (!Array.isArray(rawFeatures) || rawFeatures.length === 0) return [];
 
-  const deduped: GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>>[] = [];
-  const seen = new Set<string>();
+  const dedupedByCoord = new Map<string, GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>>>();
 
   for (const feature of rawFeatures) {
     if (feature?.geometry?.type !== "Point") continue;
@@ -183,17 +185,20 @@ const extractRenderedSignalPoints = (
     if (strength === undefined) continue;
 
     const key = `${lng.toFixed(6)},${lat.toFixed(6)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const existing = dedupedByCoord.get(key);
+    if (existing) {
+      const existingStrength = getFeatureSignalStrength(existing.properties) ?? -Infinity;
+      if (strength <= existingStrength) continue;
+    }
 
-    deduped.push({
+    dedupedByCoord.set(key, {
       type: "Feature",
       geometry: { type: "Point", coordinates: [lng, lat] },
       properties: { ...props, strength },
     });
   }
 
-  return deduped;
+  return Array.from(dedupedByCoord.values());
 };
 
 const getSignalColorFromValue = (value: number, configuredLevels?: ConfiguredSignalLevel[]): string => {
@@ -237,23 +242,6 @@ const calculateMedian = (values: number[]): number => {
 
 const isSameCoordinate = (a: [number, number], b: [number, number]): boolean =>
   Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
-
-const medianStep = (values: number[]): number => {
-  if (values.length < 2) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const diffs: number[] = [];
-  for (let i = 1; i < sorted.length; i++) {
-    const diff = Math.abs((sorted[i] as number) - (sorted[i - 1] as number));
-    if (diff > 0) diffs.push(diff);
-  }
-  if (diffs.length === 0) return 0;
-  const ordered = diffs.sort((a, b) => a - b);
-  const mid = Math.floor(ordered.length / 2);
-  if (ordered.length % 2 === 0) {
-    return ((ordered[mid - 1] as number) + (ordered[mid] as number)) / 2;
-  }
-  return ordered[mid] as number;
-};
 
 const estimateIDWStrength = (
   lng: number,
@@ -301,40 +289,167 @@ const estimateIDWStrength = (
   return weighted / weightSum;
 };
 
-const buildInterpolatedCoverageGrid = (
-  points: SignalCoverageFeatureCollection,
-  configuredLevels?: ConfiguredSignalLevel[],
-): SignalCoverageGridCollection => {
-  const features = points.features;
-  if (features.length === 0) {
-    return EMPTY_GRID_COLLECTION;
+const estimateNativeGridSpacing = (
+  features: GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>>[],
+): { stepLng: number; stepLat: number } => {
+  if (features.length < 2) {
+    return { stepLng: 0.004, stepLat: 0.004 };
   }
 
-  const uniqueLng = Array.from(
-    new Set(features.map((f) => f.geometry.coordinates[0]).filter((v): v is number => typeof v === "number")),
-  );
-  const uniqueLat = Array.from(
-    new Set(features.map((f) => f.geometry.coordinates[1]).filter((v): v is number => typeof v === "number")),
-  );
-  const stepLng = Math.min(Math.max(medianStep(uniqueLng) || 0.004, 0.0005), 0.02);
-  const stepLat = Math.min(Math.max(medianStep(uniqueLat) || 0.004, 0.0005), 0.02);
+  const maxSample = 250;
+  const sampleStride = features.length > maxSample ? Math.ceil(features.length / maxSample) : 1;
+  const sampled: Array<[number, number]> = [];
+  for (let i = 0; i < features.length; i += sampleStride) {
+    const coords = features[i]?.geometry.coordinates;
+    if (coords && Number.isFinite(coords[0]) && Number.isFinite(coords[1])) {
+      sampled.push([coords[0], coords[1]]);
+    }
+  }
+
+  if (sampled.length < 2) {
+    return { stepLng: 0.004, stepLat: 0.004 };
+  }
+
+  const axisTolerance = 1e-4;
+  const dupTolerance = 1e-7;
+  const rowGaps: number[] = [];
+  const colGaps: number[] = [];
+  const nearestDists: number[] = [];
+
+  for (let i = 0; i < sampled.length; i++) {
+    const [lngA, latA] = sampled[i]!;
+    let minDx = Infinity;
+    let minDy = Infinity;
+    let minDist = Infinity;
+
+    for (let j = 0; j < sampled.length; j++) {
+      if (i === j) continue;
+      const [lngB, latB] = sampled[j]!;
+      const dx = Math.abs(lngB - lngA);
+      const dy = Math.abs(latB - latA);
+
+      if (dx < dupTolerance && dy < dupTolerance) continue;
+
+      if (dy <= axisTolerance && dx > dupTolerance && dx < minDx) {
+        minDx = dx;
+      }
+      if (dx <= axisTolerance && dy > dupTolerance && dy < minDy) {
+        minDy = dy;
+      }
+      const dist = Math.hypot(dx, dy);
+      if (dist > dupTolerance && dist < minDist) {
+        minDist = dist;
+      }
+    }
+
+    if (Number.isFinite(minDx)) rowGaps.push(minDx);
+    if (Number.isFinite(minDy)) colGaps.push(minDy);
+    if (Number.isFinite(minDist)) nearestDists.push(minDist);
+  }
+
+  const fallbackDist = nearestDists.length > 0 ? calculateMedian(nearestDists) : 0.004;
+  const stepLng = rowGaps.length >= 2 ? calculateMedian(rowGaps) : fallbackDist;
+  const stepLat = colGaps.length >= 2 ? calculateMedian(colGaps) : fallbackDist;
+
+  return {
+    stepLng: Number.isFinite(stepLng) && stepLng > 0 ? stepLng : 0.004,
+    stepLat: Number.isFinite(stepLat) && stepLat > 0 ? stepLat : 0.004,
+  };
+};
+
+type GridBin = {
+  col: number;
+  row: number;
+  centerLng: number;
+  centerLat: number;
+  strengths: number[];
+  sampleProps: Record<string, unknown>;
+};
+
+const buildCoverageShapes = (
+  points: SignalCoverageFeatureCollection,
+  zoom: number,
+  configuredLevels?: ConfiguredSignalLevel[],
+): { grid: SignalCoverageGridCollection; polygons: SignalCoveragePolygonCollection } => {
+  const features = points.features;
+  if (features.length === 0) {
+    return { grid: EMPTY_GRID_COLLECTION, polygons: EMPTY_POLYGON_COLLECTION };
+  }
+
+  let latSum = 0;
+  let validCount = 0;
+  let anchorLng: number | undefined;
+  let anchorLat: number | undefined;
+
+  for (const feature of features) {
+    const lng = feature.geometry.coordinates[0];
+    const lat = feature.geometry.coordinates[1];
+    if (lng === undefined || lat === undefined || !Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+    if (anchorLng === undefined) {
+      anchorLng = lng;
+      anchorLat = lat;
+    }
+    latSum += lat;
+    validCount += 1;
+  }
+
+  if (validCount === 0 || anchorLng === undefined || anchorLat === undefined) {
+    return { grid: EMPTY_GRID_COLLECTION, polygons: EMPTY_POLYGON_COLLECTION };
+  }
+
+  const avgLat = latSum / validCount;
+  const cosLat = Math.max(Math.cos((avgLat * Math.PI) / 180), 0.2);
+  const degPerPx = 360 / (256 * Math.pow(2, Math.max(zoom, 1)));
+  const minVisualLng = degPerPx * MIN_GRID_CELL_PX;
+  const minVisualLat = minVisualLng * cosLat;
+
+  const native = estimateNativeGridSpacing(features);
+  const stepLng = Math.min(Math.max(native.stepLng, minVisualLng, MIN_GRID_CELL_DEG), MAX_GRID_CELL_DEG);
+  const stepLat = Math.min(Math.max(native.stepLat, minVisualLat, MIN_GRID_CELL_DEG), MAX_GRID_CELL_DEG);
   const halfLng = stepLng / 2;
   const halfLat = stepLat / 2;
 
-  const gridFeatures: SignalCoverageGridCollection["features"] = [];
+  // Anchor grid so a regular-lattice cellsite centers each square directly on its measured point
+  const originLng = anchorLng - halfLng;
+  const originLat = anchorLat - halfLat;
+
+  const bins = new Map<string, GridBin>();
+
   for (const feature of features) {
     const lng = feature.geometry.coordinates[0];
     const lat = feature.geometry.coordinates[1];
     if (lng === undefined || lat === undefined || !Number.isFinite(lng) || !Number.isFinite(lat)) continue;
 
-    const measuredStrength = getFeatureSignalStrength(feature.properties) ?? -120;
+    const col = Math.floor((lng - originLng) / stepLng);
+    const row = Math.floor((lat - originLat) / stepLat);
+    const binKey = `${col},${row}`;
+    const strength = getFeatureSignalStrength(feature.properties) ?? -120;
 
+    const existing = bins.get(binKey);
+    if (!existing) {
+      bins.set(binKey, {
+        col,
+        row,
+        centerLng: originLng + (col + 0.5) * stepLng,
+        centerLat: originLat + (row + 0.5) * stepLat,
+        strengths: [strength],
+        sampleProps: feature.properties ?? {},
+      });
+    } else {
+      existing.strengths.push(strength);
+    }
+  }
+
+  const gridFeatures: SignalCoverageGridCollection["features"] = [];
+  for (const bin of bins.values()) {
+    const cellStrength =
+      bin.strengths.length === 1 ? (bin.strengths[0] as number) : calculateMedian(bin.strengths);
     const ring: [number, number][] = [
-      [lng - halfLng, lat - halfLat],
-      [lng + halfLng, lat - halfLat],
-      [lng + halfLng, lat + halfLat],
-      [lng - halfLng, lat + halfLat],
-      [lng - halfLng, lat - halfLat],
+      [bin.centerLng - halfLng, bin.centerLat - halfLat],
+      [bin.centerLng + halfLng, bin.centerLat - halfLat],
+      [bin.centerLng + halfLng, bin.centerLat + halfLat],
+      [bin.centerLng - halfLng, bin.centerLat + halfLat],
+      [bin.centerLng - halfLng, bin.centerLat - halfLat],
     ];
 
     gridFeatures.push({
@@ -344,92 +459,72 @@ const buildInterpolatedCoverageGrid = (
         coordinates: [ring],
       },
       properties: {
-        ...(feature.properties ?? {}),
-        strength: Number(measuredStrength.toFixed(2)),
-        fillColor: getSignalColorFromValue(measuredStrength, configuredLevels),
-        interpolation_method: "measured-cell",
+        ...bin.sampleProps,
+        strength: Number(cellStrength.toFixed(2)),
+        fillColor: getSignalColorFromValue(cellStrength, configuredLevels),
+        point_count: bin.strengths.length,
+        interpolation_method: bin.strengths.length === 1 ? "measured-cell" : "binned-cell",
       },
     });
   }
 
-  return {
-    type: "FeatureCollection",
-    features: gridFeatures,
-  };
-};
-
-const buildCoveragePolygonsFromPoints = (
-  points: SignalCoverageFeatureCollection,
-  configuredLevels?: ConfiguredSignalLevel[],
-): SignalCoveragePolygonCollection => {
-  const groups = new Map<string, GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>>[]>();
-
-  for (const feature of points.features) {
-    const props = feature.properties ?? {};
-    const key =
-      String(props.area_study ?? props.areaStudy ?? "").trim() ||
-      String(props.source_file ?? "").trim() ||
-      String(props.cell_id ?? "").trim() ||
-      [props.network, props.technology, props.band, props.frequency]
-        .map((part) => String(part ?? "").trim())
-        .filter(Boolean)
-        .join("|") ||
-      "coverage-default";
-
-    const bucket = groups.get(key) ?? [];
-    bucket.push(feature);
-    groups.set(key, bucket);
-  }
-
+  // Split grid bins into spatially connected components (8-neighbor BFS) so disconnected
+  // cellsites/clusters each get their own clean perimeter polygon instead of bridging empty space.
+  const visited = new Set<string>();
   const polygonFeatures: SignalCoveragePolygonCollection["features"] = [];
 
-  for (const [groupKey, groupFeatures] of groups.entries()) {
-    let minGroupLng = Infinity;
-    let maxGroupLng = -Infinity;
-    for (const feature of groupFeatures) {
-      const lng = feature.geometry.coordinates[0];
-      if (lng !== undefined && Number.isFinite(lng)) {
-        if (lng < minGroupLng) minGroupLng = lng;
-        if (lng > maxGroupLng) maxGroupLng = lng;
+  for (const [startKey, startBin] of bins.entries()) {
+    if (visited.has(startKey)) continue;
+
+    const component: GridBin[] = [];
+    const queue: GridBin[] = [startBin];
+    visited.add(startKey);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      component.push(current);
+
+      for (let dc = -1; dc <= 1; dc++) {
+        for (let dr = -1; dr <= 1; dr++) {
+          if (dc === 0 && dr === 0) continue;
+          const neighborKey = `${current.col + dc},${current.row + dr}`;
+          if (visited.has(neighborKey)) continue;
+          const neighbor = bins.get(neighborKey);
+          if (neighbor) {
+            visited.add(neighborKey);
+            queue.push(neighbor);
+          }
+        }
       }
     }
 
-    const spanLng = maxGroupLng - minGroupLng;
-    const bucketSize = spanLng > 0 ? Math.max(spanLng / 48, 1e-4) : 1e-4;
+    if (component.length < 2) continue;
 
-    const columns = new Map<number, { lngSum: number; count: number; minLat: number; maxLat: number }>();
-    const strengths: number[] = [];
+    const columns = new Map<number, { lng: number; minLat: number; maxLat: number }>();
+    const componentStrengths: number[] = [];
 
-    for (const feature of groupFeatures) {
-      const lng = feature.geometry.coordinates[0];
-      const lat = feature.geometry.coordinates[1];
-      if (lng === undefined || lat === undefined || !Number.isFinite(lng) || !Number.isFinite(lat)) continue;
-
-      const bucketKey = Math.round(lng / bucketSize);
-      const existing = columns.get(bucketKey);
-      if (!existing) {
-        columns.set(bucketKey, { lngSum: lng, count: 1, minLat: lat, maxLat: lat });
+    for (const bin of component) {
+      const colEntry = columns.get(bin.col);
+      if (!colEntry) {
+        columns.set(bin.col, { lng: bin.centerLng, minLat: bin.centerLat, maxLat: bin.centerLat });
       } else {
-        existing.lngSum += lng;
-        existing.count += 1;
-        existing.minLat = Math.min(existing.minLat, lat);
-        existing.maxLat = Math.max(existing.maxLat, lat);
+        colEntry.minLat = Math.min(colEntry.minLat, bin.centerLat);
+        colEntry.maxLat = Math.max(colEntry.maxLat, bin.centerLat);
       }
 
-      const strength = getFeatureSignalStrength(feature.properties);
-      if (strength !== undefined) strengths.push(strength);
+      for (const s of bin.strengths) {
+        componentStrengths.push(s);
+      }
     }
 
     if (columns.size < 2) continue;
 
-    const sortedColumns = Array.from(columns.values())
-      .map((col) => ({ lng: col.lngSum / col.count, minLat: col.minLat, maxLat: col.maxLat }))
-      .sort((a, b) => a.lng - b.lng);
-    const topEdge: [number, number][] = sortedColumns.map((column) => [column.lng, column.maxLat]);
-    const bottomEdge: [number, number][] = [...sortedColumns]
-      .reverse()
-      .map((column) => [column.lng, column.minLat]);
+    const sortedColumns = Array.from(columns.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, col]) => col);
 
+    const topEdge: [number, number][] = sortedColumns.map((col) => [col.lng, col.maxLat]);
+    const bottomEdge: [number, number][] = [...sortedColumns].reverse().map((col) => [col.lng, col.minLat]);
     const ring = [...topEdge, ...bottomEdge];
     if (ring.length < 4) continue;
 
@@ -438,12 +533,11 @@ const buildCoveragePolygonsFromPoints = (
     if (!isSameCoordinate(first, last)) {
       ring.push(first);
     }
-
     if (ring.length < 4) continue;
 
-    const medianStrength = calculateMedian(strengths);
+    const medianStrength = calculateMedian(componentStrengths);
     const fillColor = getSignalColorFromValue(medianStrength, configuredLevels);
-    const sample = groupFeatures[0]?.properties ?? {};
+    const sample = component[0]?.sampleProps ?? {};
 
     polygonFeatures.push({
       type: "Feature",
@@ -453,7 +547,6 @@ const buildCoveragePolygonsFromPoints = (
       },
       properties: {
         ...sample,
-        coverage_key: groupKey,
         strength: medianStrength,
         fillColor,
       },
@@ -461,8 +554,14 @@ const buildCoveragePolygonsFromPoints = (
   }
 
   return {
-    type: "FeatureCollection",
-    features: polygonFeatures,
+    grid: {
+      type: "FeatureCollection",
+      features: zoom >= GRID_MIN_ZOOM ? gridFeatures : [],
+    },
+    polygons: {
+      type: "FeatureCollection",
+      features: polygonFeatures,
+    },
   };
 };
 
@@ -1039,24 +1138,11 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     generationIdByName,
   ]);
 
-  // Build polygons and grid for GeoJSON fallback source
-  useEffect(() => {
-    if (coverageSourceType === "maptiler") return;
-
-    if (!signalCoverageData) {
-      setSignalCoveragePolygons(null);
-      setSignalCoverageGrid(null);
-      return;
-    }
-
-    const typedData = signalCoverageData as SignalCoverageFeatureCollection;
-    setSignalCoveragePolygons(buildCoveragePolygonsFromPoints(typedData, options?.configuredSignalLevels));
-    setSignalCoverageGrid(buildInterpolatedCoverageGrid(typedData, options?.configuredSignalLevels));
-  }, [signalCoverageData, coverageSourceType, options?.configuredSignalLevels]);
-
-  // Build viewport-scoped coverage polygons & interpolated grid from MapTiler vector tile features on map idle
+  // Build viewport-scoped coverage polygons & uniform square grid from rendered signal points
+  // Works identically for both MapTiler vector tiles and GeoJSON fallback sources, and automatically
+  // respects all active filters (provider, generation 2G/3G/4G/5G, area study, signal range, search).
   const rebuildViewportCoverageShapes = useCallback(() => {
-    if (!map || !isMapLoaded || !options?.isAdminMode || coverageSourceType !== "maptiler") return;
+    if (!map || !isMapLoaded || !options?.isAdminMode || !coverageSourceType) return;
     if (!normalizedConfigRef.current.signalCoverage) {
       setSignalCoveragePolygons(EMPTY_POLYGON_COLLECTION);
       setSignalCoverageGrid(EMPTY_GRID_COLLECTION);
@@ -1070,7 +1156,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       return;
     }
 
-    // Uniformly stride-sample if the viewport contains too many points so UI remains responsive
+    // Uniformly stride-sample only if the viewport exceeds the high binning cap
     let sampledPoints = renderedPoints;
     if (renderedPoints.length > MAX_VIEWPORT_SHAPER_POINTS) {
       const stride = Math.ceil(renderedPoints.length / MAX_VIEWPORT_SHAPER_POINTS);
@@ -1083,16 +1169,13 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     };
 
     const levels = configuredSignalLevelsRef.current;
-    setSignalCoveragePolygons(buildCoveragePolygonsFromPoints(pointCollection, levels));
-    setSignalCoverageGrid(
-      map.getZoom() >= GRID_MIN_ZOOM
-        ? buildInterpolatedCoverageGrid(pointCollection, levels)
-        : EMPTY_GRID_COLLECTION,
-    );
+    const { grid, polygons } = buildCoverageShapes(pointCollection, map.getZoom(), levels);
+    setSignalCoveragePolygons(polygons);
+    setSignalCoverageGrid(grid);
   }, [map, isMapLoaded, options?.isAdminMode, coverageSourceType]);
 
   useEffect(() => {
-    if (!map || !isMapLoaded || !options?.isAdminMode || coverageSourceType !== "maptiler") return;
+    if (!map || !isMapLoaded || !options?.isAdminMode || !coverageSourceType) return;
 
     if (!normalizedConfig.signalCoverage) {
       setSignalCoveragePolygons(EMPTY_POLYGON_COLLECTION);
@@ -1120,6 +1203,7 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
     isMapLoaded,
     options?.isAdminMode,
     coverageSourceType,
+    signalCoverageData,
     normalizedConfig.signalCoverage,
     options?.configuredSignalLevels,
     rebuildViewportCoverageShapes,
@@ -2192,24 +2276,16 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       applyFilter("signal-coverage-polygon-fill", null);
       applyFilter("signal-coverage-polygon-border", null);
       applyFilter("signal-coverage-grid-fill", null);
-      if (coverageSourceType === "maptiler") {
-        setTimeout(() => rebuildViewportCoverageShapes(), 150);
-      }
+      setTimeout(() => rebuildViewportCoverageShapes(), 150);
       return;
     }
 
     applyFilter("signal-coverage-circles", filterExpression as any);
-    if (coverageSourceType === "maptiler") {
-      // Derived polygon/grid layers are built from already-filtered rendered circles
-      applyFilter("signal-coverage-polygon-fill", null);
-      applyFilter("signal-coverage-polygon-border", null);
-      applyFilter("signal-coverage-grid-fill", null);
-      setTimeout(() => rebuildViewportCoverageShapes(), 150);
-    } else {
-      applyFilter("signal-coverage-polygon-fill", filterExpression as any);
-      applyFilter("signal-coverage-polygon-border", filterExpression as any);
-      applyFilter("signal-coverage-grid-fill", filterExpression as any);
-    }
+    // Derived polygon/grid layers are always built from the already-filtered rendered circles
+    applyFilter("signal-coverage-polygon-fill", null);
+    applyFilter("signal-coverage-polygon-border", null);
+    applyFilter("signal-coverage-grid-fill", null);
+    setTimeout(() => rebuildViewportCoverageShapes(), 150);
   }, [
     map,
     isMapLoaded,

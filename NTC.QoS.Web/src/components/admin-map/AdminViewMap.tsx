@@ -107,6 +107,9 @@ function useLayerOpacity() {
     // Apply opacity to signal coverage (admin-only)
     const signalOpacity = (layerState.opacity["cellular-signal"] ?? 80) / 100;
     safeSetPaintProperty(map, "signal-coverage-circles", "circle-opacity", signalOpacity);
+    safeSetPaintProperty(map, "signal-coverage-grid-fill", "fill-opacity", signalOpacity * 0.25);
+    safeSetPaintProperty(map, "signal-coverage-polygon-fill", "fill-opacity", signalOpacity * 0.1);
+    safeSetPaintProperty(map, "signal-coverage-polygon-border", "line-opacity", signalOpacity * 0.56);
 
     // Apply opacity to fiber layers
     const fiberOpacity = (layerState.opacity.fiber ?? 50) / 100;
