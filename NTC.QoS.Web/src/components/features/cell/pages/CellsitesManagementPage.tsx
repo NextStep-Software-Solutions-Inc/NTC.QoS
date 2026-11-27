@@ -10,6 +10,7 @@ import { EditCellDialog } from "@/components/features/cell/dialogs/EditCellDialo
 import { deleteCellsRequest } from "@/components/features/cell/handlers/deleteCellsRequest";
 import { editCellStatusRequest } from "@/components/features/cell/handlers/editCellStatusRequest";
 import { editCellRequest } from "@/components/features/cell/handlers/editCellRequest";
+import { exportCellsRequest } from "@/components/features/cell/handlers/exportCellsRequest";
 import { getCellsRequest } from "@/components/features/cell/handlers/getCellsRequest";
 import { CellsitesTable } from "@/components/features/cell/tables/CellsitesTable";
 import { type Cell } from "@/components/features/cell/types/Cell";
@@ -112,6 +113,7 @@ export default function CellsitesManagementPage({ regionId }: CellsitesManagemen
   // Edit cell dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [cellToEdit, setCellToEdit] = useState<Cell | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Fetch cells with all filters including region
   const {
@@ -322,6 +324,44 @@ export default function CellsitesManagementPage({ regionId }: CellsitesManagemen
     router.push(`/${regionId}/broadband/cellsites/map`);
   }, [router, regionId]);
 
+  const handleExport = useCallback(
+    async (format: "Excel" | "Pdf") => {
+      try {
+        setIsExporting(true);
+        await exportCellsRequest({
+          format,
+          search: debouncedSearchTerm || undefined,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          isVerified: verifiedFilter !== "all" ? verifiedFilter === "true" : undefined,
+          serviceProviderIds: providerFilter !== "all" ? [providerFilter] : undefined,
+          provinceIds: provinceFilter !== "all" ? [provinceFilter] : undefined,
+          municipalityIds: municipalityFilter !== "all" ? [municipalityFilter] : undefined,
+          barangayIds: barangayFilter !== "all" ? [barangayFilter] : undefined,
+          regionIds: [regionId],
+        });
+        toast.success(`Cell sites exported to ${format === "Excel" ? "Excel" : "PDF"} successfully`);
+      } catch (error) {
+        toast.error(`Failed to export cell sites to ${format === "Excel" ? "Excel" : "PDF"}`);
+        console.error("Export error:", error);
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [
+      debouncedSearchTerm,
+      statusFilter,
+      verifiedFilter,
+      providerFilter,
+      provinceFilter,
+      municipalityFilter,
+      barangayFilter,
+      regionId,
+    ],
+  );
+
+  const handleExportExcel = useCallback(() => handleExport("Excel"), [handleExport]);
+  const handleExportPdf = useCallback(() => handleExport("Pdf"), [handleExport]);
+
   return (
     <div ref={containerRef} className="flex flex-col h-screen overflow-auto">
       {/* Animated Hero Section */}
@@ -376,6 +416,9 @@ export default function CellsitesManagementPage({ regionId }: CellsitesManagemen
           toolbarCollapsed={toolbarCollapsed}
           onToolbarCollapsedChange={setToolbarCollapsed}
           addCellSiteButton={<AddCellSiteDialog />}
+          onExportExcel={handleExportExcel}
+          onExportPdf={handleExportPdf}
+          isExporting={isExporting}
         />
       </div>
 

@@ -185,6 +185,10 @@ public class ClerkWebhookLifecycleIntegrationTests
         _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync("pending"))
             .ReturnsAsync(new List<ClerkInvitationResponse>());
 
+        var userRegionRepoMock = new Mock<IUserRegionRepository>();
+        userRegionRepoMock.Setup(r => r.Query(It.IsAny<System.Linq.Expressions.Expression<Func<global::NTC.QoS.Domain.Aggregates.UserRegion, bool>>>()))
+            .Returns(new List<global::NTC.QoS.Domain.Aggregates.UserRegion>().AsQueryable());
+
         var inviteHandler = new InviteUserHandler(
             _userRepositoryMock.Object,
             _roleRepositoryMock.Object,
@@ -192,6 +196,7 @@ public class ClerkWebhookLifecycleIntegrationTests
             _clerkUserServiceMock.Object,
             _configuration,
             _authorizationServiceMock.Object,
+            userRegionRepoMock.Object,
             _inviteLoggerMock.Object);
 
         var inviteRequest = new InviteUserRequest(new InviteUserDto

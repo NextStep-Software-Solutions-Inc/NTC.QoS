@@ -17,7 +17,7 @@ public class GetUserByAuthUserIdHandler(IUserRepository repository, IUserProvisi
         var userQuery = _repository.Query(u => u.AuthUserId.Equals(request.AuthUserId))
             .Include(u => u.Role);
         var user = await _repository.FirstOrDefaultAsync(userQuery, cancellationToken);
-        if (user is null)
+        if (user is null && request.AllowProvisioning)
         {
             var provisionResult = await _userProvisioningService.EnsureUserExistsAsync(request.AuthUserId, cancellationToken);
             if (provisionResult.Succeeded)

@@ -231,9 +231,55 @@ public class ClerkUserService(HttpClient httpClient, ILogger<ClerkUserService> l
         return invitationResponse ?? throw new InvalidOperationException("Failed to deserialize Clerk invitation response.");
     }
 
-    public async Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status = null)
+    public Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status) =>
+        GetInvitationsAsync(status, null, null);
+
+    public async Task<List<ClerkInvitationResponse>> GetInvitationsAsync(string? status, int? limit, int? offset)
     {
-        string endpoint = string.IsNullOrWhiteSpace(status) ? "invitations" : $"invitations?status={Uri.EscapeDataString(status)}";
+        // If an explicit page size is requested, fetch that single page
+        if (limit.HasValue)
+        {
+            var clampedLimit = Math.Clamp(limit.Value, 1, 500);
+            var safeOffset = Math.Max(0, offset ?? 0);
+            return await FetchInvitationsPageAsync(status, clampedLimit, safeOffset);
+        }
+
+        // Auto-paginate through all batches (up to 500 per page) to retrieve all records
+        const int pageSize = 500;
+        const int maxPages = 50; // Safety cap to avoid runaway loops (up to 25,000 invitations)
+        var allInvitations = new List<ClerkInvitationResponse>();
+        var currentOffset = offset ?? 0;
+
+        for (int page = 0; page < maxPages; page++)
+        {
+            var batch = await FetchInvitationsPageAsync(status, pageSize, currentOffset);
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            allInvitations.AddRange(batch);
+
+            if (batch.Count < pageSize)
+            {
+                break;
+            }
+
+            currentOffset += batch.Count;
+        }
+
+        return allInvitations;
+    }
+
+    private async Task<List<ClerkInvitationResponse>> FetchInvitationsPageAsync(string? status, int limit, int offset)
+    {
+        var queryParams = new List<string> { $"limit={limit}", $"offset={offset}" };
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            queryParams.Add($"status={Uri.EscapeDataString(status)}");
+        }
+
+        string endpoint = $"invitations?{string.Join("&", queryParams)}";
         HttpResponseMessage response = await _httpClient.GetAsync(endpoint);
         string responseBody = await response.Content.ReadAsStringAsync();
 

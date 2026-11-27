@@ -98,6 +98,9 @@ jobs:
               --name ${{ env.CONTAINER_NAME }} \
               --restart unless-stopped \
               --network npm_proxy_net \
+              --cpu-shares 768 \
+              --memory 512m \
+              --memory-reservation 128m \
               -e NODE_ENV=production \
               -e CLERK_SECRET_KEY="${{ secrets.CLERK_SECRET_KEY }}" \
               -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" \

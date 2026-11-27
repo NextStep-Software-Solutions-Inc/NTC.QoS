@@ -43,9 +43,9 @@ public class UsersController(IMediator mediator) : ControllerBase
 
     [HttpGet("invitations")]
     [RequirePermission(Permissions.InviteUsers)]
-    public async Task<ActionResult<ApiResponse<List<InvitationDto>>>> GetInvitations([FromQuery] string? status = null)
+    public async Task<ActionResult<ApiResponse<List<InvitationDto>>>> GetInvitations([FromQuery] string? status = null, [FromQuery] int? limit = null, [FromQuery] int? offset = null)
     {
-        var invitations = await _mediator.Send(new GetInvitationsRequest(status));
+        var invitations = await _mediator.Send(new GetInvitationsRequest(status, limit, offset));
         return invitations.Succeeded ? Ok(invitations) : BadRequest(invitations);
     }
 

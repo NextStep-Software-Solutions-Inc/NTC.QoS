@@ -179,4 +179,59 @@ public class GetInvitationsHandlerTests
         second.RoleName.Should().BeNull();
         second.Regions.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Handle_WhenPaginationParamsProvided_InvokesPaginatedOverload()
+    {
+        // Arrange
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync("pending", 20, 40))
+            .ReturnsAsync(new List<ClerkInvitationResponse>());
+
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns(new List<Role>().AsQueryable());
+        _roleRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Role>());
+
+        _regionRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Region, bool>>>()))
+            .Returns(new List<Region>().AsQueryable());
+        _regionRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<Region>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Region>());
+
+        var request = new GetInvitationsRequest("pending", Limit: 20, Offset: 40);
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        _clerkUserServiceMock.Verify(c => c.GetInvitationsAsync("pending", 20, 40), Times.Once);
+        _clerkUserServiceMock.Verify(c => c.GetInvitationsAsync(It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_WhenNoPaginationParamsProvided_InvokesStandardOverload()
+    {
+        // Arrange
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync("pending"))
+            .ReturnsAsync(new List<ClerkInvitationResponse>());
+
+        _roleRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Role, bool>>>()))
+            .Returns(new List<Role>().AsQueryable());
+        _roleRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<Role>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Role>());
+
+        _regionRepositoryMock.Setup(r => r.Query(It.IsAny<Expression<Func<Region, bool>>>()))
+            .Returns(new List<Region>().AsQueryable());
+        _regionRepositoryMock.Setup(r => r.ToListAsync(It.IsAny<IQueryable<Region>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Region>());
+
+        var request = new GetInvitationsRequest("pending");
+
+        // Act
+        var result = await _handler.Handle(request, CancellationToken.None);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        _clerkUserServiceMock.Verify(c => c.GetInvitationsAsync("pending"), Times.Once);
+    }
 }

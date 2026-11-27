@@ -213,6 +213,85 @@ public class UserProvisioningServiceTests
     }
 
     [Fact]
+    public async Task EnsureUserExistsAsync_WhenInvitedUserAcceptsAndClerkReturnsAcceptedStatus_RecoversMetadataSuccessfully()
+    {
+        // Arrange
+        var authUserId = "user_accepted_invite_001";
+        var userEmail = "fieldofficer7@example.com";
+        var roleId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+
+        _mediatorMock.Setup(m => m.Send(It.Is<GetUserByAuthUserIdRequest>(r => r.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = false,
+                Message = "User not found."
+            });
+
+        _clerkUserServiceMock.Setup(c => c.GetUserByIdAsync(authUserId))
+            .ReturnsAsync(new ClerkUserResponse
+            {
+                Id = authUserId,
+                EmailAddresses = [new() { Id = "email_inv_7", EmailAddress = userEmail }],
+                PublicMetadata = null
+            });
+
+        _mediatorMock.Setup(m => m.Send(It.Is<GetAllUsersRequest>(r => r.Email == userEmail), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaginatedResponse<UserDto>(new List<UserDto>(), 0, 1, 1));
+
+        // Default query returns empty because invitation is already accepted
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync(null))
+            .ReturnsAsync(new List<ClerkInvitationResponse>());
+
+        // Querying "accepted" invitations returns the accepted invitation
+        var inviteJson = System.Text.Json.JsonDocument.Parse($"{{\"role_id\": \"{roleId}\", \"regions\": [{{\"region_id\": \"{regionId}\", \"status\": \"Active\"}}]}}").RootElement;
+        var acceptedInvitations = new List<ClerkInvitationResponse>
+        {
+            new()
+            {
+                Id = "inv_accepted_7",
+                EmailAddress = userEmail,
+                Status = "accepted",
+                PublicMetadata = inviteJson
+            }
+        };
+        _clerkUserServiceMock.Setup(c => c.GetInvitationsAsync("accepted"))
+            .ReturnsAsync(acceptedInvitations);
+
+        _mediatorMock.Setup(m => m.Send(It.Is<CreateUserRequest>(r =>
+                r.User.AuthUserId == authUserId &&
+                r.User.RoleId == roleId &&
+                r.User.Regions != null &&
+                r.User.Regions.Any(reg => reg.RegionId == regionId)),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<UserDto>
+            {
+                Succeeded = true,
+                Data = new UserDto
+                {
+                    Id = Guid.NewGuid(),
+                    AuthUserId = authUserId,
+                    Email = userEmail
+                }
+            });
+
+        _mediatorMock.Setup(m => m.Send(It.Is<CreateSessionRequest>(r => r.AuthUserId == authUserId), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ApiResponse<bool> { Succeeded = true, Data = true });
+
+        // Act
+        var result = await _service.EnsureUserExistsAsync(authUserId);
+
+        // Assert
+        result.Succeeded.Should().BeTrue();
+        _clerkUserServiceMock.Verify(c => c.GetInvitationsAsync(null), Times.Once);
+        _clerkUserServiceMock.Verify(c => c.GetInvitationsAsync("accepted"), Times.Once);
+        _mediatorMock.Verify(m => m.Send(It.Is<CreateUserRequest>(r =>
+            r.User.RoleId == roleId &&
+            r.User.Regions!.Count == 1 &&
+            r.User.Regions[0].RegionId == regionId), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task EnsureUserExistsAsync_WhenUserNotFoundInClerk_ReturnsNotFound()
     {
         // Arrange

@@ -20,6 +20,7 @@ public class InviteUserHandlerTests
     private readonly Mock<IRepository<Region>> _regionRepositoryMock;
     private readonly Mock<IClerkUserService> _clerkUserServiceMock;
     private readonly Mock<IUserAuthorizationService> _userAuthorizationServiceMock;
+    private readonly Mock<IUserRegionRepository> _userRegionRepositoryMock;
     private readonly IConfiguration _configuration;
     private readonly InviteUserHandler _handler;
 
@@ -30,6 +31,7 @@ public class InviteUserHandlerTests
         _regionRepositoryMock = new Mock<IRepository<Region>>();
         _clerkUserServiceMock = new Mock<IClerkUserService>();
         _userAuthorizationServiceMock = new Mock<IUserAuthorizationService>();
+        _userRegionRepositoryMock = new Mock<IUserRegionRepository>();
 
         var inMemorySettings = new Dictionary<string, string?>
         {
@@ -64,7 +66,8 @@ public class InviteUserHandlerTests
             _regionRepositoryMock.Object,
             _clerkUserServiceMock.Object,
             _configuration,
-            _userAuthorizationServiceMock.Object);
+            _userAuthorizationServiceMock.Object,
+            _userRegionRepositoryMock.Object);
     }
 
     [Fact]

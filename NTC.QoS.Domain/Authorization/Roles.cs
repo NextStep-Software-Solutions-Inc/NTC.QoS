@@ -81,4 +81,15 @@ public static class Roles
         if (string.Equals(role.Scope, ScopePlatform, StringComparison.OrdinalIgnoreCase)) return true;
         return IsPlatformRole(role.Key);
     }
+
+    /// <summary>
+    /// Determines whether the specified role key represents the default basic user role.
+    /// </summary>
+    public static bool IsUser(string? roleKey) =>
+        string.Equals(roleKey, User, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Determines whether the specified Role entity represents the default basic user role.
+    /// </summary>
+    public static bool IsUser(Role? role) => role != null && IsUser(role.Key);
 }
