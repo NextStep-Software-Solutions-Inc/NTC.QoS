@@ -22,6 +22,9 @@ services:
       - Clerk__FrontendUrl=${CLERK_FRONTEND_URL:-http://localhost:3000}
       - GoogleAI__ApiKey=${GOOGLE_AI_API_KEY}
       - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
+      - MapTiler__ServiceToken=${MAPTILER_SERVICE_TOKEN:-}
+      - MapTiler__ApiKey=${MAPTILER_API_KEY:-}
+      - MapTiler__DefaultDocumentId=${MAPTILER_DEFAULT_DOCUMENT_ID:-01a21145-5b0d-7591-9022-1f2dec7e736c}
     expose:
       - "8080"
     networks:

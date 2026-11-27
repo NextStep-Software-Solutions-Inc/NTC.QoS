@@ -22,6 +22,9 @@ services:
       - Clerk__FrontendUrl=${CLERK_FRONTEND_URL:-https://app.qos.ntc.gov.ph}
       - GoogleAI__ApiKey=${GOOGLE_AI_API_KEY}
       - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
+      - MapTiler__ServiceToken=${MAPTILER_SERVICE_TOKEN:-}
+      - MapTiler__ApiKey=${MAPTILER_API_KEY:-}
+      - MapTiler__DefaultDocumentId=${MAPTILER_DEFAULT_DOCUMENT_ID:-}
     expose:
       - "8080"
     networks:
