@@ -137,9 +137,9 @@ const INTERPOLATION_SEARCH_RADIUS_PX = 120;
 const MAX_INTERPOLATION_DISTANCE_KM = 5;
 const MAX_VIEWPORT_SHAPER_POINTS = 25000;
 const GRID_MIN_ZOOM = 6;
-const MIN_GRID_CELL_PX = 20;
+const MIN_GRID_CELL_PX = 6;
 const MIN_GRID_CELL_DEG = 0.0002;
-const MAX_GRID_CELL_DEG = 0.05;
+const MAX_GRID_CELL_DEG = 0.015;
 
 const getFeatureSignalStrength = (properties: Record<string, unknown> | null | undefined): number | undefined => {
   if (!properties) return undefined;
@@ -296,20 +296,37 @@ const estimateNativeGridSpacing = (
     return { stepLng: 0.004, stepLat: 0.004 };
   }
 
-  const maxSample = 250;
-  const sampleStride = features.length > maxSample ? Math.ceil(features.length / maxSample) : 1;
-  const sampled: Array<[number, number]> = [];
-  for (let i = 0; i < features.length; i += sampleStride) {
+  const allCoords: Array<[number, number]> = [];
+  for (let i = 0; i < features.length; i++) {
     const coords = features[i]?.geometry.coordinates;
     const lng = coords?.[0];
     const lat = coords?.[1];
     if (typeof lng === "number" && typeof lat === "number" && Number.isFinite(lng) && Number.isFinite(lat)) {
-      sampled.push([lng, lat]);
+      allCoords.push([lng, lat]);
     }
   }
 
-  if (sampled.length < 2) {
+  if (allCoords.length < 2) {
     return { stepLng: 0.004, stepLat: 0.004 };
+  }
+
+  // Pick a spatially contiguous local neighborhood around an actual data point rather than
+  // stride-sampling across the viewport. Stride-sampling skips immediate grid neighbors and
+  // artificially inflates the estimated spacing into oversized boxes.
+  const maxSample = 250;
+  let sampled: Array<[number, number]> = allCoords;
+  if (allCoords.length > maxSample) {
+    const refPoint = allCoords[Math.floor(allCoords.length / 2)]!;
+    const [refLng, refLat] = refPoint;
+    sampled = allCoords
+      .map((pt) => {
+        const dx = pt[0] - refLng;
+        const dy = pt[1] - refLat;
+        return { pt, d2: dx * dx + dy * dy };
+      })
+      .sort((a, b) => a.d2 - b.d2)
+      .slice(0, maxSample)
+      .map((entry) => entry.pt);
   }
 
   const axisTolerance = 1e-4;
@@ -350,8 +367,12 @@ const estimateNativeGridSpacing = (
   }
 
   const fallbackDist = nearestDists.length > 0 ? calculateMedian(nearestDists) : 0.004;
-  const stepLng = rowGaps.length >= 2 ? calculateMedian(rowGaps) : fallbackDist;
-  const stepLat = colGaps.length >= 2 ? calculateMedian(colGaps) : fallbackDist;
+  const rawStepLng = rowGaps.length >= 2 ? calculateMedian(rowGaps) : fallbackDist;
+  const rawStepLat = colGaps.length >= 2 ? calculateMedian(colGaps) : fallbackDist;
+  // Guard against 1D corridors (e.g. road drive tests) producing stretched rectangles
+  const maxAxisStep = fallbackDist * 2.5;
+  const stepLng = Math.min(rawStepLng, maxAxisStep);
+  const stepLat = Math.min(rawStepLat, maxAxisStep);
 
   return {
     stepLng: Number.isFinite(stepLng) && stepLng > 0 ? stepLng : 0.004,
@@ -2279,21 +2300,37 @@ export const useMapCells = (layerConfig: LayerConfig | Record<string, boolean>, 
       }
     };
 
-    if (filterExpression.length === 1) {
-      applyFilter("signal-coverage-circles", null);
-      applyFilter("signal-coverage-polygon-fill", null);
-      applyFilter("signal-coverage-polygon-border", null);
-      applyFilter("signal-coverage-grid-fill", null);
-      setTimeout(() => rebuildViewportCoverageShapes(), 150);
-      return;
-    }
-
-    applyFilter("signal-coverage-circles", filterExpression as any);
+    const nextFilter = filterExpression.length === 1 ? null : (filterExpression as any);
+    applyFilter("signal-coverage-circles", nextFilter);
     // Derived polygon/grid layers are always built from the already-filtered rendered circles
     applyFilter("signal-coverage-polygon-fill", null);
     applyFilter("signal-coverage-polygon-border", null);
     applyFilter("signal-coverage-grid-fill", null);
-    setTimeout(() => rebuildViewportCoverageShapes(), 150);
+
+    // Wait for MapLibre to finish repainting the filtered circles before querying rendered features
+    let rebuilt = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    const runRebuild = () => {
+      if (rebuilt) return;
+      rebuilt = true;
+      if (fallbackTimer !== null) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+      map.off("idle", runRebuild);
+      rebuildViewportCoverageShapes();
+    };
+
+    map.once("idle", runRebuild);
+    fallbackTimer = setTimeout(runRebuild, 300);
+
+    return () => {
+      rebuilt = true;
+      if (fallbackTimer !== null) {
+        clearTimeout(fallbackTimer);
+      }
+      map.off("idle", runRebuild);
+    };
   }, [
     map,
     isMapLoaded,
