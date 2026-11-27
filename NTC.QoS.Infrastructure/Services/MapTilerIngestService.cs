@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -15,11 +16,13 @@ namespace NTC.QoS.Infrastructure.Services;
 public class MapTilerIngestService : IMapTilerIngestService
 {
     public const string UploadHttpClientName = "MapTilerUpload";
+    private const int MaxTransientRetries = 2;
 
     private readonly HttpClient _httpClient;
     private readonly IHttpClientFactory? _httpClientFactory;
     private readonly MapTilerOptions _options;
     private readonly ILogger<MapTilerIngestService> _logger;
+    private readonly TimeSpan _retryBaseDelay;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -29,12 +32,14 @@ public class MapTilerIngestService : IMapTilerIngestService
         HttpClient httpClient,
         IOptions<MapTilerOptions> options,
         ILogger<MapTilerIngestService> logger,
-        IHttpClientFactory? httpClientFactory = null)
+        IHttpClientFactory? httpClientFactory = null,
+        TimeSpan? retryBaseDelay = null)
     {
         _httpClient = httpClient;
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _logger = logger;
+        _retryBaseDelay = retryBaseDelay ?? TimeSpan.FromMilliseconds(250);
     }
 
     public string? DefaultDocumentId =>
@@ -64,12 +69,6 @@ public class MapTilerIngestService : IMapTilerIngestService
                 Output = new MapTilerIngestOutputDto { Type = "vector_tileset" }
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-            {
-                Content = JsonContent.Create(payload)
-            };
-            ApplyAuthorization(request);
-
             if (!string.IsNullOrWhiteSpace(effectiveDocumentId))
             {
                 _logger.LogInformation(
@@ -81,7 +80,15 @@ public class MapTilerIngestService : IMapTilerIngestService
                 _logger.LogInformation("Initiating MapTiler ingest for file {FileName} ({Size} bytes)", fileName, fileSize);
             }
 
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendWithRetryAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = JsonContent.Create(payload)
+                };
+                ApplyAuthorization(req);
+                return req;
+            }, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -195,17 +202,19 @@ public class MapTilerIngestService : IMapTilerIngestService
     {
         try
         {
-            // For google_drive_resumable uploads, MapTiler expects an empty POST body.
-            // Only send a JSON body when an explicit uploadResult (e.g. s3_multipart ETags) is provided.
-            var request = new HttpRequestMessage(HttpMethod.Post, $"datasets/ingest/{ingestId}/process");
-            if (uploadResult != null)
-            {
-                request.Content = JsonContent.Create(new { upload_result = uploadResult });
-            }
-            ApplyAuthorization(request);
-
             _logger.LogInformation("Triggering MapTiler ingest processing for IngestId {IngestId}", ingestId);
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendWithRetryAsync(() =>
+            {
+                // For google_drive_resumable uploads, MapTiler expects an empty POST body.
+                // Only send a JSON body when an explicit uploadResult (e.g. s3_multipart ETags) is provided.
+                var req = new HttpRequestMessage(HttpMethod.Post, $"datasets/ingest/{ingestId}/process");
+                if (uploadResult != null)
+                {
+                    req.Content = JsonContent.Create(new { upload_result = uploadResult });
+                }
+                ApplyAuthorization(req);
+                return req;
+            }, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -231,10 +240,12 @@ public class MapTilerIngestService : IMapTilerIngestService
     {
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, $"datasets/ingest/{ingestId}");
-            ApplyAuthorization(request);
-
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendWithRetryAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, $"datasets/ingest/{ingestId}");
+                ApplyAuthorization(req);
+                return req;
+            }, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -258,10 +269,12 @@ public class MapTilerIngestService : IMapTilerIngestService
     {
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, $"datasets/ingest/{ingestId}/cancel");
-            ApplyAuthorization(request);
-
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await SendWithRetryAsync(() =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, $"datasets/ingest/{ingestId}/cancel");
+                ApplyAuthorization(req);
+                return req;
+            }, cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -279,6 +292,57 @@ public class MapTilerIngestService : IMapTilerIngestService
             ? $"{baseUrl}&v={Uri.EscapeDataString(cacheBuster)}"
             : baseUrl;
     }
+
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        Func<HttpRequestMessage> requestFactory,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            using var request = requestFactory();
+            try
+            {
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+                if (!IsTransientStatusCode(response.StatusCode) || attempt >= MaxTransientRetries)
+                {
+                    return response;
+                }
+
+                _logger.LogWarning(
+                    "MapTiler API returned transient status {StatusCode} on attempt {Attempt}/{MaxAttempts}; retrying",
+                    response.StatusCode, attempt + 1, MaxTransientRetries + 1);
+                response.Dispose();
+            }
+            catch (HttpRequestException ex) when (attempt < MaxTransientRetries)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Intermittent network error calling MapTiler API on attempt {Attempt}/{MaxAttempts}; retrying",
+                    attempt + 1, MaxTransientRetries + 1);
+            }
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested && attempt < MaxTransientRetries)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "MapTiler API request timed out on attempt {Attempt}/{MaxAttempts}; retrying",
+                    attempt + 1, MaxTransientRetries + 1);
+            }
+
+            if (_retryBaseDelay > TimeSpan.Zero)
+            {
+                var delay = TimeSpan.FromMilliseconds(_retryBaseDelay.TotalMilliseconds * Math.Pow(2, attempt));
+                await Task.Delay(delay, cancellationToken);
+            }
+        }
+    }
+
+    private static bool IsTransientStatusCode(HttpStatusCode statusCode) =>
+        statusCode is HttpStatusCode.RequestTimeout
+            or HttpStatusCode.TooManyRequests
+            or HttpStatusCode.InternalServerError
+            or HttpStatusCode.BadGateway
+            or HttpStatusCode.ServiceUnavailable
+            or HttpStatusCode.GatewayTimeout;
 
     private void ApplyAuthorization(HttpRequestMessage request)
     {

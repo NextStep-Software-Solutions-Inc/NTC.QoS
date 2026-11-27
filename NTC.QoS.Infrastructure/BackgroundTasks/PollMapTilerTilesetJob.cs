@@ -41,6 +41,7 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
     }
 
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
+    [SucceededJobExpiration(expirationMinutes: 60)]
     public async Task ExecuteAsync(
         Guid tilesetId,
         string ingestId,

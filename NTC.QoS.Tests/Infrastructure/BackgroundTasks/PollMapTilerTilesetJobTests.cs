@@ -33,14 +33,18 @@ public class PollMapTilerTilesetJobTests
             options != null ? Options.Create(options) : null);
 
     [Fact]
-    public void ExecuteAsync_HasExpectedHangfireAutomaticRetryPolicy()
+    public void ExecuteAsync_HasExpectedHangfireAutomaticRetryAndShortRetentionPolicies()
     {
         var method = typeof(PollMapTilerTilesetJob).GetMethod(nameof(PollMapTilerTilesetJob.ExecuteAsync));
         var retryAttr = method?.GetCustomAttribute<AutomaticRetryAttribute>();
+        var expirationAttr = method?.GetCustomAttribute<SucceededJobExpirationAttribute>();
 
         retryAttr.Should().NotBeNull();
         retryAttr!.Attempts.Should().Be(3);
         retryAttr.OnAttemptsExceeded.Should().Be(AttemptsExceededAction.Fail);
+
+        expirationAttr.Should().NotBeNull();
+        expirationAttr!.ExpirationTimeout.Should().Be(TimeSpan.FromMinutes(60));
     }
 
     [Fact]
