@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NTC.QoS.Application.Features.CellularCoverage.Requests;
@@ -8,13 +8,20 @@ using NTC.QoS.Domain.Models.RequestParams;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json.Serialization;
+using NTC.QoS.API.Authorization;
+using NTC.QoS.Domain.Authorization;
+using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Domain.Models.DTOs.MapTiler;
 
 namespace NTC.QoS.API.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("cellular-coverages", Name = "cellular-coverages")]
-public class CellularCoveragesController(IMediator mediator, IMemoryCache memoryCache) : ControllerBase
+public class CellularCoveragesController(
+    IMediator mediator,
+    IMemoryCache memoryCache,
+    IMapTilerIngestService mapTilerIngestService) : ControllerBase
 {
     private const int BrowserCacheDuration = 21600;
     private const string CellularCoverageCachePrefix = "cellularCoverage_";
@@ -108,6 +115,135 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         return Ok(cellularCoverages);
     }
 
+    /// <summary>
+    /// Initiates a MapTiler dataset ingestion session for Cellular Coverage MBTiles.
+    /// Returns the ingestId and direct presigned upload URL for chunked upload.
+    /// </summary>
+    [HttpPost("tilesets/init-upload")]
+    [RequirePermission(Permissions.UploadFiles)]
+    public async Task<ActionResult<ApiResponse<InitTilesetIngestResultDto>>> InitTilesetUpload(
+        [FromBody] InitTilesetIngestRequestDto request)
+    {
+        var command = new InitTilesetIngestCommand
+        {
+            FileName = request.FileName,
+            FileSize = request.FileSize,
+            DisplayName = request.DisplayName,
+            RegionId = request.RegionId,
+            ServiceProviderId = request.ServiceProviderId,
+            BandId = request.BandId,
+            TechnologyId = request.TechnologyId
+        };
+
+        var result = await mediator.Send(command);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Streams the binary MBTiles payload server-to-server to MapTiler's presigned upload URL,
+    /// avoiding browser CORS restrictions on Google Drive / S3 resumable upload endpoints.
+    /// </summary>
+    [HttpPut("tilesets/{id}/upload")]
+    [RequirePermission(Permissions.UploadFiles)]
+    [DisableRequestSizeLimit]
+    public async Task<ActionResult<ApiResponse<bool>>> UploadTilesetBinary(
+        Guid id,
+        [FromQuery][Required] string uploadUrl,
+        CancellationToken cancellationToken)
+    {
+        if (!IsAllowedMapTilerUploadUrl(uploadUrl))
+        {
+            return BadRequest(new ApiResponse<bool>
+            {
+                Succeeded = false,
+                Message = "Invalid MapTiler upload URL.",
+                Data = false
+            });
+        }
+
+        var uploaded = await mapTilerIngestService.UploadBinaryAsync(
+            uploadUrl,
+            Request.Body,
+            Request.ContentLength,
+            cancellationToken);
+
+        if (!uploaded)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return StatusCode(499, new ApiResponse<bool>
+                {
+                    Succeeded = false,
+                    Message = "Binary upload was cancelled by the client.",
+                    Data = false
+                });
+            }
+
+            return StatusCode(502, new ApiResponse<bool>
+            {
+                Succeeded = false,
+                Message = "Failed to upload binary file to MapTiler storage.",
+                Data = false
+            });
+        }
+
+        return Ok(new ApiResponse<bool>
+        {
+            Succeeded = true,
+            Message = "Binary file uploaded to MapTiler storage.",
+            Data = true
+        });
+    }
+
+    /// <summary>
+    /// Notifies the system that client has uploaded binary chunks to MapTiler, triggering processing.
+    /// </summary>
+    [HttpPost("tilesets/{id}/process")]
+    [RequirePermission(Permissions.UploadFiles)]
+    public async Task<ActionResult<ApiResponse<bool>>> ProcessTileset(
+        Guid id,
+        [FromBody] MapTilerProcessRequestDto? payload)
+    {
+        var command = new ProcessTilesetIngestCommand
+        {
+            TilesetId = id,
+            UploadResult = payload?.UploadResult
+        };
+
+        var result = await mediator.Send(command);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Returns all Cellular Coverage tilesets (all statuses: Uploading, Processing, Ready, Failed) for the Imports table.
+    /// </summary>
+    [HttpGet("tilesets")]
+    public async Task<ActionResult<ApiResponse<List<CellularCoverageTilesetDto>>>> GetTilesets(
+        [FromQuery] Guid? regionId = null)
+    {
+        var result = await mediator.Send(new GetTilesetsQuery { RegionId = regionId });
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// Returns active Cellular Coverage tilesets with TileJSON URLs for map rendering.
+    /// </summary>
+    [HttpGet("tilesets/active")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<CellularCoverageTilesetDto>>>> GetActiveTilesets(
+        [FromQuery] Guid? regionId = null,
+        [FromQuery] Guid? serviceProviderId = null)
+    {
+        var query = new GetActiveTilesetsQuery
+        {
+            RegionId = regionId,
+            ServiceProviderId = serviceProviderId
+        };
+
+        var result = await mediator.Send(query);
+        return result.Succeeded ? Ok(result) : BadRequest(result);
+    }
+
     private async Task<ActionResult<PaginatedResponse<CellularCoverageDto>>> GetAllCellularCoverages(CellularCoverageQueryParams query)
     {
         var cacheKey = $"{CellularCoverageCachePrefix}{query.PageSize}_{query.PageNumber}_{string.Join(",", query.NetworkIds ?? [])}" +
@@ -148,6 +284,27 @@ public class CellularCoveragesController(IMediator mediator, IMemoryCache memory
         }
         return cellularCoverages.Succeeded ? Ok(cellularCoverages) : BadRequest(cellularCoverages);
     }
+    private static bool IsAllowedMapTilerUploadUrl(string? uploadUrl)
+    {
+        if (string.IsNullOrWhiteSpace(uploadUrl))
+            return false;
+
+        if (!Uri.TryCreate(uploadUrl, UriKind.Absolute, out var targetUri))
+            return false;
+
+        if (targetUri.Scheme != Uri.UriSchemeHttps ||
+            !string.IsNullOrEmpty(targetUri.UserInfo) ||
+            !targetUri.IsDefaultPort)
+        {
+            return false;
+        }
+
+        return targetUri.Host.EndsWith(".googleapis.com", StringComparison.OrdinalIgnoreCase) ||
+               targetUri.Host.EndsWith(".maptiler.com", StringComparison.OrdinalIgnoreCase) ||
+               targetUri.Host.EndsWith(".ovh.net", StringComparison.OrdinalIgnoreCase) ||
+               targetUri.Host.EndsWith(".amazonaws.com", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(CellularCoverageCacheKeysSet, _ => []);

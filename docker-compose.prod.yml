@@ -23,6 +23,9 @@ services:
       - DOTNET_GCHeapHardLimitPercent=85
       - GoogleAI__ApiKey=${GOOGLE_AI_API_KEY}
       - DefaultAdmin__Password=${DEFAULT_ADMIN_PASSWORD}
+      - MapTiler__ServiceToken=${MAPTILER_SERVICE_TOKEN:-}
+      - MapTiler__ApiKey=${MAPTILER_API_KEY:-}
+      - MapTiler__DefaultDocumentId=${MAPTILER_DEFAULT_DOCUMENT_ID:-}
     deploy:
       resources:
         limits:

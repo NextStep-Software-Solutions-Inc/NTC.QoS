@@ -109,7 +109,7 @@ export interface DateRangeFilter {
  */
 export interface SignalStrengthFilter {
   min: number; // dBm (e.g., -120)
-  max: number; // dBm (e.g., -40)
+  max: number; // dBm (e.g., -80)
 }
 
 /**
@@ -127,6 +127,15 @@ export interface SpeedTestFilter {
  */
 export type NetworkType = "2G" | "3G" | "4G" | "5G";
 
+export interface ConfiguredSignalLevel {
+  id?: string;
+  thresholdFrom?: number;
+  thresholdTo?: number;
+  color: string;
+  description?: string;
+  isTop?: boolean;
+}
+
 /**
  * Combined filter state for the admin map
  */
@@ -136,6 +145,17 @@ export interface AdminMapFilters {
   wiredServiceProviderIds: string[]; // Wired service provider IDs for NAP/fiber filtering
   fiberProviderNames: string[]; // Provider display names matching vector tile Providers property
   generationIds: string[]; // Generation IDs for network type filtering (replaces networkTypes)
+  signalCoverageAreaStudyId?: string; // Area study filter used to resolve signal level ranges
+  signalCoverageAreaStudyName?: string; // Area study label used to match GeoJSON annotations
+  signalCoverageSignalLevelEntryIds: string[]; // Selected signal-level entries inside the chosen area study
+  signalCoverageSignalLevelRanges: Array<{
+    min?: number;
+    max?: number;
+    color?: string;
+    description?: string;
+    isTop?: boolean;
+  }>; // OR-ed ranges derived from selected entries
+  configuredSignalLevels?: ConfiguredSignalLevel[]; // All signal levels defined for active area study
   dateRange: DateRangeFilter;
   signalStrength: SignalStrengthFilter;
   speedTest: SpeedTestFilter;
@@ -152,8 +172,13 @@ export const DEFAULT_ADMIN_MAP_FILTERS: AdminMapFilters = {
   wiredServiceProviderIds: [],
   fiberProviderNames: [],
   generationIds: [],
+  signalCoverageAreaStudyId: undefined,
+  signalCoverageAreaStudyName: undefined,
+  signalCoverageSignalLevelEntryIds: [],
+  signalCoverageSignalLevelRanges: [],
+  configuredSignalLevels: [],
   dateRange: {},
-  signalStrength: { min: -120, max: -40 },
+  signalStrength: { min: -120, max: -80 },
   speedTest: {},
   regionIds: [],
   searchQuery: "",

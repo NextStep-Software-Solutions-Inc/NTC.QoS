@@ -10,6 +10,7 @@ import {
   useReactTable,
   type ColumnDef,
   type ColumnFiltersState,
+  type ColumnSizingState,
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
@@ -44,6 +45,7 @@ export function AreaStudiesTable({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnSizing, setColumnSizing] = React.useState<ColumnSizingState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
   const handleOnRowDoubleClick = (row: (typeof data)[number]) => {
@@ -60,8 +62,11 @@ export function AreaStudiesTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
+    onColumnSizingChange: setColumnSizing,
     onRowSelectionChange: setRowSelection,
-    state: { sorting, columnFilters, columnVisibility, rowSelection },
+    state: { sorting, columnFilters, columnVisibility, columnSizing, rowSelection },
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
     meta: { readonly, actions },
   });
 
@@ -72,15 +77,22 @@ export function AreaStudiesTable({
       <div className="flex items-center py-4 gap-1 flex-wrap">
         <Toolbar table={table} />
       </div>
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} style={{ width: header.getSize() }} className="relative">
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none bg-border/60 hover:bg-primary/60"
+                        />
+                      )}
                     </TableHead>
                   );
                 })}
@@ -96,7 +108,9 @@ export function AreaStudiesTable({
                   onDoubleClick={() => handleOnRowDoubleClick(row.original)}
                   className={cn({ "cursor-pointer": Boolean(onRowDoubleClick) })}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    <TableCell key={cell.id} style={{ width: cell.column.getSize() }} className="align-top">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))

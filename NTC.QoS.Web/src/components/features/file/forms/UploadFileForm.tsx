@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { AlertTriangle, ChevronDown, FileText, HelpCircle, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronDown, Download, ExternalLink, FileText, HelpCircle, Layers, Loader2 } from "lucide-react";
 
 import SubmitButton from "@/components/SubmitButton";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { request } from "@/services/fetch";
 import { type APIResponse } from "@/types/reusable/api";
 import { uploadFileToAzure } from "../handlers/uploadFileToAzure";
 import { uploadFileRequest } from "../handlers/uploadFileRequest";
+import { type InitTilesetIngestResult } from "../../cellular-coverage/types/CellularCoverageTileset";
 import UploadedFilesContent from "./UploadedFilesContent";
 
 const useUploadFile = createMutationHookFromTemplate(uploadFileRequest);
@@ -84,7 +85,9 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
 
   const onSuccessHandler = () => {
     void queryClient.invalidateQueries({
-      predicate: (query) => typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("/files"),
+      predicate: (query) =>
+        typeof query.queryKey[0] === "string" &&
+        (query.queryKey[0].startsWith("/files") || query.queryKey[0].startsWith("/cellular-coverages/tilesets")),
     });
     onSuccess?.();
     onClose?.();
@@ -97,6 +100,71 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
 
   const handleSubmit = form.handleSubmit(async (values) => {
     for (const file of files) {
+      const isMbtiles = file.name.toLowerCase().endsWith(".mbtiles");
+
+      if (isMbtiles) {
+        // Direct MapTiler Ingestion Flow for MBTiles
+        toast.promise(
+          (async () => {
+            // 1. Request MapTiler Ingest Session
+            const initRes = await request.post<APIResponse<InitTilesetIngestResult>>(
+              "/cellular-coverages/tilesets/init-upload",
+              {
+                fileName: file.name,
+                fileSize: file.size,
+                displayName: file.name.replace(/\.[^/.]+$/, ""),
+                regionId: values.regionId || undefined,
+              }
+            );
+
+            if (!initRes.succeeded || !initRes.data?.uploadUrl) {
+              throw new Error(initRes.message ?? "Failed to initialize MapTiler upload session");
+            }
+
+            const { tilesetId, uploadUrl } = initRes.data;
+
+            // 2. Stream binary upload through backend proxy to MapTiler storage (avoids browser CORS issues)
+            const backendUrl = getBackendUrl();
+            const authHeaders = await getAuthHeadersAsync();
+            const uploadRes = await fetch(
+              `${backendUrl}/cellular-coverages/tilesets/${tilesetId}/upload?uploadUrl=${encodeURIComponent(uploadUrl)}`,
+              {
+                method: "PUT",
+                body: file,
+                headers: {
+                  "Content-Type": "application/octet-stream",
+                  ...authHeaders,
+                },
+              }
+            );
+
+            if (!uploadRes.ok) {
+              throw new Error(`Failed to upload to MapTiler storage (Status ${uploadRes.status})`);
+            }
+
+            // 3. Notify backend to trigger server-side processing & start polling
+            const processRes = await request.post<APIResponse<boolean>>(
+              `/cellular-coverages/tilesets/${tilesetId}/process`,
+              {}
+            );
+
+            if (!processRes.succeeded) {
+              throw new Error(processRes.message ?? "Failed to start tileset generation");
+            }
+
+            onSuccessHandler();
+            return "MBTiles uploaded to MapTiler. Tileset generation has been queued.";
+          })(),
+          {
+            loading: `Uploading ${file.name} directly to MapTiler Cloud...`,
+            success: (msg) => (typeof msg === "string" ? msg : "MBTiles uploaded successfully."),
+            error: (error) => extractErrorMessage(error) ?? "Failed to upload MBTiles file.",
+          }
+        );
+        continue;
+      }
+
+      // Legacy / Excel upload flow
       toast.promise(
         (async () => {
           // Step 1 & 2: Attempt direct Pre-Signed Upload SAS URL to Azure Storage
@@ -137,23 +205,34 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     }
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFiles = e.target.files ? Array.from(e.target.files) : [];
-    const validExtensions = [".xlsx", ".xls", ".csv"];
+  const isCellularCoverage = type === "CellularCoverage";
+  const maxFileSizeBytes = isCellularCoverage ? 1024 * 1024 * 1024 : 25 * 1024 * 1024; // 1 GB vs 25 MB
+  const maxFileSizeDisplay = isCellularCoverage ? "1 GB" : "25 MB";
+
+  const handleFilesAdded = (incomingFiles: File[]) => {
+    const validExtensions = isCellularCoverage
+      ? [".mbtiles", ".geojson", ".gpkg", ".xlsx", ".xls", ".csv"]
+      : [".xlsx", ".xls", ".csv"];
 
     const validFiles: File[] = [];
-    for (const file of rawFiles) {
-      const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    for (const file of incomingFiles) {
+      const ext = file.name.includes(".")
+        ? file.name.substring(file.name.lastIndexOf(".")).toLowerCase()
+        : "";
       if (!validExtensions.includes(ext)) {
-        toast.error(`Invalid file type for "${file.name}". Only .xlsx, .xls, and .csv files are supported.`);
+        toast.error(
+          isCellularCoverage
+            ? `Invalid file type for "${file.name}". Supported formats: .mbtiles, .geojson, .gpkg, .xlsx, .csv.`
+            : `Invalid file type for "${file.name}". Only .xlsx, .xls, and .csv files are supported.`
+        );
         continue;
       }
       if (file.size === 0) {
-        toast.error(`File "${file.name}" is empty (0 bytes). Please upload a valid populated template.`);
+        toast.error(`File "${file.name}" is empty (0 bytes). Please upload a valid file.`);
         continue;
       }
-      if (file.size > 25 * 1024 * 1024) {
-        toast.error(`File "${file.name}" exceeds the 25MB size limit.`);
+      if (file.size > maxFileSizeBytes) {
+        toast.error(`File "${file.name}" exceeds the ${maxFileSizeDisplay} size limit.`);
         continue;
       }
       validFiles.push(file);
@@ -162,8 +241,16 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
     if (validFiles.length > 0) {
       setFiles((prev) => [...prev, ...validFiles]);
     }
-    e.target.value = "";
   };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      handleFilesAdded(Array.from(e.target.files));
+      e.target.value = "";
+    }
+  };
+
+  const TILEANVIL_URL = "https://tileanvil.vercel.app/";
 
   const handleRemoveFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -364,27 +451,80 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
         </div>
       )}
 
-      {/* Cellular Coverage WIP Notice */}
-      {(type === "CellularCoverage" || type === "Cellular") && (
-        <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
-          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-amber-900 dark:text-amber-100">Work in Progress</span>
-              <span className="px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800/60 text-amber-900 dark:text-amber-200 font-bold text-[10px] rounded uppercase tracking-wider">
-                Experimental
-              </span>
+      {/* RP3 CSV to MBTiles Conversion Tool Card (Cellular Coverage only) */}
+      {isCellularCoverage && (
+        <div className="mb-4 rounded-xl border border-violet-200/80 dark:border-violet-800/60 bg-gradient-to-br from-violet-50/70 via-purple-50/40 to-indigo-50/30 dark:from-violet-950/30 dark:via-purple-950/20 dark:to-indigo-950/10 p-4 shadow-sm transition-all">
+          <div className="flex flex-col gap-3">
+            {/* Header row with icon, title, badge, and download action */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600/10 dark:bg-violet-400/15 text-violet-600 dark:text-violet-400 shrink-0">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      RP3 CSV to MBTiles Converter
+                    </h4>
+                    <span className="rounded-full bg-violet-100 dark:bg-violet-900/60 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+                      Recommended
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Convert raw signal drive-tests locally into high-performance vector tiles
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                asChild
+                size="sm"
+                className="bg-violet-600 hover:bg-violet-700 text-white shadow-sm font-medium h-8 px-3 text-xs gap-1.5 transition-all">
+                <a href={TILEANVIL_URL} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3.5 w-3.5" />
+                  Download Converter Tool
+                  <ExternalLink className="h-3 w-3 opacity-80" />
+                </a>
+              </Button>
             </div>
-            <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-              Cellular Coverage upload and automated scoring are under active development. Uploaded datasets may undergo format and processing revisions.
-            </p>
+
+            {/* Stepper workflow visualization */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-violet-100 dark:border-violet-900/40 text-[11px]">
+              <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">1</span>
+                <span>Merge &amp; convert locally</span>
+              </div>
+              <ArrowRight className="h-3 w-3 text-violet-400 shrink-0" />
+              <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">2</span>
+                <span>Upload 1 .mbtiles here</span>
+              </div>
+              <ArrowRight className="h-3 w-3 text-violet-400 shrink-0" />
+              <div className="flex items-center gap-1.5 text-violet-900 dark:text-violet-200 font-medium">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-200 dark:bg-violet-800 text-[10px] font-bold">3</span>
+                <span>Render on Map</span>
+              </div>
+            </div>
+
+            {/* Single-tileset replace notice */}
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200/80 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-2.5 py-2 text-[11px] text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <p className="leading-snug">
+                <span className="font-semibold">Single custom tileset active:</span> Uploading a new{" "}
+                <code className="font-mono text-[10px]">.mbtiles</code> file replaces the existing coverage tileset.
+                Use TileAnvil&apos;s <span className="font-semibold">Merge into Single File</span> mode to combine all
+                coverage datasets into one <code className="font-mono text-[10px]">.mbtiles</code> before uploading.
+              </p>
+            </div>
+
           </div>
         </div>
       )}
 
-      {/* Download Template & Guidelines Section */}
-      <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
+      {/* Download Template & Guidelines Section for Non-CellularCoverage */}
+      {!isCellularCoverage && (
+        <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border border-blue-200 dark:border-blue-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
           {isDownloadEnabled ? (
             <button
               type="button"
@@ -419,6 +559,7 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
             </div>
           )}
         </div>
+
 
         {guide && (
           <div className="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-200/60 dark:border-blue-800/60 w-full sm:w-auto justify-between sm:justify-end">
@@ -458,16 +599,26 @@ export default function UploadFileForm({ onClose, onSuccess, type }: UploadFileF
           </div>
         )}
       </div>
+      )}
       <form onSubmit={handleSubmit}>
-        <UploadedFilesContent files={files} handleRemoveFile={handleRemoveFile} handleFileChange={handleFileChange} />
-        <DialogFooter className="flex items-center justify-between sm:justify-between">
+        <UploadedFilesContent
+          type={type}
+          files={files}
+          handleRemoveFile={handleRemoveFile}
+          handleFileChange={handleFileChange}
+          onFilesAdded={handleFilesAdded}
+        />
+        <DialogFooter className="flex items-center justify-between sm:justify-between pt-2">
           <DialogClose asChild>
             <Button variant="ghost" onClick={handleCancel}>
               Cancel
             </Button>
           </DialogClose>
-          <SubmitButton loading={isPending} disabled={!form.formState.isValid} type="submit">
-            Upload
+          <SubmitButton
+            loading={isPending}
+            disabled={!form.formState.isValid || files.length === 0}
+            type="submit">
+            {files.length > 0 ? `Upload ${files.length} File${files.length > 1 ? "s" : ""}` : "Upload"}
           </SubmitButton>
         </DialogFooter>
       </form>

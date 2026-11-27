@@ -46,6 +46,21 @@ internal static class ExternalServiceExtensions
         // AI Instruction service (loads global AI context/instruction)
         services.AddSingleton<IAIInstructionService, AIInstructionService>();
 
+        // MapTiler Cloud configuration and Ingest Service
+        services.Configure<MapTilerOptions>(configuration.GetSection(MapTilerOptions.SectionName));
+        services.AddHttpClient<IMapTilerIngestService, MapTilerIngestService>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MapTilerOptions>>().Value;
+            var baseUrl = string.IsNullOrWhiteSpace(options.BaseUrl) ? "https://service.maptiler.com/v1" : options.BaseUrl.TrimEnd('/');
+            client.BaseAddress = new Uri(baseUrl + "/");
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
+        services.AddHttpClient(MapTilerIngestService.UploadHttpClientName, (sp, client) =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MapTilerOptions>>().Value;
+            client.Timeout = TimeSpan.FromMinutes(Math.Max(1, options.UploadTimeoutMinutes));
+        });
+
         return services;
     }
 }

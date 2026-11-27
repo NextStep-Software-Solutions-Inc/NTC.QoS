@@ -14,12 +14,28 @@ export const CLUSTER_COLORS = {
 
 // Signal strength color scale
 export const SIGNAL_STRENGTH_COLORS = {
-  excellent: "#22c55e", // Green: -60 dBm or better
-  good: "#84cc16", // Lime: -70 to -60 dBm
-  fair: "#facc15", // Yellow: -80 to -70 dBm
-  poor: "#f97316", // Orange: -90 to -80 dBm
-  veryPoor: "#ef4444", // Red: worse than -90 dBm
+  excellent: "#1a9850", // >= -80 dBm
+  good: "#91cf60", // -90 to -80 dBm
+  fair: "#fee08b", // -100 to -90 dBm
+  weak: "#fc8d59", // -110 to -100 dBm
+  poor: "#d73027", // < -110 dBm
 };
+
+export function getSignalStrengthColor(strength: number): string {
+  if (strength >= -80) return SIGNAL_STRENGTH_COLORS.excellent;
+  if (strength >= -90) return SIGNAL_STRENGTH_COLORS.good;
+  if (strength >= -100) return SIGNAL_STRENGTH_COLORS.fair;
+  if (strength >= -110) return SIGNAL_STRENGTH_COLORS.weak;
+  return SIGNAL_STRENGTH_COLORS.poor;
+}
+
+export function getSignalStrengthQualityLabel(strength: number): string {
+  if (strength >= -80) return "Excellent";
+  if (strength >= -90) return "Good";
+  if (strength >= -100) return "Fair";
+  if (strength >= -110) return "Weak";
+  return "Poor";
+}
 
 /**
  * Get cluster layer paint configuration
@@ -100,34 +116,101 @@ export function getCellSiteHeatmapPaint(opacity: number = 0.7): HeatmapLayerSpec
 }
 
 /**
- * Get signal coverage circle layer paint configuration (color-coded by RSSI).
- * Uses circles instead of heatmap to show actual signal strength per point.
- *
- * Color scale thresholds:
- *   ≥ -60 dBm  → Excellent (green)
- *   -70 to -60 → Good (lime)
- *   -80 to -70 → Fair (yellow)
- *   -90 to -80 → Poor (orange)
- *   < -90 dBm  → Very Poor (red)
+ * Get dynamic signal coverage circle color paint expression.
+ * If configured area study signal levels are provided, builds a MapLibre case expression
+ * matching each level's threshold range [min, max) to its configured hex color.
+ * Falls back to the default 3GPP color scale if no custom levels are configured.
  */
-export function getSignalCoverageCirclePaint(opacity: number = 0.8): CircleLayerSpecification["paint"] {
+export function getSignalCoverageCircleColorPaint(
+  configuredLevels?: Array<{
+    thresholdFrom?: number;
+    thresholdTo?: number;
+    color?: string;
+    isTop?: boolean;
+  }>,
+): any {
+  const strengthExpr: any = ["coalesce", ["get", "strength"], ["get", "signal_strength_dbm"], -120];
+
+  const default3GPP: any = [
+    "step",
+    strengthExpr,
+    SIGNAL_STRENGTH_COLORS.poor,
+    -110,
+    SIGNAL_STRENGTH_COLORS.weak,
+    -100,
+    SIGNAL_STRENGTH_COLORS.fair,
+    -90,
+    SIGNAL_STRENGTH_COLORS.good,
+    -80,
+    SIGNAL_STRENGTH_COLORS.excellent,
+  ];
+
+  if (!configuredLevels || configuredLevels.length === 0) {
+    return default3GPP;
+  }
+
+  const validLevels = configuredLevels.filter(
+    (lvl) => (lvl.thresholdFrom !== undefined || lvl.thresholdTo !== undefined) && Boolean(lvl.color),
+  );
+
+  if (validLevels.length === 0) {
+    return default3GPP;
+  }
+
+  const allTos = validLevels
+    .map((l) => (typeof l.thresholdTo === "number" ? l.thresholdTo : undefined))
+    .filter((v): v is number => v !== undefined);
+  const globalMax = allTos.length > 0 ? Math.max(...allTos) : undefined;
+
+  const caseExpr: any[] = ["case"];
+
+  for (const level of validLevels) {
+    const min = level.thresholdFrom;
+    const max = level.thresholdTo;
+    const isTop = level.isTop || (max !== undefined && max === globalMax) || (max !== undefined && max >= 0);
+
+    const conditions: any[] = ["all"];
+    if (min !== undefined) {
+      conditions.push([">=", strengthExpr, min]);
+    }
+    if (max !== undefined) {
+      if (isTop) {
+        conditions.push(["<=", strengthExpr, max]);
+      } else {
+        conditions.push(["<", strengthExpr, max]);
+      }
+    }
+
+    if (conditions.length > 1) {
+      caseExpr.push(conditions, level.color!);
+    }
+  }
+
+  if (caseExpr.length <= 1) {
+    return default3GPP;
+  }
+
+  // Fallback if none of the explicit level ranges match
+  caseExpr.push(default3GPP);
+
+  return caseExpr;
+}
+
+/**
+ * Get signal coverage circle layer paint configuration (color-coded by RSSI / configured signal level).
+ */
+export function getSignalCoverageCirclePaint(
+  opacity: number = 0.8,
+  configuredLevels?: Array<{
+    thresholdFrom?: number;
+    thresholdTo?: number;
+    color?: string;
+    isTop?: boolean;
+  }>,
+): CircleLayerSpecification["paint"] {
   return {
     "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 2, 10, 4, 15, 8],
-    "circle-color": [
-      "interpolate",
-      ["linear"],
-      ["get", "strength"],
-      -120,
-      SIGNAL_STRENGTH_COLORS.veryPoor, // Very weak - red
-      -90,
-      SIGNAL_STRENGTH_COLORS.poor, // Poor - orange
-      -80,
-      SIGNAL_STRENGTH_COLORS.fair, // Fair - yellow
-      -70,
-      SIGNAL_STRENGTH_COLORS.good, // Good - lime
-      -60,
-      SIGNAL_STRENGTH_COLORS.excellent, // Excellent - green
-    ],
+    "circle-color": getSignalCoverageCircleColorPaint(configuredLevels),
     "circle-opacity": opacity,
     "circle-stroke-width": 0,
   };
@@ -196,142 +279,186 @@ export async function loadProviderIcons(map: any, iconsLoadedRef: Set<string>): 
  * Create popup HTML for signal coverage point with enhanced styling
  * Matches the exact design from CellsiteMapView for consistency
  */
-export function createSignalCoveragePopupHTML(properties: {
-  strength: number;
-  barangay?: string;
-  azimuth?: string;
-}): string {
-  const strength = properties.strength;
-  const signalLabel =
-    strength >= -60
-      ? "Excellent"
-      : strength >= -70
-        ? "Good"
-        : strength >= -80
-          ? "Fair"
-          : strength >= -90
-            ? "Poor"
-            : "Very Poor";
+export function createSignalCoveragePopupHTML(
+  properties: {
+    strength?: number;
+    signal_strength_dbm?: number;
+    cell_id?: string;
+    cellId?: string;
+    cell_guid?: string;
+    cellGuid?: string;
+    barangay?: string;
+    address?: string;
+    location?: string;
+    azimuth?: string | number;
+    network?: string;
+    generation?: string;
+    technology?: string;
+    band?: string;
+    frequency?: string;
+    source_file?: string;
+    duplex_mode?: string;
+    areaStudy?: string;
+    area_study?: string;
+    interpolation_note?: string;
+  },
+  configuredLevels?: Array<{
+    thresholdFrom?: number;
+    thresholdTo?: number;
+    color?: string;
+    description?: string;
+    isTop?: boolean;
+  }>,
+): string {
+  const rawStrength = properties.signal_strength_dbm ?? properties.strength;
+  const strength = typeof rawStrength === "number" ? rawStrength : -120;
+  let signalLabel = getSignalStrengthQualityLabel(strength);
+  let signalColor = getSignalStrengthColor(strength);
 
-  const signalColor =
-    strength >= -60
-      ? SIGNAL_STRENGTH_COLORS.excellent
-      : strength >= -70
-        ? SIGNAL_STRENGTH_COLORS.good
-        : strength >= -80
-          ? SIGNAL_STRENGTH_COLORS.fair
-          : strength >= -90
-            ? SIGNAL_STRENGTH_COLORS.poor
-            : SIGNAL_STRENGTH_COLORS.veryPoor;
+  if (configuredLevels && configuredLevels.length > 0) {
+    const allTos = configuredLevels
+      .map((l) => (typeof l.thresholdTo === "number" ? l.thresholdTo : undefined))
+      .filter((v): v is number => v !== undefined);
+    const globalMax = allTos.length > 0 ? Math.max(...allTos) : undefined;
 
-  const barangay = properties.barangay || "Unknown location";
-  const azimuth = properties.azimuth || "N/A";
+    const matched = configuredLevels.find((level) => {
+      const min = level.thresholdFrom;
+      const max = level.thresholdTo;
+      const isTop = level.isTop || (max !== undefined && max === globalMax) || (max !== undefined && max >= 0);
 
-  // Enhanced styled popup with gradient background - matches CellsiteMapView
+      if (min !== undefined && strength < min) return false;
+      if (max !== undefined) {
+        if (isTop) {
+          if (strength > max) return false;
+        } else {
+          if (strength >= max) return false;
+        }
+      }
+      return true;
+    });
+
+    if (matched) {
+      if (matched.description) signalLabel = matched.description;
+      if (matched.color) signalColor = matched.color;
+    }
+  }
+
+  const cellGuid = properties.cell_id || properties.cellId || properties.cell_guid || properties.cellGuid || "N/A";
+  const areaStudyText = properties.area_study || properties.areaStudy || properties.source_file || "N/A";
+  const locationText = properties.location || properties.barangay || properties.address || "Unknown location";
+  const addressText = properties.address && properties.address !== locationText ? properties.address : "";
+  const rawAzimuth =
+    properties.azimuth !== undefined && properties.azimuth !== null && String(properties.azimuth).trim() !== ""
+      ? String(properties.azimuth).replace(/[\uFFFD°\s]+$/g, "").trim()
+      : "";
+  const azimuthText = rawAzimuth ? `${rawAzimuth}°` : "N/A";
+  const network = properties.network || "Unknown";
+  const generation = properties.generation || "";
+  const technology = properties.technology || "Unknown";
+  const band = properties.band || "N/A";
+  const frequency = properties.frequency || "N/A";
+  const techBandText = [technology, band !== "N/A" ? band : ""].filter(Boolean).join(" · ") || "N/A";
+  const networkDisplay = generation ? `${network} (${generation})` : network;
+  const interpolationNote = properties.interpolation_note ? String(properties.interpolation_note) : "";
+
   return `
     <div style="
-      min-width: 220px; 
+      width: 260px;
       font-family: system-ui, -apple-system, sans-serif;
-      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-      border-radius: 12px;
+      background: #ffffff;
+      border-radius: 10px;
       overflow: hidden;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.14);
     ">
-      <!-- Header with signal strength bar -->
+      <!-- Compact Header -->
       <div style="
         background: linear-gradient(135deg, ${signalColor}ee, ${signalColor}cc);
-        padding: 14px 16px;
+        padding: 10px 42px 10px 10px;
         color: white;
       ">
-        <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
           <div style="
-            width: 44px; 
-            height: 44px; 
-            border-radius: 12px; 
-            background: rgba(255,255,255,0.25);
-            backdrop-filter: blur(4px);
-            display: flex; 
-            align-items: center; 
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.22);
+            display: flex;
+            align-items: center;
             justify-content: center;
+            flex-shrink: 0;
           ">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="none">
-              <rect x="2" y="18" width="3" height="4" rx="1" opacity="0.3"/>
-              <rect x="7" y="14" width="3" height="8" rx="1" opacity="${strength >= -90 ? "1" : "0.3"}"/>
-              <rect x="12" y="10" width="3" height="12" rx="1" opacity="${strength >= -80 ? "1" : "0.3"}"/>
-              <rect x="17" y="6" width="3" height="16" rx="1" opacity="${strength >= -70 ? "1" : "0.3"}"/>
-              <rect x="22" y="2" width="0" height="0" rx="1" opacity="${strength >= -60 ? "1" : "0.3"}"/>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="white" stroke="none">
+              <rect x="2" y="18" width="3" height="4" rx="1" opacity="0.35"/>
+              <rect x="7" y="14" width="3" height="8" rx="1" opacity="${strength >= -100 ? "1" : "0.35"}"/>
+              <rect x="12" y="10" width="3" height="12" rx="1" opacity="${strength >= -90 ? "1" : "0.35"}"/>
+              <rect x="17" y="6" width="3" height="16" rx="1" opacity="${strength >= -80 ? "1" : "0.35"}"/>
             </svg>
           </div>
-          <div>
-            <div style="font-weight: 700; font-size: 16px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
-              ${signalLabel}
+          <div style="min-width: 0; line-height: 1.2;">
+            <div style="display: flex; align-items: baseline; gap: 6px;">
+              <span style="font-size: 15px; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                ${strength.toFixed(1)} dBm
+              </span>
+              <span style="font-size: 11px; font-weight: 600; opacity: 0.95; text-shadow: 0 1px 2px rgba(0,0,0,0.18);">
+                ${signalLabel}
+              </span>
             </div>
-            <div style="font-size: 20px; font-weight: 800; margin-top: 2px;">
-              ${strength.toFixed(0)} dBm
-            </div>
+            ${interpolationNote ? `<div style="font-size: 10px; opacity: 0.9;">(${interpolationNote})</div>` : ""}
           </div>
         </div>
       </div>
-      
-      <!-- Details section -->
-      <div style="padding: 14px 16px;">
-        <div style="
-          display: flex; 
-          flex-direction: column; 
-          gap: 10px; 
-          font-size: 13px;
-        ">
-          <div style="
-            display: flex; 
-            align-items: center; 
-            gap: 10px;
-            padding: 8px 10px;
-            background: #f1f5f9;
-            border-radius: 8px;
-          ">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-            <div style="flex: 1; min-width: 0;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Location</div>
-              <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${barangay}</div>
-            </div>
-          </div>
-          
-          <div style="
-            display: flex; 
-            align-items: center; 
-            gap: 10px;
-            padding: 8px 10px;
-            background: #f1f5f9;
-            border-radius: 8px;
-          ">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="12" x2="16" y2="14"/>
-            </svg>
-            <div style="flex: 1;">
-              <div style="color: #94a3b8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">Azimuth</div>
-              <div style="color: #1e293b; font-weight: 500;">${azimuth}</div>
-            </div>
+
+      <!-- Compact Details -->
+      <div style="padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 11.5px;">
+        <div style="padding: 5px 8px; background: #f1f5f9; border-radius: 6px;">
+          <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Cell GUID</div>
+          <div style="color: #0f172a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; font-weight: 600; word-break: break-all; margin-top: 1px;">
+            ${cellGuid}
           </div>
         </div>
-        
-        <!-- Signal strength bar -->
-        <div style="margin-top: 12px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="font-size: 10px; color: #94a3b8;">Signal Quality</span>
-            <span style="font-size: 10px; color: ${signalColor}; font-weight: 600;">${signalLabel}</span>
+
+        <div style="padding: 5px 8px; background: #f1f5f9; border-radius: 6px;">
+          <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Area Study</div>
+          <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${areaStudyText}">
+            ${areaStudyText}
           </div>
-          <div style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+        </div>
+
+        <div style="padding: 5px 8px; background: #f1f5f9; border-radius: 6px;">
+          <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Location</div>
+          <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${locationText}">
+            ${locationText}
+          </div>
+          ${addressText ? `<div style="color: #64748b; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;" title="${addressText}">${addressText}</div>` : ""}
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Network</div>
+            <div style="color: #2563eb; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${networkDisplay}</div>
+          </div>
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Tech / Band</div>
+            <div style="color: #1e293b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${techBandText}</div>
+          </div>
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Frequency</div>
+            <div style="color: #1e293b; font-weight: 500;">${frequency}</div>
+          </div>
+          <div style="padding: 5px 7px; background: #f8fafc; border-radius: 6px;">
+            <div style="color: #64748b; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Azimuth</div>
+            <div style="color: #1e293b; font-weight: 500;">${azimuthText}</div>
+          </div>
+        </div>
+
+        <!-- Signal strength bar -->
+        <div style="margin-top: 2px;">
+          <div style="height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
             <div style="
-              height: 100%; 
-              width: ${Math.max(0, Math.min(100, ((strength + 100) / 40) * 100))}%;
+              height: 100%;
+              width: ${Math.max(0, Math.min(100, ((strength + 120) / 60) * 100))}%;
               background: linear-gradient(90deg, ${signalColor}, ${signalColor}aa);
-              border-radius: 3px;
-              transition: width 0.3s;
+              border-radius: 2px;
             "></div>
           </div>
         </div>
