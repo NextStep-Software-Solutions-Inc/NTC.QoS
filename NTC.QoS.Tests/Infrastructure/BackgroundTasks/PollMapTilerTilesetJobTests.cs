@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.Json;
 using FluentAssertions;
 using Hangfire;
 using Microsoft.EntityFrameworkCore.Query;
@@ -115,6 +116,185 @@ public class PollMapTilerTilesetJobTests
         tileset.ErrorMessage.Should().Contain("timed out");
         _tilesetRepositoryMock.Verify(r => r.Update(tileset), Times.Once);
         _tilesetRepositoryMock.Verify(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenTilesetNotFound_AbortsWithoutPollingOrScheduling()
+    {
+        _tilesetRepositoryMock
+            .Setup(r => r.Query(It.IsAny<Expression<Func<CellularCoverageTileset, bool>>>()))
+            .Returns(new TestAsyncEnumerable<CellularCoverageTileset>([]));
+
+        var job = CreateJob();
+
+        await job.ExecuteAsync(Guid.NewGuid(), "ingest-missing", attemptCount: 1, CancellationToken.None);
+
+        _mapTilerServiceMock.Verify(
+            s => s.GetIngestDetailsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _backgroundJobServiceMock.Verify(
+            b => b.Schedule<IPollMapTilerTilesetJob>(It.IsAny<Expression<Action<IPollMapTilerTilesetJob>>>(), It.IsAny<TimeSpan>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenMapTilerReturnsNull_ReschedulesUntilMaxAttemptsThenFails()
+    {
+        var tilesetId = Guid.NewGuid();
+        var tileset = new CellularCoverageTileset
+        {
+            Id = tilesetId,
+            IngestId = "ingest-transient",
+            Status = TilesetStatusEnum.Processing
+        };
+
+        _tilesetRepositoryMock
+            .Setup(r => r.Query(It.IsAny<Expression<Func<CellularCoverageTileset, bool>>>()))
+            .Returns(new TestAsyncEnumerable<CellularCoverageTileset>([tileset]));
+        _mapTilerServiceMock
+            .Setup(s => s.GetIngestDetailsAsync("ingest-transient", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((MapTilerIngestResponseDto?)null);
+
+        var job = CreateJob(new MapTilerOptions { PollMaxAttempts = 3, PollIntervalSeconds = 10 });
+
+        await job.ExecuteAsync(tilesetId, "ingest-transient", attemptCount: 2, CancellationToken.None);
+        _backgroundJobServiceMock.Verify(
+            b => b.Schedule<IPollMapTilerTilesetJob>(It.IsAny<Expression<Action<IPollMapTilerTilesetJob>>>(), TimeSpan.FromSeconds(10)),
+            Times.Once);
+        tileset.Status.Should().Be(TilesetStatusEnum.Processing);
+
+        await job.ExecuteAsync(tilesetId, "ingest-transient", attemptCount: 3, CancellationToken.None);
+        tileset.Status.Should().Be(TilesetStatusEnum.Failed);
+        tileset.ErrorMessage.Should().Contain("timed out");
+    }
+
+    [Theory]
+    [InlineData("completed", "doc-ready-1")]
+    [InlineData("", "doc-implicit-ready")]
+    [InlineData(null, "doc-null-state-ready")]
+    public async Task ExecuteAsync_WhenCompleted_MarksReadyDeactivatesSupersededAndDoesNotReschedule(string? state, string documentId)
+    {
+        var tilesetId = Guid.NewGuid();
+        var oldTileset = new CellularCoverageTileset
+        {
+            Id = Guid.NewGuid(),
+            DocumentId = documentId,
+            Status = TilesetStatusEnum.Ready,
+            IsActive = true
+        };
+        var tileset = new CellularCoverageTileset
+        {
+            Id = tilesetId,
+            IngestId = "ingest-done",
+            Status = TilesetStatusEnum.Processing,
+            ErrorMessage = "previous transient error",
+            IsActive = true
+        };
+
+        _tilesetRepositoryMock
+            .SetupSequence(r => r.Query(It.IsAny<Expression<Func<CellularCoverageTileset, bool>>>()))
+            .Returns(new TestAsyncEnumerable<CellularCoverageTileset>([tileset]))
+            .Returns(new TestAsyncEnumerable<CellularCoverageTileset>([oldTileset]));
+
+        _mapTilerServiceMock
+            .Setup(s => s.GetIngestDetailsAsync("ingest-done", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MapTilerIngestResponseDto { Id = "ingest-done", State = state!, DocumentId = documentId });
+        _mapTilerServiceMock
+            .Setup(s => s.GetTileJsonUrl(documentId, It.IsAny<string?>()))
+            .Returns($"https://api.maptiler.com/tiles/{documentId}/tiles.json?key=pub");
+
+        var job = CreateJob();
+
+        await job.ExecuteAsync(tilesetId, "ingest-done", attemptCount: 1, CancellationToken.None);
+
+        tileset.Status.Should().Be(TilesetStatusEnum.Ready);
+        tileset.DocumentId.Should().Be(documentId);
+        tileset.ErrorMessage.Should().BeNull();
+        tileset.TileJsonUrl.Should().Contain(documentId);
+        oldTileset.IsActive.Should().BeFalse();
+        _backgroundJobServiceMock.Verify(
+            b => b.Schedule<IPollMapTilerTilesetJob>(It.IsAny<Expression<Action<IPollMapTilerTilesetJob>>>(), It.IsAny<TimeSpan>()),
+            Times.Never);
+    }
+
+    [Theory]
+    [InlineData("upload")]
+    [InlineData("queued")]
+    [InlineData("unknown_future_state")]
+    public async Task ExecuteAsync_WhenUploadingTransitionsToProcessingAndReschedules(string state)
+    {
+        var tilesetId = Guid.NewGuid();
+        var tileset = new CellularCoverageTileset
+        {
+            Id = tilesetId,
+            IngestId = "ingest-in-progress",
+            Status = TilesetStatusEnum.Uploading
+        };
+
+        _tilesetRepositoryMock
+            .Setup(r => r.Query(It.IsAny<Expression<Func<CellularCoverageTileset, bool>>>()))
+            .Returns(new TestAsyncEnumerable<CellularCoverageTileset>([tileset]));
+        _mapTilerServiceMock
+            .Setup(s => s.GetIngestDetailsAsync("ingest-in-progress", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MapTilerIngestResponseDto { Id = "ingest-in-progress", State = state, DocumentId = Guid.Empty.ToString() });
+
+        var job = CreateJob(new MapTilerOptions { PollMaxAttempts = 10, PollIntervalSeconds = 15 });
+
+        await job.ExecuteAsync(tilesetId, "ingest-in-progress", attemptCount: 1, CancellationToken.None);
+
+        tileset.Status.Should().Be(TilesetStatusEnum.Processing);
+        _backgroundJobServiceMock.Verify(
+            b => b.Schedule<IPollMapTilerTilesetJob>(It.IsAny<Expression<Action<IPollMapTilerTilesetJob>>>(), TimeSpan.FromSeconds(15)),
+            Times.Once);
+    }
+
+    [Theory]
+    [InlineData("error")]
+    [InlineData("failed")]
+    [InlineData("canceled")]
+    public async Task ExecuteAsync_WhenTerminalErrorState_SanitizesSensitiveMetadataBeforePersisting(string terminalState)
+    {
+        var tilesetId = Guid.NewGuid();
+        var tileset = new CellularCoverageTileset
+        {
+            Id = tilesetId,
+            IngestId = "ingest-fail",
+            Status = TilesetStatusEnum.Processing
+        };
+
+        using var errorJson = JsonDocument.Parse(
+            """
+            {
+              "message": "Invalid MBTiles schema from https://storage.googleapis.com/internal-bucket/file?key=secret123&token=abc using Token superSecretToken at /var/app/ingest/worker.py"
+            }
+            """);
+
+        _tilesetRepositoryMock
+            .Setup(r => r.Query(It.IsAny<Expression<Func<CellularCoverageTileset, bool>>>()))
+            .Returns(new TestAsyncEnumerable<CellularCoverageTileset>([tileset]));
+        _mapTilerServiceMock
+            .Setup(s => s.GetIngestDetailsAsync("ingest-fail", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MapTilerIngestResponseDto
+            {
+                Id = "ingest-fail",
+                State = terminalState,
+                Errors = errorJson.RootElement.Clone()
+            });
+
+        var job = CreateJob();
+
+        await job.ExecuteAsync(tilesetId, "ingest-fail", attemptCount: 1, CancellationToken.None);
+
+        tileset.Status.Should().Be(TilesetStatusEnum.Failed);
+        tileset.ErrorMessage.Should().NotBeNullOrWhiteSpace();
+        tileset.ErrorMessage.Should().Contain("Invalid MBTiles schema");
+        tileset.ErrorMessage.Should().NotContain("secret123");
+        tileset.ErrorMessage.Should().NotContain("superSecretToken");
+        tileset.ErrorMessage.Should().NotContain("storage.googleapis.com");
+        tileset.ErrorMessage.Should().NotContain("/var/app/ingest/worker.py");
+        _backgroundJobServiceMock.Verify(
+            b => b.Schedule<IPollMapTilerTilesetJob>(It.IsAny<Expression<Action<IPollMapTilerTilesetJob>>>(), It.IsAny<TimeSpan>()),
+            Times.Never);
     }
 
     private sealed class TestAsyncEnumerable<T>(IEnumerable<T> enumerable)

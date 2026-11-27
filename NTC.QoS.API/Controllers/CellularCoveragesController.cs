@@ -151,12 +151,7 @@ public class CellularCoveragesController(
         [FromQuery][Required] string uploadUrl,
         CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(uploadUrl, UriKind.Absolute, out var targetUri) ||
-            targetUri.Scheme != Uri.UriSchemeHttps ||
-            !(targetUri.Host.EndsWith(".googleapis.com", StringComparison.OrdinalIgnoreCase) ||
-              targetUri.Host.EndsWith(".maptiler.com", StringComparison.OrdinalIgnoreCase) ||
-              targetUri.Host.EndsWith(".ovh.net", StringComparison.OrdinalIgnoreCase) ||
-              targetUri.Host.EndsWith(".amazonaws.com", StringComparison.OrdinalIgnoreCase)))
+        if (!IsAllowedMapTilerUploadUrl(uploadUrl))
         {
             return BadRequest(new ApiResponse<bool>
             {
@@ -289,6 +284,27 @@ public class CellularCoveragesController(
         }
         return cellularCoverages.Succeeded ? Ok(cellularCoverages) : BadRequest(cellularCoverages);
     }
+    private static bool IsAllowedMapTilerUploadUrl(string? uploadUrl)
+    {
+        if (string.IsNullOrWhiteSpace(uploadUrl))
+            return false;
+
+        if (!Uri.TryCreate(uploadUrl, UriKind.Absolute, out var targetUri))
+            return false;
+
+        if (targetUri.Scheme != Uri.UriSchemeHttps ||
+            !string.IsNullOrEmpty(targetUri.UserInfo) ||
+            !targetUri.IsDefaultPort)
+        {
+            return false;
+        }
+
+        return targetUri.Host.EndsWith(".googleapis.com", StringComparison.OrdinalIgnoreCase) ||
+               targetUri.Host.EndsWith(".maptiler.com", StringComparison.OrdinalIgnoreCase) ||
+               targetUri.Host.EndsWith(".ovh.net", StringComparison.OrdinalIgnoreCase) ||
+               targetUri.Host.EndsWith(".amazonaws.com", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void TrackCacheKey(string key)
     {
         var keys = memoryCache.GetOrCreate<HashSet<string>>(CellularCoverageCacheKeysSet, _ => []);

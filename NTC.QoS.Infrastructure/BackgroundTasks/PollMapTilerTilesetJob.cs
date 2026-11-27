@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -115,12 +117,15 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
 
         if (state == "error" || state == "failed" || state == "canceled")
         {
+            var sanitizedError = SanitizeExternalErrorMessage(details.Errors, state);
             tileset.Status = TilesetStatusEnum.Failed;
-            tileset.ErrorMessage = details.Errors?.ToString() ?? $"MapTiler ingestion ended with state: {state}";
+            tileset.ErrorMessage = sanitizedError;
             _tilesetRepository.Update(tileset);
             await _tilesetRepository.SaveChangesAsync(cancellationToken);
 
-            _logger.LogError("MapTiler ingestion failed for Tileset {TilesetId}: {Error}", tilesetId, tileset.ErrorMessage);
+            _logger.LogError(
+                "MapTiler ingestion failed for Tileset {TilesetId} (IngestId {IngestId}, State {State}). SanitizedError: {SanitizedError}",
+                tilesetId, ingestId, state, sanitizedError);
             return;
         }
 
@@ -155,6 +160,78 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
             tileset.ErrorMessage = "Ingestion polling timed out. Processing may still be running on MapTiler Cloud.";
             _tilesetRepository.Update(tileset);
             await _tilesetRepository.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    internal static string SanitizeExternalErrorMessage(object? rawErrors, string? state)
+    {
+        var fallback = $"MapTiler ingestion ended with state: {state ?? "failed"}.";
+        var extracted = ExtractErrorText(rawErrors);
+        if (string.IsNullOrWhiteSpace(extracted))
+        {
+            return fallback;
+        }
+
+        // Strip URLs, auth/query secrets, stack trace lines, and file paths so internal metadata is never persisted
+        var sanitized = Regex.Replace(extracted, @"https?://\S+", "[redacted-url]", RegexOptions.IgnoreCase);
+        sanitized = Regex.Replace(sanitized, @"\b(api[_-]?key|key|token|signature|sig|authorization|secret)\s*[:=]\s*\S+", "$1=[redacted]", RegexOptions.IgnoreCase);
+        sanitized = Regex.Replace(sanitized, @"\b(Bearer|Token)\s+[A-Za-z0-9\-._~+/]+=*", "$1 [redacted]", RegexOptions.IgnoreCase);
+        sanitized = Regex.Replace(sanitized, @"(?:[A-Za-z]:\\|/(?:var|srv|home|opt|tmp|etc|usr|app)/)\S+", "[redacted-path]", RegexOptions.IgnoreCase);
+        sanitized = Regex.Replace(sanitized, @"\s+at\s+\S+\(.*?\)", string.Empty, RegexOptions.IgnoreCase);
+        sanitized = Regex.Replace(sanitized, @"\s+", " ").Trim();
+
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            return fallback;
+        }
+
+        const int maxLength = 256;
+        return sanitized.Length > maxLength ? sanitized[..(maxLength - 3)] + "..." : sanitized;
+    }
+
+    private static string? ExtractErrorText(object? rawErrors)
+    {
+        if (rawErrors == null) return null;
+
+        if (rawErrors is JsonElement element)
+        {
+            return ExtractFromJsonElement(element);
+        }
+
+        return rawErrors.ToString();
+    }
+
+    private static string? ExtractFromJsonElement(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                return element.GetString();
+
+            case JsonValueKind.Array:
+                var parts = new List<string>();
+                foreach (var item in element.EnumerateArray())
+                {
+                    var text = ExtractFromJsonElement(item);
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        parts.Add(text);
+                    }
+                }
+                return parts.Count > 0 ? string.Join("; ", parts) : null;
+
+            case JsonValueKind.Object:
+                foreach (var propName in new[] { "message", "error", "detail", "reason" })
+                {
+                    if (element.TryGetProperty(propName, out var prop) && prop.ValueKind == JsonValueKind.String)
+                    {
+                        return prop.GetString();
+                    }
+                }
+                return null;
+
+            default:
+                return null;
         }
     }
 }

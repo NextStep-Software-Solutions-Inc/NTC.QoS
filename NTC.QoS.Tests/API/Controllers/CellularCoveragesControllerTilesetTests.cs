@@ -94,9 +94,18 @@ public class CellularCoveragesControllerTilesetTests
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
     [InlineData("not-a-valid-uri")]
+    [InlineData("/relative/upload/path")]
     [InlineData("http://upload.googleapis.com/insecure")]
+    [InlineData("ftp://upload.googleapis.com/file")]
     [InlineData("https://evil.example.com/upload")]
+    [InlineData("https://evil-googleapis.com/upload")]
+    [InlineData("https://googleapis.com/upload")]
+    [InlineData("https://upload.googleapis.com@evil.com/upload")]
+    [InlineData("https://user:pass@upload.googleapis.com/upload")]
+    [InlineData("https://upload.googleapis.com:8443/upload")]
     public async Task UploadTilesetBinary_WhenUploadUrlInvalidOrDisallowedHost_ReturnsBadRequest(string badUrl)
     {
         // Act
@@ -112,14 +121,18 @@ public class CellularCoveragesControllerTilesetTests
             Times.Never);
     }
 
-    [Fact]
-    public async Task UploadTilesetBinary_WhenValidHostAndUploadSucceeds_ReturnsOk()
+    [Theory]
+    [InlineData("https://upload.googleapis.com/resumable/abc")]
+    [InlineData("https://storage.maptiler.com/upload/123")]
+    [InlineData("https://s3.gra.io.cloud.ovh.net/bucket/key")]
+    [InlineData("https://bucket.s3.eu-central-1.amazonaws.com/key")]
+    [InlineData("https://UPLOAD.GOOGLEAPIS.COM/resumable/upper")]
+    public async Task UploadTilesetBinary_WhenValidAllowedHostAndUploadSucceeds_ReturnsOk(string validUrl)
     {
         // Arrange
         var bytes = Encoding.UTF8.GetBytes("mock-mbtiles-bytes");
         _controller.HttpContext.Request.Body = new MemoryStream(bytes);
         _controller.HttpContext.Request.ContentLength = bytes.Length;
-        const string validUrl = "https://upload.googleapis.com/resumable/abc";
 
         _mapTilerIngestServiceMock
             .Setup(s => s.UploadBinaryAsync(validUrl, It.IsAny<Stream>(), bytes.Length, It.IsAny<CancellationToken>()))
