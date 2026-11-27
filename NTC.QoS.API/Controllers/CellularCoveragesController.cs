@@ -174,6 +174,16 @@ public class CellularCoveragesController(
 
         if (!uploaded)
         {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return StatusCode(499, new ApiResponse<bool>
+                {
+                    Succeeded = false,
+                    Message = "Binary upload was cancelled by the client.",
+                    Data = false
+                });
+            }
+
             return StatusCode(502, new ApiResponse<bool>
             {
                 Succeeded = false,

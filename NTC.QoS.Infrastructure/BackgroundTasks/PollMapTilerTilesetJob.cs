@@ -1,9 +1,11 @@
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NTC.QoS.Domain.Entities;
 using NTC.QoS.Domain.Enums;
 using NTC.QoS.Domain.Interfaces;
+using NTC.QoS.Infrastructure.Configuration;
 
 namespace NTC.QoS.Infrastructure.BackgroundTasks;
 
@@ -12,24 +14,28 @@ namespace NTC.QoS.Infrastructure.BackgroundTasks;
 /// </summary>
 public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
 {
-    private const int MaxAttempts = 60; // Up to ~15 minutes of polling (15s intervals)
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(15);
-
     private readonly IRepository<CellularCoverageTileset> _tilesetRepository;
     private readonly IMapTilerIngestService _mapTilerService;
     private readonly IBackgroundJobService _backgroundJobService;
     private readonly ILogger<PollMapTilerTilesetJob> _logger;
+    private readonly int _maxAttempts;
+    private readonly TimeSpan _pollInterval;
 
     public PollMapTilerTilesetJob(
         IRepository<CellularCoverageTileset> tilesetRepository,
         IMapTilerIngestService mapTilerService,
         IBackgroundJobService backgroundJobService,
-        ILogger<PollMapTilerTilesetJob> logger)
+        ILogger<PollMapTilerTilesetJob> logger,
+        IOptions<MapTilerOptions>? options = null)
     {
         _tilesetRepository = tilesetRepository;
         _mapTilerService = mapTilerService;
         _backgroundJobService = backgroundJobService;
         _logger = logger;
+
+        var mapTilerOptions = options?.Value ?? new MapTilerOptions();
+        _maxAttempts = Math.Max(1, mapTilerOptions.PollMaxAttempts);
+        _pollInterval = TimeSpan.FromSeconds(Math.Max(5, mapTilerOptions.PollIntervalSeconds));
     }
 
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
@@ -41,7 +47,7 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
     {
         _logger.LogInformation(
             "Polling MapTiler ingest for Tileset {TilesetId}, IngestId {IngestId} (Attempt {Attempt}/{MaxAttempts})",
-            tilesetId, ingestId, attemptCount, MaxAttempts);
+            tilesetId, ingestId, attemptCount, _maxAttempts);
 
         var tileset = await _tilesetRepository
             .Query(t => t.Id == tilesetId)
@@ -57,7 +63,7 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
         if (details == null)
         {
             _logger.LogWarning("Failed to fetch ingest details from MapTiler for {IngestId}", ingestId);
-            RescheduleOrTimeout(tilesetId, ingestId, attemptCount, tileset);
+            await RescheduleOrTimeoutAsync(tilesetId, ingestId, attemptCount, tileset, cancellationToken);
             return;
         }
 
@@ -126,28 +132,29 @@ public class PollMapTilerTilesetJob : IPollMapTilerTilesetJob
             await _tilesetRepository.SaveChangesAsync(cancellationToken);
         }
 
-        RescheduleOrTimeout(tilesetId, ingestId, attemptCount, tileset);
+        await RescheduleOrTimeoutAsync(tilesetId, ingestId, attemptCount, tileset, cancellationToken);
     }
 
-    private void RescheduleOrTimeout(
+    private async Task RescheduleOrTimeoutAsync(
         Guid tilesetId,
         string ingestId,
         int attemptCount,
-        CellularCoverageTileset tileset)
+        CellularCoverageTileset tileset,
+        CancellationToken cancellationToken)
     {
-        if (attemptCount < MaxAttempts)
+        if (attemptCount < _maxAttempts)
         {
             _backgroundJobService.Schedule<IPollMapTilerTilesetJob>(
                 job => job.ExecuteAsync(tilesetId, ingestId, attemptCount + 1, CancellationToken.None),
-                PollInterval);
+                _pollInterval);
         }
         else
         {
-            _logger.LogError("MapTiler polling timed out after {MaxAttempts} attempts for Tileset {TilesetId}", MaxAttempts, tilesetId);
+            _logger.LogError("MapTiler polling timed out after {MaxAttempts} attempts for Tileset {TilesetId}", _maxAttempts, tilesetId);
             tileset.Status = TilesetStatusEnum.Failed;
             tileset.ErrorMessage = "Ingestion polling timed out. Processing may still be running on MapTiler Cloud.";
             _tilesetRepository.Update(tileset);
-            _tilesetRepository.SaveChangesAsync(CancellationToken.None).GetAwaiter().GetResult();
+            await _tilesetRepository.SaveChangesAsync(cancellationToken);
         }
     }
 }

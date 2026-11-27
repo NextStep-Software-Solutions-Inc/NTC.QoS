@@ -14,7 +14,10 @@ namespace NTC.QoS.Infrastructure.Services;
 /// </summary>
 public class MapTilerIngestService : IMapTilerIngestService
 {
+    public const string UploadHttpClientName = "MapTilerUpload";
+
     private readonly HttpClient _httpClient;
+    private readonly IHttpClientFactory? _httpClientFactory;
     private readonly MapTilerOptions _options;
     private readonly ILogger<MapTilerIngestService> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -25,9 +28,11 @@ public class MapTilerIngestService : IMapTilerIngestService
     public MapTilerIngestService(
         HttpClient httpClient,
         IOptions<MapTilerOptions> options,
-        ILogger<MapTilerIngestService> logger)
+        ILogger<MapTilerIngestService> logger,
+        IHttpClientFactory? httpClientFactory = null)
     {
         _httpClient = httpClient;
+        _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _logger = logger;
     }
@@ -118,14 +123,21 @@ public class MapTilerIngestService : IMapTilerIngestService
         long? contentLength,
         CancellationToken cancellationToken = default)
     {
+        HttpClient? ownedUploadClient = null;
         try
         {
-            using var uploadClient = new HttpClient
+            var uploadClient = _httpClientFactory?.CreateClient(UploadHttpClientName);
+            if (uploadClient == null)
             {
-                Timeout = TimeSpan.FromMinutes(30)
-            };
+                ownedUploadClient = new HttpClient
+                {
+                    Timeout = TimeSpan.FromMinutes(Math.Max(1, _options.UploadTimeoutMinutes))
+                };
+                uploadClient = ownedUploadClient;
+            }
 
-            using var streamContent = new StreamContent(content);
+            await using var countingStream = new CountingReadStream(content);
+            using var streamContent = new StreamContent(countingStream);
             streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             if (contentLength.HasValue && contentLength.Value > 0)
             {
@@ -149,13 +161,30 @@ public class MapTilerIngestService : IMapTilerIngestService
                 return false;
             }
 
-            _logger.LogInformation("MapTiler binary upload succeeded with status {StatusCode}", response.StatusCode);
+            if (contentLength.HasValue && contentLength.Value > 0 && countingStream.BytesRead != contentLength.Value)
+            {
+                _logger.LogError(
+                    "MapTiler binary upload was truncated: expected {ExpectedBytes} bytes but streamed {ActualBytes} bytes",
+                    contentLength.Value, countingStream.BytesRead);
+                return false;
+            }
+
+            _logger.LogInformation("MapTiler binary upload succeeded with status {StatusCode} ({Bytes} bytes)", response.StatusCode, countingStream.BytesRead);
             return true;
+        }
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "MapTiler binary upload was cancelled by the client");
+            return false;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception while streaming binary content to MapTiler upload storage");
             return false;
+        }
+        finally
+        {
+            ownedUploadClient?.Dispose();
         }
     }
 
@@ -262,5 +291,47 @@ public class MapTilerIngestService : IMapTilerIngestService
         {
             _logger.LogWarning("MapTiler ServiceToken is not configured. Service API requests may fail authentication.");
         }
+    }
+
+    private sealed class CountingReadStream(Stream inner) : Stream
+    {
+        public long BytesRead { get; private set; }
+
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => BytesRead;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => inner.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = inner.Read(buffer, offset, count);
+            BytesRead += read;
+            return read;
+        }
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            var read = await inner.ReadAsync(buffer, offset, count, cancellationToken);
+            BytesRead += read;
+            return read;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var read = await inner.ReadAsync(buffer, cancellationToken);
+            BytesRead += read;
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

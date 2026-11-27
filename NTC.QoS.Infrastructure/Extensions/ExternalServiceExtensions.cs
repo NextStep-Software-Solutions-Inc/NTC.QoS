@@ -55,6 +55,11 @@ internal static class ExternalServiceExtensions
             client.BaseAddress = new Uri(baseUrl + "/");
             client.Timeout = TimeSpan.FromSeconds(60);
         });
+        services.AddHttpClient(MapTilerIngestService.UploadHttpClientName, (sp, client) =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MapTilerOptions>>().Value;
+            client.Timeout = TimeSpan.FromMinutes(Math.Max(1, options.UploadTimeoutMinutes));
+        });
 
         return services;
     }

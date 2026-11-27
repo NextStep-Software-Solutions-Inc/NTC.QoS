@@ -28,4 +28,20 @@ public class MapTilerOptions
     /// leave empty on higher-tier plans to create a new tileset per upload.
     /// </summary>
     public string? DefaultDocumentId { get; set; }
+
+    /// <summary>
+    /// Maximum number of polling attempts for MapTiler ingestion before timing out.
+    /// Defaults to 120 (~30 minutes at 15-second intervals) to accommodate large MBTiles under heavy load.
+    /// </summary>
+    public int PollMaxAttempts { get; set; } = 120;
+
+    /// <summary>
+    /// Delay in seconds between MapTiler ingestion status polls (default: 15 seconds).
+    /// </summary>
+    public int PollIntervalSeconds { get; set; } = 15;
+
+    /// <summary>
+    /// HTTP timeout in minutes for streaming large MBTiles uploads to MapTiler storage (default: 30 minutes).
+    /// </summary>
+    public int UploadTimeoutMinutes { get; set; } = 30;
 }
